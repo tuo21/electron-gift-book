@@ -336,7 +336,7 @@ const handleSearchResultClick = (record: Record) => {
 // ==================== 启动页处理函数 ====================
 
 // 处理启动页开始事件
-const handleSplashStart = async (data: { eventName: string; theme: ThemeType; action: 'new' | 'open'; filePath?: string }) => {
+const handleSplashStart = async (data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }) => {
   // 设置主题
   setTheme(data.theme, true);
   
@@ -350,9 +350,8 @@ const handleSplashStart = async (data: { eventName: string; theme: ThemeType; ac
   } else if (data.action === 'open' && data.filePath) {
     // 打开已有数据
     await handleOpenExistingBook(data.filePath, data.eventName);
-  } else if (data.action === 'import' && data.filePath) {
-    // 导入数据
-    await handleImportData(data.filePath, data.eventName);
+  // 移除 import 分支，因为 handleSplashStart 函数不支持 import 动作
+
   }
   
   // 隐藏启动页，显示主应用
@@ -380,9 +379,9 @@ const handleCreateNewBook = async (eventName: string) => {
     
     // 创建新的数据库
     const response = await window.electronAPI.createNewDatabase(newFileName);
-    if (response.success && response.filePath) {
-      setCurrentDbPath(response.filePath);
-      addToRecentBooks(eventName, response.filePath);
+    if (response.success && response.data?.filePath) {
+      setCurrentDbPath(response.data.filePath);
+      addToRecentBooks(eventName, response.data.filePath);
       records.value = [];
       statistics.value = {
         totalCount: 0,
@@ -443,9 +442,9 @@ const handleImportData = async (data: { eventName: string; records: any[] }) => 
     // 创建新的数据库用于导入
     const newFileName = generateFileName(data.eventName);
     const response = await window.electronAPI.createNewDatabase(newFileName);
-    if (response.success && response.filePath) {
-      setCurrentDbPath(response.filePath);
-      addToRecentBooks(data.eventName, response.filePath);
+    if (response.success && response.data?.filePath) {
+      setCurrentDbPath(response.data.filePath);
+      addToRecentBooks(data.eventName, response.data.filePath);
 
       // 转换记录格式并批量插入
       const dbRecords = data.records.map(record => ({
@@ -461,10 +460,12 @@ const handleImportData = async (data: { eventName: string; records: any[] }) => 
 
       // 批量插入记录
       if (dbRecords.length > 0) {
-        const insertResponse = await window.db.batchInsertRecords(dbRecords as any);
-        if (!insertResponse.success) {
-          alert('导入记录失败: ' + (insertResponse.error || '未知错误'));
-          return;
+        for (const record of dbRecords) {
+          const insertResponse = await window.db.insertRecord(record as any);
+          if (!insertResponse.success) {
+            alert('导入记录失败: ' + (insertResponse.error || '未知错误'));
+            return;
+          }
         }
       }
 
@@ -526,9 +527,9 @@ const handleDeleteFile = (filePath: string) => {
 const scanDataDirectory = async () => {
   try {
     const response = await window.electronAPI.getRecentDatabases();
-    if (response.success && response.recentDatabases) {
+    if (response.success && response.data?.recentDatabases) {
       // 更新最近列表
-      config.value.recentBooks = response.recentDatabases;
+      config.value.recentBooks = response.data.recentDatabases;
     }
   } catch (error) {
     console.error('扫描数据目录失败:', error);

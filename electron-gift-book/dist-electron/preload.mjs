@@ -1,28 +1,2 @@
-"use strict";
-const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("db", {
-  getAllRecords: () => electron.ipcRenderer.invoke("db:getAllRecords"),
-  getRecordById: (id) => electron.ipcRenderer.invoke("db:getRecordById", id),
-  searchRecords: (keyword) => electron.ipcRenderer.invoke("db:searchRecords", keyword),
-  insertRecord: (record) => electron.ipcRenderer.invoke("db:insertRecord", record),
-  updateRecord: (record) => electron.ipcRenderer.invoke("db:updateRecord", record),
-  softDeleteRecord: (id) => electron.ipcRenderer.invoke("db:softDeleteRecord", id),
-  getRecordHistory: (recordId) => electron.ipcRenderer.invoke("db:getRecordHistory", recordId),
-  getAllRecordHistory: () => electron.ipcRenderer.invoke("db:getAllRecordHistory"),
-  getStatistics: () => electron.ipcRenderer.invoke("db:getStatistics"),
-  batchInsertRecords: (records) => electron.ipcRenderer.invoke("db:batchInsertRecords", records)
-});
-electron.contextBridge.exposeInMainWorld("app", {
-  generatePDF: (data) => electron.ipcRenderer.invoke("app:generatePDF", data)
-});
-electron.contextBridge.exposeInMainWorld("electronAPI", {
-  openDatabaseFile: () => electron.ipcRenderer.invoke("electron:openDatabaseFile"),
-  createNewDatabase: (fileName) => electron.ipcRenderer.invoke("electron:createNewDatabase", fileName),
-  switchDatabase: (filePath) => electron.ipcRenderer.invoke("electron:switchDatabase", filePath),
-  saveCurrentDatabase: (fileName) => electron.ipcRenderer.invoke("electron:saveCurrentDatabase", fileName),
-  getRecentDatabases: () => electron.ipcRenderer.invoke("electron:getRecentDatabases"),
-  deleteDatabase: (filePath) => electron.ipcRenderer.invoke("electron:deleteDatabase", filePath),
-  openImportFile: () => electron.ipcRenderer.invoke("electron:openImportFile"),
-  parseImportFile: (filePath) => electron.ipcRenderer.invoke("electron:parseImportFile", filePath)
-});
+"use strict";const r=require("electron");r.contextBridge.exposeInMainWorld("db",{getAllRecords:()=>r.ipcRenderer.invoke("db:getAllRecords"),getRecordById:e=>r.ipcRenderer.invoke("db:getRecordById",e),searchRecords:e=>r.ipcRenderer.invoke("db:searchRecords",e),insertRecord:e=>r.ipcRenderer.invoke("db:insertRecord",e),updateRecord:e=>r.ipcRenderer.invoke("db:updateRecord",e),softDeleteRecord:e=>r.ipcRenderer.invoke("db:softDeleteRecord",e),getRecordHistory:e=>r.ipcRenderer.invoke("db:getRecordHistory",e),getAllRecordHistory:()=>r.ipcRenderer.invoke("db:getAllRecordHistory"),getStatistics:()=>r.ipcRenderer.invoke("db:getStatistics"),batchInsertRecords:e=>r.ipcRenderer.invoke("db:batchInsertRecords",e)});r.contextBridge.exposeInMainWorld("app",{generatePDF:e=>r.ipcRenderer.invoke("app:generatePDF",e)});r.contextBridge.exposeInMainWorld("electronAPI",{openDatabaseFile:()=>r.ipcRenderer.invoke("electron:openDatabaseFile"),createNewDatabase:e=>r.ipcRenderer.invoke("electron:createNewDatabase",e),switchDatabase:e=>r.ipcRenderer.invoke("electron:switchDatabase",e),saveCurrentDatabase:e=>r.ipcRenderer.invoke("electron:saveCurrentDatabase",e),getRecentDatabases:()=>r.ipcRenderer.invoke("electron:getRecentDatabases"),deleteDatabase:e=>r.ipcRenderer.invoke("electron:deleteDatabase",e),openImportFile:()=>r.ipcRenderer.invoke("electron:openImportFile"),parseImportFile:e=>r.ipcRenderer.invoke("electron:parseImportFile",e)});
 //# sourceMappingURL=preload.mjs.map

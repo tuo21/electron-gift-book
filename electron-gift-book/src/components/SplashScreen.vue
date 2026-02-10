@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue';
 import ImportDialog from './ImportDialog.vue';
 import type { ImportPreview, ParsedRecord } from '../utils/import';
-import { getImportPreview, matchFields } from '../utils/import';
+import { matchFields } from '../utils/import';
 
 // ==================== 类型定义 ====================
 type ThemeType = 'wedding' | 'funeral';
@@ -27,7 +27,7 @@ interface SplashScreenEmits {
 
 // ==================== Props & Emits ====================
 const props = withDefaults(defineProps<SplashScreenProps>(), {
-  defaultEventName: '电子礼金簿',
+  defaultEventName: '',
   defaultTheme: 'wedding',
   recentFiles: () => []
 });
@@ -175,7 +175,7 @@ const handleCreateNew = async () => {
   
   // 触发开始事件
   emit('start', {
-    eventName: eventName.value.trim() || '电子礼金簿',
+    eventName: eventName.value.trim(),
     theme: selectedTheme.value,
     action: 'new'
   });
@@ -212,9 +212,9 @@ const handleImport = async () => {
   try {
     // 打开文件对话框选择要导入的 Excel 文件
     const response = await window.electronAPI.openImportFile();
-    if (response.success && response.filePath) {
+    if (response.success && response.data?.filePath) {
       // 通过 IPC 调用主进程解析文件
-      const parseResponse = await window.electronAPI.parseImportFile(response.filePath);
+      const parseResponse = await window.electronAPI.parseImportFile(response.data.filePath);
       if (!parseResponse.success) {
         alert('解析文件失败: ' + (parseResponse.error || '未知错误'));
         return;
@@ -226,10 +226,10 @@ const handleImport = async () => {
 
       // 获取未匹配的表头
       const matchedIndices = new Set(mappings.map(m => m.excelIndex));
-      const unmatchedHeaders = headers.filter((_, index) => !matchedIndices.has(index));
+      const unmatchedHeaders = headers.filter((_: any, index: number) => !matchedIndices.has(index));
 
       // 获取预览数据（前5行）
-      const previewData = data.slice(0, 5).map(row => {
+      const previewData = data.slice(0, 5).map((row: any) => {
         const obj: Record<string, any> = {};
         mappings.forEach(mapping => {
           obj[mapping.standardLabel] = row[mapping.excelIndex];
@@ -237,7 +237,7 @@ const handleImport = async () => {
         return obj;
       });
 
-      importFilePath.value = response.filePath;
+      importFilePath.value = response.data.filePath;
       importPreview.value = {
         headers,
         mappings,
@@ -245,7 +245,7 @@ const handleImport = async () => {
         totalRows,
         unmatchedHeaders
       };
-      defaultImportName.value = extractEventNameFromFileName(response.filePath);
+      defaultImportName.value = extractEventNameFromFileName(response.data.filePath);
       showImportDialog.value = true;
     }
   } catch (error) {
@@ -287,10 +287,6 @@ onMounted(() => {
   document.addEventListener('click', closeContextMenu);
 });
 
-// 在组件卸载时移除事件监听
-const cleanup = () => {
-  document.removeEventListener('click', closeContextMenu);
-};
 </script>
 
 <template>
@@ -422,42 +418,42 @@ const cleanup = () => {
         </div>
       </div>
 
-      <!-- 右键菜单 -->
-      <div
-        v-if="showContextMenu"
-        class="context-menu"
-        :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
-        @click.stop
-      >
-        <div class="context-menu-item delete-item" @click="showDeleteDialog">
-          <span class="menu-icon">🗑️</span>
-          <span class="menu-text">删除</span>
-        </div>
-      </div>
-
-      <!-- 删除确认弹窗 -->
-      <div v-if="showDeleteConfirm" class="modal-overlay" @click="closeDeleteDialog">
-        <div class="modal-content delete-modal" @click.stop>
-          <div class="modal-header">
-            <h3 class="modal-title">确认删除</h3>
-            <button class="modal-close" @click="closeDeleteDialog">×</button>
-          </div>
-          <div class="modal-body">
-            <p class="delete-message">
-              确定要删除礼金簿 <strong>{{ fileToDelete?.name }}</strong> 吗？<br>
-              <span class="delete-warning">此操作不可恢复！</span>
-            </p>
-            <div class="delete-actions">
-              <button class="delete-btn cancel-btn" @click="closeDeleteDialog">取消</button>
-              <button class="delete-btn confirm-btn" @click="confirmDelete">确认删除</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- 底部提示 -->
       <div class="footer-section">
         <p class="footer-text">数据自动保存，安全可靠</p>
+      </div>
+    </div>
+
+    <!-- 右键菜单 -->
+    <div
+      v-if="showContextMenu"
+      class="context-menu"
+      :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+      @click.stop
+    >
+      <div class="context-menu-item delete-item" @click="showDeleteDialog">
+        <span class="menu-icon">🗑️</span>
+        <span class="menu-text">删除</span>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click="closeDeleteDialog">
+      <div class="modal-content delete-modal" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">确认删除</h3>
+          <button class="modal-close" @click="closeDeleteDialog">×</button>
+        </div>
+        <div class="modal-body">
+          <p class="delete-message">
+            确定要删除礼金簿 <strong>{{ fileToDelete?.name }}</strong> 吗？<br>
+            <span class="delete-warning">此操作不可恢复！</span>
+          </p>
+          <div class="delete-actions">
+            <button class="delete-btn cancel-btn" @click="closeDeleteDialog">取消</button>
+            <button class="delete-btn confirm-btn" @click="confirmDelete">确认删除</button>
+          </div>
+        </div>
       </div>
     </div>
 

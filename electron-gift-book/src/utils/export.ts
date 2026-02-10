@@ -95,15 +95,11 @@ export async function exportToPDF(
       remark: record.remark
     }))
 
-    // 生成文件名
-    const filename = generateExportFileName(eventName)
-
     // 调用 Electron API 生成 PDF
     const response = await window.app.generatePDF({
       records: serializableRecords,
       appName: eventName,
       exportDate,
-      filename,
       theme
     })
 

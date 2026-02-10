@@ -92,6 +92,8 @@ export interface ElectronAPI {
   deleteDatabase: (filePath: string) => Promise<ApiResponse>
   // 打开导入文件对话框（Excel）
   openImportFile: () => Promise<ApiResponse<{ filePath: string }>>
+  // 解析导入文件
+  parseImportFile: (filePath: string) => Promise<ApiResponse<{ headers: string[]; data: any[]; totalRows: number }>>
 }
 
 // 扩展 Window 接口

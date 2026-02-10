@@ -31,11 +31,6 @@ const standardFields = computed(() => {
   }));
 });
 
-// 未映射的标准字段
-const unmappedStandardFields = computed(() => {
-  const mapped = new Set(customMappings.value.map(m => m.standardField));
-  return standardFields.value.filter(f => !mapped.has(f.field));
-});
 
 // 已使用的 Excel 列
 const usedExcelIndices = computed(() => {
@@ -217,7 +212,7 @@ const handleClose = () => {
               <select
                 class="mapping-select"
                 :value="getCurrentMapping(field.field) ?? ''"
-                @change="updateMapping(field.field, $event.target.value === '' ? null : parseInt($event.target.value))"
+                @change="(e) => { const target = e.target as HTMLSelectElement; updateMapping(field.field, target.value === '' ? null : parseInt(target.value)); }"
               >
                 <option value="">-- 不导入 --</option>
                 <option

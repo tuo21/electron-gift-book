@@ -18,8 +18,7 @@ export interface RecentBook {
 
 // ==================== 常量定义 ====================
 const STORAGE_KEY = 'gift-book-config';
-const DEFAULT_EVENT_NAME = '电子礼金簿';
-const DEFAULT_DB_NAME = 'gift-book.db';
+const DEFAULT_EVENT_NAME = '';
 
 // ==================== 响应式状态 ====================
 const config = ref<AppConfig>({

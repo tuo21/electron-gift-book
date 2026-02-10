@@ -26504,7 +26504,7 @@ function setupIpcHandlers() {
       });
       if (filePath) {
         fs.writeFileSync(filePath, pdfBuffer);
-        return { success: true, filePath };
+        return { success: true, data: { filePath } };
       } else {
         return { success: false, error: "用户取消保存" };
       }
@@ -26525,7 +26525,7 @@ function setupIpcHandlers() {
         properties: ["openFile"]
       });
       if (filePaths && filePaths.length > 0) {
-        return { success: true, filePath: filePaths[0] };
+        return { success: true, data: { filePath: filePaths[0] } };
       } else {
         return { success: false, error: "用户取消选择" };
       }
@@ -26546,7 +26546,7 @@ function setupIpcHandlers() {
         counter++;
       }
       initDatabase(finalPath);
-      return { success: true, filePath: finalPath };
+      return { success: true, data: { filePath: finalPath } };
     } catch (error) {
       console.error("创建新数据库失败:", error);
       return { success: false, error: error.message };
@@ -26583,9 +26583,9 @@ function setupIpcHandlers() {
         closeDatabase();
         fs.renameSync(dbPath, finalPath);
         initDatabase(finalPath);
-        return { success: true, filePath: finalPath };
+        return { success: true, data: { filePath: finalPath } };
       }
-      return { success: true, filePath: dbPath };
+      return { success: true, data: { filePath: dbPath } };
     } catch (error) {
       console.error("保存数据库失败:", error);
       return { success: false, error: error.message };
@@ -26603,7 +26603,7 @@ function setupIpcHandlers() {
           lastOpened: stats.mtime.toISOString()
         };
       }).sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
-      return { success: true, recentDatabases: dbFiles };
+      return { success: true, data: { recentDatabases: dbFiles } };
     } catch (error) {
       console.error("获取最近数据库列表失败:", error);
       return { success: false, error: error.message };
@@ -26637,7 +26637,7 @@ function setupIpcHandlers() {
         properties: ["openFile"]
       });
       if (filePaths && filePaths.length > 0) {
-        return { success: true, filePath: filePaths[0] };
+        return { success: true, data: { filePath: filePaths[0] } };
       } else {
         return { success: false, error: "用户取消选择" };
       }

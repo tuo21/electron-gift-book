@@ -317,7 +317,7 @@ function setupIpcHandlers() {
 
       if (filePath) {
         fs.writeFileSync(filePath, pdfBuffer)
-        return { success: true, filePath }
+        return { success: true, data: { filePath } }
       } else {
         return { success: false, error: '用户取消保存' }
       }
@@ -343,7 +343,7 @@ function setupIpcHandlers() {
       })
 
       if (filePaths && filePaths.length > 0) {
-        return { success: true, filePath: filePaths[0] }
+        return { success: true, data: { filePath: filePaths[0] } }
       } else {
         return { success: false, error: '用户取消选择' }
       }
@@ -372,7 +372,7 @@ function setupIpcHandlers() {
       // 重新初始化数据库（传入新路径，会创建新文件）
       initDatabase(finalPath)
 
-      return { success: true, filePath: finalPath }
+      return { success: true, data: { filePath: finalPath } }
     } catch (error) {
       console.error('创建新数据库失败:', error)
       return { success: false, error: (error as Error).message }
@@ -429,10 +429,10 @@ function setupIpcHandlers() {
         // 重新初始化数据库（使用新路径）
         initDatabase(finalPath)
 
-        return { success: true, filePath: finalPath }
+        return { success: true, data: { filePath: finalPath } }
       }
 
-      return { success: true, filePath: dbPath }
+      return { success: true, data: { filePath: dbPath } }
     } catch (error) {
       console.error('保存数据库失败:', error)
       return { success: false, error: (error as Error).message }
@@ -457,7 +457,7 @@ function setupIpcHandlers() {
         })
         .sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime())
 
-      return { success: true, recentDatabases: dbFiles }
+      return { success: true, data: { recentDatabases: dbFiles } }
     } catch (error) {
       console.error('获取最近数据库列表失败:', error)
       return { success: false, error: (error as Error).message }
@@ -502,7 +502,7 @@ function setupIpcHandlers() {
       })
 
       if (filePaths && filePaths.length > 0) {
-        return { success: true, filePath: filePaths[0] }
+        return { success: true, data: { filePath: filePaths[0] } }
       } else {
         return { success: false, error: '用户取消选择' }
       }
