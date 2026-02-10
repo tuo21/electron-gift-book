@@ -9,7 +9,8 @@ electron.contextBridge.exposeInMainWorld("db", {
   softDeleteRecord: (id) => electron.ipcRenderer.invoke("db:softDeleteRecord", id),
   getRecordHistory: (recordId) => electron.ipcRenderer.invoke("db:getRecordHistory", recordId),
   getAllRecordHistory: () => electron.ipcRenderer.invoke("db:getAllRecordHistory"),
-  getStatistics: () => electron.ipcRenderer.invoke("db:getStatistics")
+  getStatistics: () => electron.ipcRenderer.invoke("db:getStatistics"),
+  batchInsertRecords: (records) => electron.ipcRenderer.invoke("db:batchInsertRecords", records)
 });
 electron.contextBridge.exposeInMainWorld("app", {
   generatePDF: (data) => electron.ipcRenderer.invoke("app:generatePDF", data)
@@ -21,6 +22,7 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   saveCurrentDatabase: (fileName) => electron.ipcRenderer.invoke("electron:saveCurrentDatabase", fileName),
   getRecentDatabases: () => electron.ipcRenderer.invoke("electron:getRecentDatabases"),
   deleteDatabase: (filePath) => electron.ipcRenderer.invoke("electron:deleteDatabase", filePath),
-  openImportFile: () => electron.ipcRenderer.invoke("electron:openImportFile")
+  openImportFile: () => electron.ipcRenderer.invoke("electron:openImportFile"),
+  parseImportFile: (filePath) => electron.ipcRenderer.invoke("electron:parseImportFile", filePath)
 });
 //# sourceMappingURL=preload.mjs.map

@@ -231,9 +231,8 @@ const handleExportExcel = async () => {
 
   isExporting.value = true;
   try {
-    const now = new Date();
-    const filename = `礼金簿_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    exportToExcel(records.value, filename);
+    // 使用事务名称作为文件名
+    exportToExcel(records.value, appName.value);
     closeExportModal();
   } catch (error) {
     console.error('导出 Excel 失败:', error);
@@ -252,9 +251,6 @@ const handleExportPDF = async () => {
 
   isExporting.value = true;
   try {
-    const now = new Date();
-    const filename = `礼金簿_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-    
     // 获取当前主题色（从 CSS 变量）
     const rootStyles = getComputedStyle(document.documentElement);
     const theme = {
@@ -264,7 +260,8 @@ const handleExportPDF = async () => {
       accent: rootStyles.getPropertyValue('--theme-accent').trim() || '#eb564a',
     };
     
-    await exportToPDF(records.value, filename, appName.value, theme);
+    // 使用事务名称作为文件名
+    await exportToPDF(records.value, appName.value, theme);
     closeExportModal();
   } catch (error) {
     console.error('导出 PDF 失败:', error);
@@ -435,25 +432,55 @@ const handleOpenExistingBook = async (filePath: string, eventName: string) => {
 };
 
 // 导入数据
-const handleImportData = async (filePath: string, eventName: string) => {
+const handleImportData = async (data: { eventName: string; records: any[] }) => {
   try {
     // 先保存当前数据（如果有）
     if (records.value.length > 0 && config.value.currentDbPath) {
       const currentFileName = generateFileName(config.value.eventName);
       await window.electronAPI.saveCurrentDatabase(currentFileName);
     }
-    
+
     // 创建新的数据库用于导入
-    const newFileName = generateFileName(eventName);
+    const newFileName = generateFileName(data.eventName);
     const response = await window.electronAPI.createNewDatabase(newFileName);
     if (response.success && response.filePath) {
       setCurrentDbPath(response.filePath);
-      addToRecentBooks(eventName, response.filePath);
-      
-      // TODO: 这里应该调用导入逻辑处理 Excel 文件
-      // 暂时只是创建了新的空数据库
-      console.log('准备导入文件:', filePath);
-      alert('导入功能开发中，已创建新的空数据库');
+      addToRecentBooks(data.eventName, response.filePath);
+
+      // 转换记录格式并批量插入
+      const dbRecords = data.records.map(record => ({
+        GuestName: record.guestName,
+        Amount: record.amount,
+        AmountChinese: record.amountChinese || null,
+        ItemDescription: record.itemDescription || null,
+        PaymentType: record.paymentType,
+        Remark: record.remark || null,
+        CreateTime: record.createTime || new Date().toISOString(),
+        IsDeleted: 0
+      }));
+
+      // 批量插入记录
+      if (dbRecords.length > 0) {
+        const insertResponse = await window.db.batchInsertRecords(dbRecords as any);
+        if (!insertResponse.success) {
+          alert('导入记录失败: ' + (insertResponse.error || '未知错误'));
+          return;
+        }
+      }
+
+      // 设置应用名称
+      appName.value = data.eventName;
+      setEventName(data.eventName);
+
+      // 隐藏启动页，显示主应用
+      showSplashScreen.value = false;
+      isAppReady.value = true;
+
+      // 加载数据
+      await loadRecords();
+      await loadStatistics();
+
+      alert(`成功导入 ${data.records.length} 条记录`);
     } else {
       alert('创建新数据库失败: ' + (response.error || '未知错误'));
     }
@@ -546,6 +573,7 @@ onUnmounted(() => {
     :recent-files="config.recentBooks"
     @start="handleSplashStart"
     @delete-file="handleDeleteFile"
+    @import="handleImportData"
   />
 
   <!-- 

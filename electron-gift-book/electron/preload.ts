@@ -28,6 +28,7 @@ interface DatabaseAPI {
   getRecordHistory: (recordId: number) => Promise<ApiResponse<any[]>>
   getAllRecordHistory: () => Promise<ApiResponse<any[]>>
   getStatistics: () => Promise<ApiResponse<any>>
+  batchInsertRecords: (records: DbRecord[]) => Promise<ApiResponse<{ count: number }>>
 }
 
 // 应用 API 接口
@@ -61,6 +62,8 @@ interface ElectronAPI {
   deleteDatabase: (filePath: string) => Promise<ApiResponse>
   // 打开导入文件对话框（Excel）
   openImportFile: () => Promise<ApiResponse<{ filePath: string }>>
+  // 解析导入文件
+  parseImportFile: (filePath: string) => Promise<ApiResponse<{ headers: string[]; data: any[][]; totalRows: number }>>
 }
 
 // 只暴露必要的数据库 API，遵循 Electron 安全最佳实践
@@ -74,6 +77,7 @@ contextBridge.exposeInMainWorld('db', {
   getRecordHistory: (recordId: number) => ipcRenderer.invoke('db:getRecordHistory', recordId),
   getAllRecordHistory: () => ipcRenderer.invoke('db:getAllRecordHistory'),
   getStatistics: () => ipcRenderer.invoke('db:getStatistics'),
+  batchInsertRecords: (records: DbRecord[]) => ipcRenderer.invoke('db:batchInsertRecords', records),
 } as DatabaseAPI)
 
 // 暴露应用 API
@@ -90,6 +94,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRecentDatabases: () => ipcRenderer.invoke('electron:getRecentDatabases'),
   deleteDatabase: (filePath: string) => ipcRenderer.invoke('electron:deleteDatabase', filePath),
   openImportFile: () => ipcRenderer.invoke('electron:openImportFile'),
+  parseImportFile: (filePath: string) => ipcRenderer.invoke('electron:parseImportFile', filePath),
 } as ElectronAPI)
 
 // 类型声明已移至 src/types/database.ts

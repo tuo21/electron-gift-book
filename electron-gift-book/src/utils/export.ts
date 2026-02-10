@@ -9,11 +9,25 @@ import { numberToChinese } from './amountConverter'
 import { getPaymentTypeText } from '../constants'
 
 /**
+ * 生成导出文件名
+ * @param eventName 事务名称
+ * @returns 文件名（不含扩展名）
+ */
+function generateExportFileName(eventName: string): string {
+  const now = new Date()
+  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+  // 清理事务名称中的非法字符
+  const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
+  return `${cleanName}_${dateStr}`
+}
+
+/**
  * 导出为 Excel 文件
  * @param records 记录列表
- * @param filename 文件名（不含扩展名）
+ * @param eventName 事务名称（用于生成文件名）
  */
-export function exportToExcel(records: Record[], filename: string = '礼金簿导出'): void {
+export function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): void {
+  const filename = generateExportFileName(eventName)
   // 准备数据
   const data = records.map((record, index) => ({
     '序号': index + 1,
@@ -53,14 +67,12 @@ export function exportToExcel(records: Record[], filename: string = '礼金簿�
 /**
  * 导出为 PDF 文件（使用 Electron printToPDF）
  * @param records 记录列表
- * @param filename 文件名（不含扩展名）
- * @param appName 应用名称（用于标题）
+ * @param eventName 事务名称（用于生成文件名和标题）
  * @param theme 主题配置
  */
 export async function exportToPDF(
   records: Record[],
-  _filename: string = '礼金簿导出',
-  appName: string = '电子礼金簿',
+  eventName: string = '电子礼金簿',
   theme?: {
     primary?: string
     paper?: string
@@ -83,11 +95,15 @@ export async function exportToPDF(
       remark: record.remark
     }))
 
+    // 生成文件名
+    const filename = generateExportFileName(eventName)
+
     // 调用 Electron API 生成 PDF
     const response = await window.app.generatePDF({
       records: serializableRecords,
-      appName,
+      appName: eventName,
       exportDate,
+      filename,
       theme
     })
 

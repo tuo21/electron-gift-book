@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import ImportDialog from './ImportDialog.vue';
+import type { ImportPreview, ParsedRecord } from '../utils/import';
+import { getImportPreview, matchFields } from '../utils/import';
 
 // ==================== 类型定义 ====================
 type ThemeType = 'wedding' | 'funeral';
@@ -19,6 +22,7 @@ interface SplashScreenProps {
 interface SplashScreenEmits {
   (e: 'start', data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }): void;
   (e: 'delete-file', filePath: string): void;
+  (e: 'import', data: { eventName: string; records: ParsedRecord[] }): void;
 }
 
 // ==================== Props & Emits ====================
@@ -40,7 +44,24 @@ const handleContextMenu = (file: RecentFile, event: MouseEvent) => {
   event.preventDefault();
   event.stopPropagation();
   contextMenuFile.value = file;
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+
+  // 计算菜单位置，确保不超出视口边界
+  const menuWidth = 120;
+  const menuHeight = 40;
+  let x = event.clientX;
+  let y = event.clientY;
+
+  // 检查右边界
+  if (x + menuWidth > window.innerWidth) {
+    x = window.innerWidth - menuWidth - 10;
+  }
+
+  // 检查下边界
+  if (y + menuHeight > window.innerHeight) {
+    y = window.innerHeight - menuHeight - 10;
+  }
+
+  contextMenuPosition.value = { x, y };
   showContextMenu.value = true;
 };
 
@@ -93,6 +114,12 @@ const selectedTheme = ref<ThemeType>(props.defaultTheme);
 const isAnimating = ref(false);
 const showContent = ref(false);
 const isImporting = ref(false);
+
+// 导入对话框状态
+const showImportDialog = ref(false);
+const importFilePath = ref('');
+const importPreview = ref<ImportPreview | null>(null);
+const defaultImportName = ref('');
 
 // ==================== 计算属性 ====================
 const isWeddingTheme = computed(() => selectedTheme.value === 'wedding');
@@ -167,30 +194,86 @@ const handleOpenRecentFile = async (file: RecentFile) => {
   });
 };
 
+// 从文件名提取默认事务名称
+const extractEventNameFromFileName = (filePath: string): string => {
+  const fileName = filePath.split(/[\\/]/).pop() || '';
+  // 移除扩展名
+  const nameWithoutExt = fileName.replace(/\.[^/.]+$/, '');
+  // 移除日期后缀（如 _20240101）
+  return nameWithoutExt.replace(/_\d{8}$/, '').replace(/_\d{6}$/, '') || '导入的礼金簿';
+};
+
 // 导入数据
 const handleImport = async () => {
   if (isAnimating.value || isImporting.value) return;
-  
+
   isImporting.value = true;
-  
+
   try {
     // 打开文件对话框选择要导入的 Excel 文件
     const response = await window.electronAPI.openImportFile();
     if (response.success && response.filePath) {
-      isAnimating.value = true;
-      emit('start', {
-        eventName: eventName.value.trim() || '电子礼金簿',
-        theme: selectedTheme.value,
-        action: 'import',
-        filePath: response.filePath
+      // 通过 IPC 调用主进程解析文件
+      const parseResponse = await window.electronAPI.parseImportFile(response.filePath);
+      if (!parseResponse.success) {
+        alert('解析文件失败: ' + (parseResponse.error || '未知错误'));
+        return;
+      }
+
+      // 使用解析结果进行字段匹配
+      const { headers, data, totalRows } = parseResponse.data!;
+      const mappings = matchFields(headers);
+
+      // 获取未匹配的表头
+      const matchedIndices = new Set(mappings.map(m => m.excelIndex));
+      const unmatchedHeaders = headers.filter((_, index) => !matchedIndices.has(index));
+
+      // 获取预览数据（前5行）
+      const previewData = data.slice(0, 5).map(row => {
+        const obj: Record<string, any> = {};
+        mappings.forEach(mapping => {
+          obj[mapping.standardLabel] = row[mapping.excelIndex];
+        });
+        return obj;
       });
+
+      importFilePath.value = response.filePath;
+      importPreview.value = {
+        headers,
+        mappings,
+        previewData,
+        totalRows,
+        unmatchedHeaders
+      };
+      defaultImportName.value = extractEventNameFromFileName(response.filePath);
+      showImportDialog.value = true;
     }
   } catch (error) {
     console.error('导入文件失败:', error);
-    alert('导入文件失败，请重试');
+    alert('导入文件失败: ' + (error as Error).message);
   } finally {
     isImporting.value = false;
   }
+};
+
+// 关闭导入对话框
+const handleCloseImportDialog = () => {
+  showImportDialog.value = false;
+  importFilePath.value = '';
+  importPreview.value = null;
+  defaultImportName.value = '';
+};
+
+// 确认导入
+const handleConfirmImport = (data: { eventName: string; records: ParsedRecord[] }) => {
+  showImportDialog.value = false;
+  isAnimating.value = true;
+
+  // 发送导入事件，包含解析后的数据
+  emit('import', {
+    eventName: data.eventName,
+    records: data.records
+  });
 };
 
 // ==================== 生命周期 ====================
@@ -285,12 +368,42 @@ const cleanup = () => {
         </div>
       </div>
 
-      <!-- 礼金簿列表 -->
+      <!-- 操作按钮 -->
+      <div class="action-section">
+        <button
+          class="action-btn primary-btn"
+          :style="{ 
+            backgroundColor: themeStyles.primaryColor,
+            '--hover-color': isWeddingTheme ? '#D6453D' : '#333333'
+          }"
+          @click="handleCreateNew"
+          :disabled="isAnimating"
+        >
+          <span class="btn-icon">📖</span>
+          <span class="btn-text">新建礼金簿</span>
+        </button>
+
+        <button
+          class="action-btn import-btn"
+          :style="{ 
+            borderColor: themeStyles.primaryColor,
+            color: themeStyles.primaryColor,
+            '--hover-bg': isWeddingTheme ? '#FFF5F5' : '#F0F0F0'
+          }"
+          @click="handleImport"
+          :disabled="isAnimating || isImporting"
+        >
+          <span class="btn-icon">📥</span>
+          <span class="btn-text">{{ isImporting ? '导入中...' : '导入数据' }}</span>
+        </button>
+      </div>
+
+      <!-- 历史礼金簿 -->
       <div class="recent-files-section">
-        <label class="input-label">礼金簿列表</label>
+        <label class="input-label">历史礼金簿</label>
         <div class="recent-files-list">
           <div v-if="recentFiles.length === 0" class="empty-files">
-            暂无礼金簿，请新建一个
+            暂无历史礼金簿
           </div>
           <div
             v-for="file in recentFiles"
@@ -342,41 +455,21 @@ const cleanup = () => {
         </div>
       </div>
 
-      <!-- 操作按钮 -->
-      <div class="action-section">
-        <button
-          class="action-btn primary-btn"
-          :style="{ 
-            backgroundColor: themeStyles.primaryColor,
-            '--hover-color': isWeddingTheme ? '#D6453D' : '#333333'
-          }"
-          @click="handleCreateNew"
-          :disabled="isAnimating"
-        >
-          <span class="btn-icon">📖</span>
-          <span class="btn-text">新建礼金簿</span>
-        </button>
-
-        <button
-          class="action-btn import-btn"
-          :style="{ 
-            borderColor: themeStyles.primaryColor,
-            color: themeStyles.primaryColor,
-            '--hover-bg': isWeddingTheme ? '#FFF5F5' : '#F0F0F0'
-          }"
-          @click="handleImport"
-          :disabled="isAnimating || isImporting"
-        >
-          <span class="btn-icon">📥</span>
-          <span class="btn-text">{{ isImporting ? '导入中...' : '导入数据' }}</span>
-        </button>
-      </div>
-
       <!-- 底部提示 -->
       <div class="footer-section">
         <p class="footer-text">数据自动保存，安全可靠</p>
       </div>
     </div>
+
+    <!-- 导入对话框 -->
+    <ImportDialog
+      :show="showImportDialog"
+      :file-path="importFilePath"
+      :default-event-name="defaultImportName"
+      :preview="importPreview"
+      @close="handleCloseImportDialog"
+      @confirm="handleConfirmImport"
+    />
   </div>
 </template>
 
@@ -757,9 +850,6 @@ const cleanup = () => {
 /* ==================== 右键菜单样式 ==================== */
 .context-menu {
   position: fixed;
-  top: 0;
-  left: 0;
-  transform: translate(0, 0);
   background: #ffffff;
   border-radius: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);

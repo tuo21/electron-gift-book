@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
+import * as XLSX from 'xlsx'
 import {
   initDatabase,
   closeDatabase,
@@ -227,6 +228,7 @@ function setupIpcHandlers() {
     records: any[],
     appName: string,
     exportDate: string,
+    filename: string,
     theme?: {
       primary?: string
       paper?: string
@@ -307,7 +309,7 @@ function setupIpcHandlers() {
       // 显示保存对话框
       const { filePath } = await dialog.showSaveDialog({
         title: '保存 PDF',
-        defaultPath: `礼金簿_${serializableData.exportDate.replace(/[年月日]/g, '')}.pdf`,
+        defaultPath: `${serializableData.filename}.pdf`,
         filters: [
           { name: 'PDF 文件', extensions: ['pdf'] }
         ]
@@ -506,6 +508,99 @@ function setupIpcHandlers() {
       }
     } catch (error) {
       console.error('打开导入文件对话框失败:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 解析导入文件（Excel）
+  ipcMain.handle('electron:parseImportFile', async (_, filePath: string) => {
+    try {
+      console.log('尝试解析文件:', filePath)
+
+      // 检查文件是否存在
+      if (!fs.existsSync(filePath)) {
+        console.error('文件不存在:', filePath)
+        return { success: false, error: '文件不存在: ' + filePath }
+      }
+
+      // 检查文件状态
+      const stats = fs.statSync(filePath)
+      console.log('文件大小:', stats.size, '字节')
+
+      // 读取文件内容为二进制字符串
+      let binaryString: string
+      try {
+        const buffer = fs.readFileSync(filePath)
+        // 将 Buffer 转换为二进制字符串
+        const bytes = new Uint8Array(buffer)
+        const len = bytes.length
+        const arr = new Array(len)
+        for (let i = 0; i < len; i++) {
+          arr[i] = String.fromCharCode(bytes[i])
+        }
+        binaryString = arr.join('')
+        console.log('文件读取成功，二进制字符串长度:', binaryString.length)
+      } catch (readError) {
+        console.error('读取文件失败:', readError)
+        return { success: false, error: '读取文件失败: ' + (readError as Error).message }
+      }
+
+      // 解析 Excel 文件 - 使用 binary 类型
+      let workbook: XLSX.WorkBook
+      try {
+        workbook = XLSX.read(binaryString, { type: 'binary' })
+        console.log('Excel 解析成功，工作表:', workbook.SheetNames)
+      } catch (xlsxError) {
+        console.error('解析 Excel 失败:', xlsxError)
+        return { success: false, error: '解析 Excel 失败: ' + (xlsxError as Error).message }
+      }
+
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][]
+
+      if (jsonData.length === 0) {
+        return { success: false, error: 'Excel 文件为空' }
+      }
+
+      const headers = jsonData[0].map(h => String(h).trim())
+      const data = jsonData.slice(1).filter(row => row.some(cell => cell !== undefined && cell !== ''))
+
+      console.log('解析完成，表头:', headers)
+      console.log('数据行数:', data.length)
+
+      return {
+        success: true,
+        headers,
+        data,
+        totalRows: data.length
+      }
+    } catch (error) {
+      console.error('解析导入文件失败:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 批量插入记录（用于导入）
+  ipcMain.handle('db:batchInsertRecords', async (_, records: Record[]) => {
+    const db = getDatabase()
+    try {
+      const insertedIds: number[] = []
+
+      const transaction = db.transaction(() => {
+        for (const record of records) {
+          const stmt = db.prepare(`
+            INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime)
+            VALUES (@GuestName, @Amount, @AmountChinese, @ItemDescription, @PaymentType, @Remark, @CreateTime)
+          `)
+          const result = stmt.run(record)
+          insertedIds.push(result.lastInsertRowid as number)
+        }
+      })
+
+      transaction()
+      return { success: true, data: { count: insertedIds.length } }
+    } catch (error) {
+      console.error('批量插入记录失败:', error)
       return { success: false, error: (error as Error).message }
     }
   })
