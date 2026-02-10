@@ -4,18 +4,29 @@ import { fileURLToPath } from "node:url";
 import fs from "node:fs";
 import Database from "better-sqlite3";
 let db = null;
-function getDbPath() {
+let currentDbPath = "";
+function getDefaultDbPath() {
   const dbDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dbDir)) {
     fs.mkdirSync(dbDir, { recursive: true });
   }
   return path.join(dbDir, "gift-book.db");
 }
-function initDatabase() {
-  if (db) return db;
-  const dbPath = getDbPath();
-  console.log("Database path:", dbPath);
-  db = new Database(dbPath);
+function initDatabase(dbPath) {
+  if (db && currentDbPath === (dbPath || getDefaultDbPath())) {
+    return db;
+  }
+  if (db) {
+    db.close();
+    db = null;
+  }
+  currentDbPath = dbPath || getDefaultDbPath();
+  console.log("Database path:", currentDbPath);
+  const dbDir = path.dirname(currentDbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  db = new Database(currentDbPath);
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS Records (
@@ -105,6 +116,9 @@ function closeDatabase() {
     db = null;
     console.log("Database connection closed");
   }
+}
+function getCurrentDbPath() {
+  return currentDbPath;
 }
 function insertRecord(record) {
   const db2 = getDatabase();
@@ -244,7 +258,6 @@ function getStatistics() {
     internalAmount: internalResult.total
   };
 }
-let currentDbPath = "";
 const dataDir = path.join(process.cwd(), "data");
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
@@ -490,7 +503,6 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:createNewDatabase", async (_, fileName) => {
     try {
-      closeDatabase();
       const newDbPath = path.join(dataDir, fileName);
       let finalPath = newDbPath;
       let counter = 1;
@@ -500,8 +512,7 @@ function setupIpcHandlers() {
         finalPath = path.join(dataDir, `${base}_${counter}${ext}`);
         counter++;
       }
-      currentDbPath = finalPath;
-      initDatabase();
+      initDatabase(finalPath);
       return { success: true, filePath: finalPath };
     } catch (error) {
       console.error("创建新数据库失败:", error);
@@ -513,9 +524,7 @@ function setupIpcHandlers() {
       if (!fs.existsSync(filePath)) {
         return { success: false, error: "数据库文件不存在" };
       }
-      closeDatabase();
-      currentDbPath = filePath;
-      initDatabase();
+      initDatabase(filePath);
       return { success: true };
     } catch (error) {
       console.error("切换数据库失败:", error);
@@ -524,11 +533,12 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:saveCurrentDatabase", async (_, fileName) => {
     try {
-      if (!currentDbPath || !fs.existsSync(currentDbPath)) {
+      const dbPath = getCurrentDbPath();
+      if (!dbPath || !fs.existsSync(dbPath)) {
         return { success: false, error: "当前没有可保存的数据" };
       }
       const newPath = path.join(dataDir, fileName);
-      if (newPath !== currentDbPath) {
+      if (newPath !== dbPath) {
         let finalPath = newPath;
         let counter = 1;
         while (fs.existsSync(finalPath)) {
@@ -538,12 +548,11 @@ function setupIpcHandlers() {
           counter++;
         }
         closeDatabase();
-        fs.renameSync(currentDbPath, finalPath);
-        currentDbPath = finalPath;
-        initDatabase();
+        fs.renameSync(dbPath, finalPath);
+        initDatabase(finalPath);
         return { success: true, filePath: finalPath };
       }
-      return { success: true, filePath: currentDbPath };
+      return { success: true, filePath: dbPath };
     } catch (error) {
       console.error("保存数据库失败:", error);
       return { success: false, error: error.message };
@@ -564,6 +573,43 @@ function setupIpcHandlers() {
       return { success: true, recentDatabases: dbFiles };
     } catch (error) {
       console.error("获取最近数据库列表失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:deleteDatabase", async (_, filePath) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: "数据库文件不存在" };
+      }
+      const currentDbPath2 = getCurrentDbPath();
+      if (currentDbPath2 === filePath) {
+        closeDatabase();
+      }
+      fs.unlinkSync(filePath);
+      return { success: true };
+    } catch (error) {
+      console.error("删除数据库失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:openImportFile", async () => {
+    try {
+      const { filePaths } = await dialog.showOpenDialog({
+        title: "选择要导入的 Excel 文件",
+        defaultPath: dataDir,
+        filters: [
+          { name: "Excel 文件", extensions: ["xlsx", "xls"] },
+          { name: "所有文件", extensions: ["*"] }
+        ],
+        properties: ["openFile"]
+      });
+      if (filePaths && filePaths.length > 0) {
+        return { success: true, filePath: filePaths[0] };
+      } else {
+        return { success: false, error: "用户取消选择" };
+      }
+    } catch (error) {
+      console.error("打开导入文件对话框失败:", error);
       return { success: false, error: error.message };
     }
   });

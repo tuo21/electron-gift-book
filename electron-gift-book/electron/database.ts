@@ -5,8 +5,11 @@ import fs from 'node:fs'
 // 数据库连接实例
 let db: Database.Database | null = null
 
-// 获取数据库文件路径
-function getDbPath(): string {
+// 当前数据库文件路径
+let currentDbPath: string = ''
+
+// 获取默认数据库文件路径
+function getDefaultDbPath(): string {
   // 使用项目目录下的 data 文件夹存储数据库
   const dbDir = path.join(process.cwd(), 'data')
   if (!fs.existsSync(dbDir)) {
@@ -16,13 +19,29 @@ function getDbPath(): string {
 }
 
 // 初始化数据库
-export function initDatabase(): Database.Database {
-  if (db) return db
+export function initDatabase(dbPath?: string): Database.Database {
+  // 如果已经初始化且路径相同，直接返回
+  if (db && currentDbPath === (dbPath || getDefaultDbPath())) {
+    return db
+  }
 
-  const dbPath = getDbPath()
-  console.log('Database path:', dbPath)
+  // 如果已有连接，先关闭
+  if (db) {
+    db.close()
+    db = null
+  }
 
-  db = new Database(dbPath)
+  // 使用传入的路径或默认路径
+  currentDbPath = dbPath || getDefaultDbPath()
+  console.log('Database path:', currentDbPath)
+
+  // 确保目录存在
+  const dbDir = path.dirname(currentDbPath)
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
+
+  db = new Database(currentDbPath)
 
   // 启用外键约束
   db.pragma('foreign_keys = ON')
@@ -131,6 +150,11 @@ export function closeDatabase(): void {
     db = null
     console.log('Database connection closed')
   }
+}
+
+// 获取当前数据库路径
+export function getCurrentDbPath(): string {
+  return currentDbPath
 }
 
 // 记录操作类型

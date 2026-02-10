@@ -12,7 +12,7 @@ import { useAppConfig } from './composables/useAppConfig';
 
 // ==================== 启动页和配置 ====================
 const { setTheme, applyThemeToDocument } = useTheme();
-const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, initConfig } = useAppConfig();
+const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig } = useAppConfig();
 
 // 启动页状态
 const showSplashScreen = ref(true);
@@ -353,6 +353,9 @@ const handleSplashStart = async (data: { eventName: string; theme: ThemeType; ac
   } else if (data.action === 'open' && data.filePath) {
     // 打开已有数据
     await handleOpenExistingBook(data.filePath, data.eventName);
+  } else if (data.action === 'import' && data.filePath) {
+    // 导入数据
+    await handleImportData(data.filePath, data.eventName);
   }
   
   // 隐藏启动页，显示主应用
@@ -412,14 +415,51 @@ const handleOpenExistingBook = async (filePath: string, eventName: string) => {
     // 切换到选中的数据库
     const response = await window.electronAPI.switchDatabase(filePath);
     if (response.success) {
+      // 从文件名中提取事务名称
+      const fileName = filePath.split(/[\\/]/).pop() || '';
+      const extractedEventName = fileName.replace(/\.db$/i, '');
+      
+      // 使用提取的名称或传入的名称
+      const finalEventName = eventName || extractedEventName || '电子礼金簿';
+      appName.value = finalEventName;
+      setEventName(finalEventName);
       setCurrentDbPath(filePath);
-      addToRecentBooks(eventName, filePath);
+      addToRecentBooks(finalEventName, filePath);
     } else {
       alert('打开数据库失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
     console.error('打开已有数据失败:', error);
     alert('打开已有数据失败，请重试');
+  }
+};
+
+// 导入数据
+const handleImportData = async (filePath: string, eventName: string) => {
+  try {
+    // 先保存当前数据（如果有）
+    if (records.value.length > 0 && config.value.currentDbPath) {
+      const currentFileName = generateFileName(config.value.eventName);
+      await window.electronAPI.saveCurrentDatabase(currentFileName);
+    }
+    
+    // 创建新的数据库用于导入
+    const newFileName = generateFileName(eventName);
+    const response = await window.electronAPI.createNewDatabase(newFileName);
+    if (response.success && response.filePath) {
+      setCurrentDbPath(response.filePath);
+      addToRecentBooks(eventName, response.filePath);
+      
+      // TODO: 这里应该调用导入逻辑处理 Excel 文件
+      // 暂时只是创建了新的空数据库
+      console.log('准备导入文件:', filePath);
+      alert('导入功能开发中，已创建新的空数据库');
+    } else {
+      alert('创建新数据库失败: ' + (response.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('导入数据失败:', error);
+    alert('导入数据失败，请重试');
   }
 };
 
@@ -449,7 +489,26 @@ const handleBackToSplash = async () => {
   }
 };
 
-onMounted(() => {
+// 删除文件处理
+const handleDeleteFile = (filePath: string) => {
+  // 从最近列表中移除
+  removeFromRecentBooks(filePath);
+};
+
+// 扫描 data 目录获取文件列表
+const scanDataDirectory = async () => {
+  try {
+    const response = await window.electronAPI.getRecentDatabases();
+    if (response.success && response.recentDatabases) {
+      // 更新最近列表
+      config.value.recentBooks = response.recentDatabases;
+    }
+  } catch (error) {
+    console.error('扫描数据目录失败:', error);
+  }
+};
+
+onMounted(async () => {
   // 初始化配置
   initConfig();
   
@@ -458,22 +517,12 @@ onMounted(() => {
     applyThemeToDocument(config.value.theme);
   }
   
-  // 检查是否是首次启动（没有最近打开的记录）
-  if (config.value.recentBooks.length === 0 && !config.value.currentDbPath) {
-    // 显示启动页
-    showSplashScreen.value = true;
-  } else {
-    // 有历史记录，直接加载数据
-    showSplashScreen.value = false;
-    isAppReady.value = true;
-    loadRecords();
-    loadStatistics();
-    
-    // 恢复事务名称
-    if (config.value.eventName) {
-      appName.value = config.value.eventName;
-    }
-  }
+  // 扫描 data 目录获取文件列表
+  await scanDataDirectory();
+  
+  // 默认显示启动页，让用户选择要打开的礼金簿
+  showSplashScreen.value = true;
+  isAppReady.value = false;
   
   intervalId.value = window.setInterval(() => {
     lunarDate.value = getLunarDisplay();
@@ -494,7 +543,9 @@ onUnmounted(() => {
     v-if="showSplashScreen"
     :default-event-name="config.eventName"
     :default-theme="config.theme"
+    :recent-files="config.recentBooks"
     @start="handleSplashStart"
+    @delete-file="handleDeleteFile"
   />
 
   <!-- 

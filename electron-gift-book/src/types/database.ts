@@ -88,6 +88,10 @@ export interface ElectronAPI {
   saveCurrentDatabase: (fileName: string) => Promise<ApiResponse<{ filePath: string }>>
   // 获取最近打开的文件列表
   getRecentDatabases: () => Promise<ApiResponse<{ recentDatabases: { name: string; path: string; lastOpened: string }[] }>>
+  // 删除数据库文件
+  deleteDatabase: (filePath: string) => Promise<ApiResponse>
+  // 打开导入文件对话框（Excel）
+  openImportFile: () => Promise<ApiResponse<{ filePath: string }>>
 }
 
 // 扩展 Window 接口

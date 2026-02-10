@@ -6,6 +6,7 @@ import {
   initDatabase,
   closeDatabase,
   getDatabase,
+  getCurrentDbPath,
   insertRecord,
   updateRecord,
   softDeleteRecord,
@@ -19,8 +20,7 @@ import {
   type Record
 } from './database'
 
-// 数据库文件管理
-let currentDbPath: string = ''
+// 数据目录
 const dataDir = path.join(process.cwd(), 'data')
 
 // 确保数据目录存在
@@ -354,9 +354,6 @@ function setupIpcHandlers() {
   // 创建新数据库
   ipcMain.handle('electron:createNewDatabase', async (_, fileName: string) => {
     try {
-      // 关闭当前数据库连接
-      closeDatabase()
-
       // 生成新数据库路径
       const newDbPath = path.join(dataDir, fileName)
       
@@ -370,11 +367,8 @@ function setupIpcHandlers() {
         counter++
       }
 
-      // 更新当前数据库路径
-      currentDbPath = finalPath
-
-      // 重新初始化数据库（会创建新文件）
-      initDatabase()
+      // 重新初始化数据库（传入新路径，会创建新文件）
+      initDatabase(finalPath)
 
       return { success: true, filePath: finalPath }
     } catch (error) {
@@ -391,14 +385,8 @@ function setupIpcHandlers() {
         return { success: false, error: '数据库文件不存在' }
       }
 
-      // 关闭当前数据库连接
-      closeDatabase()
-
-      // 更新当前数据库路径
-      currentDbPath = filePath
-
-      // 重新初始化数据库
-      initDatabase()
+      // 重新初始化数据库（传入指定路径）
+      initDatabase(filePath)
 
       return { success: true }
     } catch (error) {
@@ -410,7 +398,8 @@ function setupIpcHandlers() {
   // 保存当前数据库（重命名）
   ipcMain.handle('electron:saveCurrentDatabase', async (_, fileName: string) => {
     try {
-      if (!currentDbPath || !fs.existsSync(currentDbPath)) {
+      const dbPath = getCurrentDbPath()
+      if (!dbPath || !fs.existsSync(dbPath)) {
         return { success: false, error: '当前没有可保存的数据' }
       }
 
@@ -418,7 +407,7 @@ function setupIpcHandlers() {
       const newPath = path.join(dataDir, fileName)
 
       // 如果新路径与当前路径不同，则重命名
-      if (newPath !== currentDbPath) {
+      if (newPath !== dbPath) {
         // 如果目标文件已存在，添加序号
         let finalPath = newPath
         let counter = 1
@@ -433,18 +422,15 @@ function setupIpcHandlers() {
         closeDatabase()
 
         // 重命名文件
-        fs.renameSync(currentDbPath, finalPath)
+        fs.renameSync(dbPath, finalPath)
 
-        // 更新当前路径
-        currentDbPath = finalPath
-
-        // 重新初始化数据库
-        initDatabase()
+        // 重新初始化数据库（使用新路径）
+        initDatabase(finalPath)
 
         return { success: true, filePath: finalPath }
       }
 
-      return { success: true, filePath: currentDbPath }
+      return { success: true, filePath: dbPath }
     } catch (error) {
       console.error('保存数据库失败:', error)
       return { success: false, error: (error as Error).message }
@@ -472,6 +458,54 @@ function setupIpcHandlers() {
       return { success: true, recentDatabases: dbFiles }
     } catch (error) {
       console.error('获取最近数据库列表失败:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 删除数据库文件
+  ipcMain.handle('electron:deleteDatabase', async (_, filePath: string) => {
+    try {
+      // 检查文件是否存在
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: '数据库文件不存在' }
+      }
+
+      // 如果删除的是当前打开的数据库，先关闭连接
+      const currentDbPath = getCurrentDbPath()
+      if (currentDbPath === filePath) {
+        closeDatabase()
+      }
+
+      // 删除文件
+      fs.unlinkSync(filePath)
+
+      return { success: true }
+    } catch (error) {
+      console.error('删除数据库失败:', error)
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 打开导入文件对话框（Excel）
+  ipcMain.handle('electron:openImportFile', async () => {
+    try {
+      const { filePaths } = await dialog.showOpenDialog({
+        title: '选择要导入的 Excel 文件',
+        defaultPath: dataDir,
+        filters: [
+          { name: 'Excel 文件', extensions: ['xlsx', 'xls'] },
+          { name: '所有文件', extensions: ['*'] }
+        ],
+        properties: ['openFile']
+      })
+
+      if (filePaths && filePaths.length > 0) {
+        return { success: true, filePath: filePaths[0] }
+      } else {
+        return { success: false, error: '用户取消选择' }
+      }
+    } catch (error) {
+      console.error('打开导入文件对话框失败:', error)
       return { success: false, error: (error as Error).message }
     }
   })

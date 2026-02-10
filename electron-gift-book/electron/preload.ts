@@ -57,6 +57,10 @@ interface ElectronAPI {
   saveCurrentDatabase: (fileName: string) => Promise<ApiResponse<{ filePath: string }>>
   // 获取最近打开的文件列表
   getRecentDatabases: () => Promise<ApiResponse<{ recentDatabases: { name: string; path: string; lastOpened: string }[] }>>
+  // 删除数据库文件
+  deleteDatabase: (filePath: string) => Promise<ApiResponse>
+  // 打开导入文件对话框（Excel）
+  openImportFile: () => Promise<ApiResponse<{ filePath: string }>>
 }
 
 // 只暴露必要的数据库 API，遵循 Electron 安全最佳实践
@@ -84,6 +88,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   switchDatabase: (filePath: string) => ipcRenderer.invoke('electron:switchDatabase', filePath),
   saveCurrentDatabase: (fileName: string) => ipcRenderer.invoke('electron:saveCurrentDatabase', fileName),
   getRecentDatabases: () => ipcRenderer.invoke('electron:getRecentDatabases'),
+  deleteDatabase: (filePath: string) => ipcRenderer.invoke('electron:deleteDatabase', filePath),
+  openImportFile: () => ipcRenderer.invoke('electron:openImportFile'),
 } as ElectronAPI)
 
 // 类型声明已移至 src/types/database.ts

@@ -4,28 +4,95 @@ import { ref, computed, onMounted } from 'vue';
 // ==================== 类型定义 ====================
 type ThemeType = 'wedding' | 'funeral';
 
+interface RecentFile {
+  name: string;
+  path: string;
+  lastOpened: string;
+}
+
 interface SplashScreenProps {
   defaultEventName?: string;
   defaultTheme?: ThemeType;
+  recentFiles?: RecentFile[];
 }
 
 interface SplashScreenEmits {
-  (e: 'start', data: { eventName: string; theme: ThemeType; action: 'new' | 'open'; filePath?: string }): void;
+  (e: 'start', data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }): void;
+  (e: 'delete-file', filePath: string): void;
 }
 
 // ==================== Props & Emits ====================
 const props = withDefaults(defineProps<SplashScreenProps>(), {
   defaultEventName: '电子礼金簿',
-  defaultTheme: 'wedding'
+  defaultTheme: 'wedding',
+  recentFiles: () => []
 });
 
 const emit = defineEmits<SplashScreenEmits>();
+
+// ==================== 右键菜单 ====================
+const showContextMenu = ref(false);
+const contextMenuPosition = ref({ x: 0, y: 0 });
+const contextMenuFile = ref<RecentFile | null>(null);
+
+// 显示右键菜单
+const handleContextMenu = (file: RecentFile, event: MouseEvent) => {
+  event.preventDefault();
+  event.stopPropagation();
+  contextMenuFile.value = file;
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY };
+  showContextMenu.value = true;
+};
+
+// 关闭右键菜单
+const closeContextMenu = () => {
+  showContextMenu.value = false;
+  contextMenuFile.value = null;
+};
+
+// ==================== 删除确认弹窗 ====================
+const showDeleteConfirm = ref(false);
+const fileToDelete = ref<RecentFile | null>(null);
+
+// 显示删除确认弹窗
+const showDeleteDialog = () => {
+  if (!contextMenuFile.value) return;
+  fileToDelete.value = contextMenuFile.value;
+  showDeleteConfirm.value = true;
+  closeContextMenu();
+};
+
+// 关闭删除确认弹窗
+const closeDeleteDialog = () => {
+  showDeleteConfirm.value = false;
+  fileToDelete.value = null;
+};
+
+// 确认删除
+const confirmDelete = async () => {
+  if (!fileToDelete.value) return;
+
+  try {
+    const response = await window.electronAPI.deleteDatabase(fileToDelete.value.path);
+    if (response.success) {
+      // 从列表中移除 - 使用 emit 通知父组件更新
+      emit('delete-file', fileToDelete.value.path);
+      closeDeleteDialog();
+    } else {
+      alert('删除失败: ' + (response.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('删除文件失败:', error);
+    alert('删除文件失败，请重试');
+  }
+};
 
 // ==================== 响应式数据 ====================
 const eventName = ref(props.defaultEventName);
 const selectedTheme = ref<ThemeType>(props.defaultTheme);
 const isAnimating = ref(false);
 const showContent = ref(false);
+const isImporting = ref(false);
 
 // ==================== 计算属性 ====================
 const isWeddingTheme = computed(() => selectedTheme.value === 'wedding');
@@ -54,6 +121,18 @@ const themeStyles = computed(() => {
   }
 });
 
+// 格式化日期
+const formatDate = (dateStr: string) => {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
+
 // ==================== 方法函数 ====================
 
 // 选择主题
@@ -75,24 +154,42 @@ const handleCreateNew = async () => {
   });
 };
 
-// 选择原有数据
-const handleOpenExisting = async () => {
+// 打开最近文件
+const handleOpenRecentFile = async (file: RecentFile) => {
   if (isAnimating.value) return;
   
+  isAnimating.value = true;
+  emit('start', {
+    eventName: '',
+    theme: selectedTheme.value,
+    action: 'open',
+    filePath: file.path
+  });
+};
+
+// 导入数据
+const handleImport = async () => {
+  if (isAnimating.value || isImporting.value) return;
+  
+  isImporting.value = true;
+  
   try {
-    const response = await window.electronAPI.openDatabaseFile();
+    // 打开文件对话框选择要导入的 Excel 文件
+    const response = await window.electronAPI.openImportFile();
     if (response.success && response.filePath) {
       isAnimating.value = true;
       emit('start', {
         eventName: eventName.value.trim() || '电子礼金簿',
         theme: selectedTheme.value,
-        action: 'open',
+        action: 'import',
         filePath: response.filePath
       });
     }
   } catch (error) {
-    console.error('打开文件失败:', error);
-    alert('打开文件失败，请重试');
+    console.error('导入文件失败:', error);
+    alert('导入文件失败，请重试');
+  } finally {
+    isImporting.value = false;
   }
 };
 
@@ -102,7 +199,15 @@ onMounted(() => {
   setTimeout(() => {
     showContent.value = true;
   }, 100);
+
+  // 点击其他地方关闭右键菜单
+  document.addEventListener('click', closeContextMenu);
 });
+
+// 在组件卸载时移除事件监听
+const cleanup = () => {
+  document.removeEventListener('click', closeContextMenu);
+};
 </script>
 
 <template>
@@ -180,6 +285,63 @@ onMounted(() => {
         </div>
       </div>
 
+      <!-- 礼金簿列表 -->
+      <div class="recent-files-section">
+        <label class="input-label">礼金簿列表</label>
+        <div class="recent-files-list">
+          <div v-if="recentFiles.length === 0" class="empty-files">
+            暂无礼金簿，请新建一个
+          </div>
+          <div
+            v-for="file in recentFiles"
+            :key="file.path"
+            class="recent-file-item"
+            @click="handleOpenRecentFile(file)"
+            @contextmenu.prevent="handleContextMenu(file, $event)"
+          >
+            <span class="file-icon">📁</span>
+            <div class="file-info">
+              <span class="file-name">{{ file.name }}</span>
+              <span class="file-date">{{ formatDate(file.lastOpened) }}</span>
+            </div>
+            <span class="file-arrow">›</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右键菜单 -->
+      <div
+        v-if="showContextMenu"
+        class="context-menu"
+        :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+        @click.stop
+      >
+        <div class="context-menu-item delete-item" @click="showDeleteDialog">
+          <span class="menu-icon">🗑️</span>
+          <span class="menu-text">删除</span>
+        </div>
+      </div>
+
+      <!-- 删除确认弹窗 -->
+      <div v-if="showDeleteConfirm" class="modal-overlay" @click="closeDeleteDialog">
+        <div class="modal-content delete-modal" @click.stop>
+          <div class="modal-header">
+            <h3 class="modal-title">确认删除</h3>
+            <button class="modal-close" @click="closeDeleteDialog">×</button>
+          </div>
+          <div class="modal-body">
+            <p class="delete-message">
+              确定要删除礼金簿 <strong>{{ fileToDelete?.name }}</strong> 吗？<br>
+              <span class="delete-warning">此操作不可恢复！</span>
+            </p>
+            <div class="delete-actions">
+              <button class="delete-btn cancel-btn" @click="closeDeleteDialog">取消</button>
+              <button class="delete-btn confirm-btn" @click="confirmDelete">确认删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- 操作按钮 -->
       <div class="action-section">
         <button
@@ -196,17 +358,17 @@ onMounted(() => {
         </button>
 
         <button
-          class="action-btn secondary-btn"
+          class="action-btn import-btn"
           :style="{ 
             borderColor: themeStyles.primaryColor,
             color: themeStyles.primaryColor,
             '--hover-bg': isWeddingTheme ? '#FFF5F5' : '#F0F0F0'
           }"
-          @click="handleOpenExisting"
-          :disabled="isAnimating"
+          @click="handleImport"
+          :disabled="isAnimating || isImporting"
         >
-          <span class="btn-icon">📂</span>
-          <span class="btn-text">选择原有数据</span>
+          <span class="btn-icon">📥</span>
+          <span class="btn-text">{{ isImporting ? '导入中...' : '导入数据' }}</span>
         </button>
       </div>
 
@@ -231,12 +393,14 @@ onMounted(() => {
   justify-content: center;
   z-index: 9999;
   transition: opacity 0.5s ease;
+  overflow-y: auto;
+  padding: 20px;
 }
 
 .splash-content {
   width: 100%;
   max-width: 480px;
-  padding: 48px;
+  padding: 40px;
   background: rgba(255, 255, 255, 0.95);
   border-radius: 16px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -258,13 +422,13 @@ onMounted(() => {
 /* ==================== 头部区域 ==================== */
 .header-section {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .logo-container {
-  width: 80px;
-  height: 80px;
-  margin: 0 auto 16px;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 12px;
   background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
   border-radius: 50%;
   display: flex;
@@ -274,42 +438,42 @@ onMounted(() => {
 }
 
 .app-logo {
-  width: 60px;
-  height: 60px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
 }
 
 .app-title {
-  font-size: 28px;
+  font-size: 26px;
   font-weight: bold;
   color: #333333;
-  margin: 0 0 8px 0;
+  margin: 0 0 6px 0;
   font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
 }
 
 .app-subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: #666666;
   margin: 0;
 }
 
 /* ==================== 输入区域 ==================== */
 .input-section {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .input-label {
   display: block;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: #333333;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .event-name-input {
   width: 100%;
-  padding: 12px 16px;
-  font-size: 16px;
+  padding: 10px 14px;
+  font-size: 15px;
   border: 2px solid #e0e0e0;
   border-radius: 8px;
   background: #ffffff;
@@ -330,19 +494,19 @@ onMounted(() => {
 
 /* ==================== 主题选择区域 ==================== */
 .theme-section {
-  margin-bottom: 32px;
+  margin-bottom: 16px;
 }
 
 .theme-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
 }
 
 .theme-card {
   position: relative;
-  padding: 20px 16px;
-  border-radius: 12px;
+  padding: 16px 12px;
+  border-radius: 10px;
   border: 2px solid transparent;
   cursor: pointer;
   text-align: center;
@@ -359,8 +523,8 @@ onMounted(() => {
 }
 
 .theme-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+  font-size: 28px;
+  margin-bottom: 6px;
 }
 
 .wedding-icon {
@@ -372,29 +536,29 @@ onMounted(() => {
 }
 
 .theme-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: bold;
   color: #333333;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .theme-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #666666;
 }
 
 .selected-indicator {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 24px;
-  height: 24px;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  font-size: 14px;
+  font-size: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   animation: scaleIn 0.3s ease;
 }
@@ -411,12 +575,86 @@ onMounted(() => {
   }
 }
 
+/* ==================== 最近文件列表区域 ==================== */
+.recent-files-section {
+  margin-bottom: 20px;
+}
+
+.recent-files-list {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.empty-files {
+  padding: 20px;
+  text-align: center;
+  color: #999999;
+  font-size: 13px;
+}
+
+.recent-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.recent-file-item:last-child {
+  border-bottom: none;
+}
+
+.recent-file-item:hover {
+  background: rgba(235, 86, 74, 0.05);
+}
+
+.file-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.file-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #333333;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-date {
+  font-size: 11px;
+  color: #999999;
+}
+
+.file-arrow {
+  font-size: 18px;
+  color: #cccccc;
+  flex-shrink: 0;
+}
+
+.recent-file-item:hover .file-arrow {
+  color: #EB564A;
+}
+
 /* ==================== 操作按钮区域 ==================== */
 .action-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .action-btn {
@@ -424,9 +662,9 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 14px 24px;
+  padding: 12px 20px;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -450,22 +688,22 @@ onMounted(() => {
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
 }
 
-.secondary-btn {
+.import-btn {
   background: transparent;
   border: 2px solid;
 }
 
-.secondary-btn:hover:not(:disabled) {
+.import-btn:hover:not(:disabled) {
   background-color: var(--hover-bg);
   transform: translateY(-2px);
 }
 
 .btn-icon {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .btn-text {
-  font-size: 16px;
+  font-size: 15px;
 }
 
 /* ==================== 底部区域 ==================== */
@@ -474,16 +712,33 @@ onMounted(() => {
 }
 
 .footer-text {
-  font-size: 12px;
+  font-size: 11px;
   color: #999999;
   margin: 0;
+}
+
+/* ==================== 滚动条样式 ==================== */
+.recent-files-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.recent-files-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.recent-files-list::-webkit-scrollbar-thumb {
+  background: #cccccc;
+  border-radius: 2px;
+}
+
+.recent-files-list::-webkit-scrollbar-thumb:hover {
+  background: #999999;
 }
 
 /* ==================== 响应式适配 ==================== */
 @media (max-width: 520px) {
   .splash-content {
-    margin: 20px;
-    padding: 32px 24px;
+    padding: 28px 20px;
   }
 
   .theme-options {
@@ -491,7 +746,164 @@ onMounted(() => {
   }
 
   .app-title {
-    font-size: 24px;
+    font-size: 22px;
   }
+
+  .recent-files-list {
+    max-height: 120px;
+  }
+}
+
+/* ==================== 右键菜单样式 ==================== */
+.context-menu {
+  position: fixed;
+  top: 0;
+  left: 0;
+  transform: translate(0, 0);
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  padding: 6px 0;
+  z-index: 3000;
+  min-width: 120px;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.context-menu-item:hover {
+  background: #f5f5f5;
+}
+
+.context-menu-item.delete-item {
+  color: #ef4444;
+}
+
+.context-menu-item.delete-item:hover {
+  background: #fef2f2;
+}
+
+.menu-icon {
+  font-size: 16px;
+}
+
+.menu-text {
+  font-size: 14px;
+}
+
+/* ==================== 删除确认弹窗样式 ==================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  min-width: 320px;
+  max-width: 90vw;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.modal-title {
+  font-size: 18px;
+  font-weight: bold;
+  color: #333333;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999999;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.3s;
+}
+
+.modal-close:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #333333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.delete-message {
+  text-align: center;
+  color: #333333;
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.delete-warning {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+.delete-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.delete-btn {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: none;
+  font-family: inherit;
+}
+
+.cancel-btn {
+  background: #f5f5f5;
+  color: #666666;
+}
+
+.cancel-btn:hover {
+  background: #e0e0e0;
+}
+
+.confirm-btn {
+  background: #ef4444;
+  color: #ffffff;
+}
+
+.confirm-btn:hover {
+  background: #dc2626;
 }
 </style>

@@ -19,6 +19,8 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   createNewDatabase: (fileName) => electron.ipcRenderer.invoke("electron:createNewDatabase", fileName),
   switchDatabase: (filePath) => electron.ipcRenderer.invoke("electron:switchDatabase", filePath),
   saveCurrentDatabase: (fileName) => electron.ipcRenderer.invoke("electron:saveCurrentDatabase", fileName),
-  getRecentDatabases: () => electron.ipcRenderer.invoke("electron:getRecentDatabases")
+  getRecentDatabases: () => electron.ipcRenderer.invoke("electron:getRecentDatabases"),
+  deleteDatabase: (filePath) => electron.ipcRenderer.invoke("electron:deleteDatabase", filePath),
+  openImportFile: () => electron.ipcRenderer.invoke("electron:openImportFile")
 });
 //# sourceMappingURL=preload.mjs.map
