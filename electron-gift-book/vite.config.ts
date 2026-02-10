@@ -44,7 +44,11 @@ export default defineConfig({
       renderer: process.env.NODE_ENV === 'test'
         // https://github.com/electron-vite/vite-plugin-electron-renderer/issues/78#issuecomment-2053600808
         ? undefined
-        : {},
+        : {
+            // 添加这个配置以确保在开发模式下能够正确加载 preload 脚本
+            nodeIntegration: false,
+            contextIsolation: true,
+          },
     }),
   ],
 })

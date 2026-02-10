@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",
-    "vue": "^3.4.21"
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.1.0",
+    "vue": "^3.4.21",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

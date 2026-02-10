@@ -1,11 +1,11 @@
 // @see - https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.electron-gift-book.app",
   "asar": true,
-  "productName": "YourAppName",
+  "productName": "电子礼金簿",
   "directories": {
-    "output": "release/${version}"
+    "output": "build/${version}-latest"
   },
   "files": [
     "dist",
@@ -32,7 +32,8 @@
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
-    "deleteAppDataOnUninstall": false
+    "deleteAppDataOnUninstall": false,
+    "createDesktopShortcut": true
   },
   "linux": {
     "target": [

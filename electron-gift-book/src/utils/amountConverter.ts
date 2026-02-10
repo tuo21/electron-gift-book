@@ -52,7 +52,7 @@ export function numberToChinese(amount: number | string): string {
 
   // 转换小数部分（角、分）
   if (decimalPart === 0) {
-    result += '整';
+    // 整数金额，不添加"整"字
   } else {
     const jiao = Math.floor(decimalPart / 10);
     const fen = decimalPart % 10;

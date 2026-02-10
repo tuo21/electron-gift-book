@@ -1,18 +1,21 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
 import Database from "better-sqlite3";
 let db = null;
 function getDbPath() {
-  const userDataPath = app.getPath("userData");
-  return path.join(userDataPath, "gift-book.db");
+  const dbDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+  return path.join(dbDir, "gift-book.db");
 }
 function initDatabase() {
   if (db) return db;
   const dbPath = getDbPath();
   console.log("Database path:", dbPath);
   db = new Database(dbPath);
-  db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS Records (
@@ -37,6 +40,12 @@ function initDatabase() {
       ItemDescription TEXT,
       PaymentType INTEGER,
       Remark TEXT,
+      NewGuestName TEXT,
+      NewAmount DECIMAL(10, 2),
+      NewItemDescription TEXT,
+      NewPaymentType INTEGER,
+      NewRemark TEXT,
+      OperationType TEXT DEFAULT 'UPDATE',
       UpdateBy TEXT DEFAULT 'System',
       UpdateTime DATETIME DEFAULT CURRENT_TIMESTAMP,
       ChangeDesc TEXT,
@@ -48,8 +57,41 @@ function initDatabase() {
     CREATE INDEX IF NOT EXISTS idx_records_isdeleted ON Records(IsDeleted);
     CREATE INDEX IF NOT EXISTS idx_history_recordid ON Records_History(RecordId);
   `);
+  migrateHistoryTable(db);
   console.log("Database initialized successfully");
   return db;
+}
+function migrateHistoryTable(db2) {
+  try {
+    const columns = db2.prepare(`PRAGMA table_info(Records_History)`).all();
+    const columnNames = columns.map((col) => col.name);
+    if (!columnNames.includes("NewGuestName")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN NewGuestName TEXT`);
+      console.log("Migration: Added NewGuestName column");
+    }
+    if (!columnNames.includes("NewAmount")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN NewAmount DECIMAL(10, 2)`);
+      console.log("Migration: Added NewAmount column");
+    }
+    if (!columnNames.includes("NewItemDescription")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN NewItemDescription TEXT`);
+      console.log("Migration: Added NewItemDescription column");
+    }
+    if (!columnNames.includes("NewPaymentType")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN NewPaymentType INTEGER`);
+      console.log("Migration: Added NewPaymentType column");
+    }
+    if (!columnNames.includes("NewRemark")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN NewRemark TEXT`);
+      console.log("Migration: Added NewRemark column");
+    }
+    if (!columnNames.includes("OperationType")) {
+      db2.exec(`ALTER TABLE Records_History ADD COLUMN OperationType TEXT DEFAULT 'UPDATE'`);
+      console.log("Migration: Added OperationType column");
+    }
+  } catch (error) {
+    console.error("Migration failed:", error);
+  }
 }
 function getDatabase() {
   if (!db) {
@@ -122,8 +164,16 @@ function searchRecords(keyword) {
 function insertHistory(history) {
   const db2 = getDatabase();
   const stmt = db2.prepare(`
-    INSERT INTO Records_History (RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark, UpdateBy, ChangeDesc)
-    VALUES (@RecordId, @GuestName, @Amount, @ItemDescription, @PaymentType, @Remark, @UpdateBy, @ChangeDesc)
+    INSERT INTO Records_History (
+      RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark,
+      NewGuestName, NewAmount, NewItemDescription, NewPaymentType, NewRemark,
+      OperationType, UpdateBy, ChangeDesc
+    )
+    VALUES (
+      @RecordId, @GuestName, @Amount, @ItemDescription, @PaymentType, @Remark,
+      @NewGuestName, @NewAmount, @NewItemDescription, @NewPaymentType, @NewRemark,
+      @OperationType, @UpdateBy, @ChangeDesc
+    )
   `);
   stmt.run(history);
 }
@@ -133,6 +183,32 @@ function getRecordHistory(recordId) {
     SELECT * FROM Records_History WHERE RecordId = ? ORDER BY UpdateTime DESC
   `);
   return stmt.all(recordId);
+}
+function getAllRecordHistory() {
+  const db2 = getDatabase();
+  const stmt = db2.prepare(`
+    SELECT 
+      h.HistoryId as historyId,
+      h.RecordId as recordId,
+      h.GuestName as guestName,
+      h.Amount as amount,
+      h.ItemDescription as itemDescription,
+      h.PaymentType as paymentType,
+      h.Remark as remark,
+      h.NewGuestName as newGuestName,
+      h.NewAmount as newAmount,
+      h.NewItemDescription as newItemDescription,
+      h.NewPaymentType as newPaymentType,
+      h.NewRemark as newRemark,
+      h.OperationType as operationType,
+      h.UpdateBy as updateBy,
+      h.UpdateTime as updateTime,
+      h.ChangeDesc as changeDesc
+    FROM Records_History h
+    WHERE h.OperationType IN ('UPDATE', 'DELETE')
+    ORDER BY h.UpdateTime DESC
+  `);
+  return stmt.all();
 }
 function getStatistics() {
   const db2 = getDatabase();
@@ -168,6 +244,11 @@ function getStatistics() {
     internalAmount: internalResult.total
   };
 }
+let currentDbPath = "";
+const dataDir = path.join(process.cwd(), "data");
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
 const __filename$1 = fileURLToPath(import.meta.url);
 const __dirname$1 = path.dirname(__filename$1);
 process.env.APP_ROOT = path.join(__dirname$1, "..");
@@ -178,22 +259,27 @@ process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 
 let win;
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "electron-vite.svg"),
-    width: 1400,
-    height: 900,
+    icon: path.join(process.env.VITE_PUBLIC, "images", "logo.png"),
+    width: 1445,
+    height: 950,
     webPreferences: {
       preload: path.join(__dirname$1, "preload.mjs"),
       contextIsolation: true,
       nodeIntegration: false
     }
   });
+  win.removeMenu();
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL);
+    win.loadURL(VITE_DEV_SERVER_URL).catch((error) => {
+      console.error("Failed to load URL:", error);
+    });
   } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html"));
+    win.loadFile(path.join(RENDERER_DIST, "index.html")).catch((error) => {
+      console.error("Failed to load file:", error);
+    });
   }
 }
 function setupIpcHandlers() {
@@ -227,40 +313,62 @@ function setupIpcHandlers() {
     }
   });
   ipcMain.handle("db:updateRecord", (_, record) => {
+    const db2 = getDatabase();
     try {
-      const oldRecord = getRecordById(record.Id);
-      if (oldRecord) {
-        insertHistory({
-          RecordId: record.Id,
-          GuestName: oldRecord.GuestName,
-          Amount: oldRecord.Amount,
-          ItemDescription: oldRecord.ItemDescription,
-          PaymentType: oldRecord.PaymentType,
-          Remark: oldRecord.Remark,
-          ChangeDesc: "更新记录"
-        });
-      }
-      updateRecord(record);
+      const transaction = db2.transaction(() => {
+        const oldRecord = getRecordById(record.Id);
+        if (oldRecord) {
+          insertHistory({
+            RecordId: record.Id,
+            GuestName: oldRecord.GuestName,
+            Amount: oldRecord.Amount,
+            ItemDescription: oldRecord.ItemDescription,
+            PaymentType: oldRecord.PaymentType,
+            Remark: oldRecord.Remark,
+            NewGuestName: record.GuestName,
+            NewAmount: record.Amount,
+            NewItemDescription: record.ItemDescription,
+            NewPaymentType: record.PaymentType,
+            NewRemark: record.Remark,
+            OperationType: "UPDATE",
+            UpdateBy: "System",
+            ChangeDesc: "更新记录"
+          });
+        }
+        updateRecord(record);
+      });
+      transaction();
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
     }
   });
   ipcMain.handle("db:softDeleteRecord", (_, id) => {
+    const db2 = getDatabase();
     try {
-      const oldRecord = getRecordById(id);
-      if (oldRecord) {
-        insertHistory({
-          RecordId: id,
-          GuestName: oldRecord.GuestName,
-          Amount: oldRecord.Amount,
-          ItemDescription: oldRecord.ItemDescription,
-          PaymentType: oldRecord.PaymentType,
-          Remark: oldRecord.Remark,
-          ChangeDesc: "删除记录"
-        });
-      }
-      softDeleteRecord(id);
+      const transaction = db2.transaction(() => {
+        const oldRecord = getRecordById(id);
+        if (oldRecord) {
+          insertHistory({
+            RecordId: id,
+            GuestName: oldRecord.GuestName,
+            Amount: oldRecord.Amount,
+            ItemDescription: oldRecord.ItemDescription,
+            PaymentType: oldRecord.PaymentType,
+            Remark: oldRecord.Remark,
+            NewGuestName: null,
+            NewAmount: null,
+            NewItemDescription: null,
+            NewPaymentType: null,
+            NewRemark: null,
+            OperationType: "DELETE",
+            UpdateBy: "System",
+            ChangeDesc: "删除记录"
+          });
+        }
+        softDeleteRecord(id);
+      });
+      transaction();
       return { success: true };
     } catch (error) {
       return { success: false, error: error.message };
@@ -273,10 +381,189 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
+  ipcMain.handle("db:getAllRecordHistory", () => {
+    try {
+      return { success: true, data: getAllRecordHistory() };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
   ipcMain.handle("db:getStatistics", () => {
     try {
       return { success: true, data: getStatistics() };
     } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("app:generatePDF", async (_, data) => {
+    try {
+      const serializableData = {
+        ...data,
+        records: data.records.map((record) => ({
+          guestName: record.guestName,
+          amount: record.amount,
+          amountChinese: record.amountChinese,
+          itemDescription: record.itemDescription,
+          paymentType: record.paymentType,
+          remark: record.remark
+        }))
+      };
+      const printWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        show: false,
+        webPreferences: {
+          nodeIntegration: true,
+          contextIsolation: false
+        }
+      });
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("打印页面加载超时"));
+        }, 1e4);
+        ipcMain.once("print-window-loaded", () => {
+          try {
+            printWindow.webContents.send("render-giftbook", serializableData);
+          } catch (error) {
+            console.error("发送数据到打印窗口失败:", error);
+            reject(new Error("发送数据到打印窗口失败: " + error.message));
+          }
+        });
+        ipcMain.once("print-ready", () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+        const printPagePath = path.join(process.env.VITE_PUBLIC, "print.html");
+        printWindow.loadFile(printPagePath).catch(reject);
+      });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const pdfBuffer = await printWindow.webContents.printToPDF({
+        margins: {
+          top: 0,
+          bottom: 0,
+          left: 0,
+          right: 0
+        },
+        printBackground: true,
+        landscape: true,
+        pageSize: "A4"
+      });
+      printWindow.close();
+      const { filePath } = await dialog.showSaveDialog({
+        title: "保存 PDF",
+        defaultPath: `礼金簿_${serializableData.exportDate.replace(/[年月日]/g, "")}.pdf`,
+        filters: [
+          { name: "PDF 文件", extensions: ["pdf"] }
+        ]
+      });
+      if (filePath) {
+        fs.writeFileSync(filePath, pdfBuffer);
+        return { success: true, filePath };
+      } else {
+        return { success: false, error: "用户取消保存" };
+      }
+    } catch (error) {
+      console.error("生成 PDF 失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:openDatabaseFile", async () => {
+    try {
+      const { filePaths } = await dialog.showOpenDialog({
+        title: "选择礼金簿数据文件",
+        defaultPath: dataDir,
+        filters: [
+          { name: "数据库文件", extensions: ["db"] },
+          { name: "所有文件", extensions: ["*"] }
+        ],
+        properties: ["openFile"]
+      });
+      if (filePaths && filePaths.length > 0) {
+        return { success: true, filePath: filePaths[0] };
+      } else {
+        return { success: false, error: "用户取消选择" };
+      }
+    } catch (error) {
+      console.error("打开文件对话框失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:createNewDatabase", async (_, fileName) => {
+    try {
+      closeDatabase();
+      const newDbPath = path.join(dataDir, fileName);
+      let finalPath = newDbPath;
+      let counter = 1;
+      while (fs.existsSync(finalPath)) {
+        const ext = path.extname(fileName);
+        const base = path.basename(fileName, ext);
+        finalPath = path.join(dataDir, `${base}_${counter}${ext}`);
+        counter++;
+      }
+      currentDbPath = finalPath;
+      initDatabase();
+      return { success: true, filePath: finalPath };
+    } catch (error) {
+      console.error("创建新数据库失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:switchDatabase", async (_, filePath) => {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { success: false, error: "数据库文件不存在" };
+      }
+      closeDatabase();
+      currentDbPath = filePath;
+      initDatabase();
+      return { success: true };
+    } catch (error) {
+      console.error("切换数据库失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:saveCurrentDatabase", async (_, fileName) => {
+    try {
+      if (!currentDbPath || !fs.existsSync(currentDbPath)) {
+        return { success: false, error: "当前没有可保存的数据" };
+      }
+      const newPath = path.join(dataDir, fileName);
+      if (newPath !== currentDbPath) {
+        let finalPath = newPath;
+        let counter = 1;
+        while (fs.existsSync(finalPath)) {
+          const ext = path.extname(fileName);
+          const base = path.basename(fileName, ext);
+          finalPath = path.join(dataDir, `${base}_${counter}${ext}`);
+          counter++;
+        }
+        closeDatabase();
+        fs.renameSync(currentDbPath, finalPath);
+        currentDbPath = finalPath;
+        initDatabase();
+        return { success: true, filePath: finalPath };
+      }
+      return { success: true, filePath: currentDbPath };
+    } catch (error) {
+      console.error("保存数据库失败:", error);
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("electron:getRecentDatabases", async () => {
+    try {
+      const files = fs.readdirSync(dataDir);
+      const dbFiles = files.filter((file) => file.endsWith(".db")).map((file) => {
+        const filePath = path.join(dataDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          name: path.basename(file, ".db"),
+          path: filePath,
+          lastOpened: stats.mtime.toISOString()
+        };
+      }).sort((a, b) => new Date(b.lastOpened).getTime() - new Date(a.lastOpened).getTime());
+      return { success: true, recentDatabases: dbFiles };
+    } catch (error) {
+      console.error("获取最近数据库列表失败:", error);
       return { success: false, error: error.message };
     }
   });

@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>礼金簿打印</title>
+  <link rel="stylesheet" href="./print.css">
+</head>
+<body>
+  <div id="app">
+    <div class="print-container">
+      <!-- 页眉 -->
+      <header class="print-header">
+        <h1 class="print-title" id="appName">电子礼金簿</h1>
+        <div class="print-meta">
+          <span id="exportDate">导出日期：2024年01月01日</span>
+          <span id="recordCount">共 0 条记录</span>
+        </div>
+      </header>
+
+      <!-- 礼金簿内容 -->
+      <main class="print-content" id="giftbookContent">
+        <!-- 动态生成的记录列将插入这里 -->
+      </main>
+
+      <!-- 页脚 -->
+      <footer class="print-footer">
+        <span id="pageInfo">第 1 页</span>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // 接收来自主进程的数据
+    const { ipcRenderer } = require('electron');
+    
+    // 数字转大写
+    const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
+    const CN_UNITS = ['', '拾', '佰', '仟'];
+    const CN_BIG_UNITS = ['', '万', '亿', '万亿'];
+
+    function numberToChinese(amount) {
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      if (isNaN(num) || num < 0) return '';
+      if (num >= 1e16) return '金额过大';
+
+      const integerPart = Math.floor(num);
+      const decimalPart = Math.round((num - integerPart) * 100);
+
+      let result = integerToChinese(integerPart);
+      if (result === '') result = '零元';
+      else result += '元';
+
+      if (decimalPart > 0) {
+        const jiao = Math.floor(decimalPart / 10);
+        const fen = decimalPart % 10;
+        if (jiao > 0) result += CN_NUMBERS[jiao] + '角';
+        else if (integerPart > 0) result += '零';
+        if (fen > 0) result += CN_NUMBERS[fen] + '分';
+      }
+
+      return result;
+    }
+
+    function integerToChinese(num) {
+      if (num === 0) return '';
+      let result = '';
+      let bigUnitIndex = 0;
+
+      while (num > 0) {
+        const segment = num % 10000;
+        if (segment !== 0) {
+          const segmentStr = segmentToChinese(segment);
+          result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result;
+        } else if (result !== '' && !result.startsWith('零')) {
+          result = '零' + result;
+        }
+        num = Math.floor(num / 10000);
+        bigUnitIndex++;
+      }
+
+      result = result.replace(/零+/g, '零').replace(/零$/, '');
+      return result;
+    }
+
+    function segmentToChinese(num) {
+      if (num === 0) return '';
+      let result = '';
+      let zeroFlag = false;
+
+      for (let i = 3; i >= 0; i--) {
+        const divisor = Math.pow(10, i);
+        const digit = Math.floor(num / divisor);
+        if (digit > 0) {
+          if (zeroFlag) {
+            result += '零';
+            zeroFlag = false;
+          }
+          result += CN_NUMBERS[digit] + CN_UNITS[i];
+        } else if (result !== '') {
+          zeroFlag = true;
+        }
+        num %= divisor;
+      }
+      return result;
+    }
+
+    function formatAmount(amount) {
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      if (isNaN(num)) return '0.00';
+      return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function getPaymentTypeText(type) {
+      const map = { 0: '现金', 1: '微信', 2: '内收' };
+      return map[type] || '未知';
+    }
+
+    function getAdaptiveFontSize(text, isName = false, hasItem = false) {
+      const maxSize = 28;
+      const minSize = 16;
+      const maxLength = isName ? 3 : (hasItem ? 2 : 3);
+      if (!text || text.length <= maxLength) return maxSize;
+      const reduceSize = (text.length - maxLength) * 6;
+      return Math.max(minSize, maxSize - reduceSize);
+    }
+
+    // 渲染礼金簿
+    function renderGiftbook(data) {
+      const { records, appName, exportDate, theme } = data;
+      
+      // 更新标题和元信息
+      document.getElementById('appName').textContent = appName || '电子礼金簿';
+      document.getElementById('exportDate').textContent = `导出日期：${exportDate}`;
+      document.getElementById('recordCount').textContent = `共 ${records.length} 条记录`;
+      
+      // 应用主题
+      if (theme) {
+        document.documentElement.style.setProperty('--theme-primary', theme.primary || '#c44a3d');
+        document.documentElement.style.setProperty('--theme-paper', theme.paper || '#f5f0e8');
+        document.documentElement.style.setProperty('--theme-text-primary', theme.textPrimary || '#333');
+        document.documentElement.style.setProperty('--theme-accent', theme.accent || '#eb564a');
+      }
+
+      // 渲染记录
+      const container = document.getElementById('giftbookContent');
+      container.innerHTML = '';
+
+      records.forEach((record) => {
+        const amountChinese = record.amountChinese || numberToChinese(record.amount);
+        const column = document.createElement('div');
+        column.className = 'record-column';
+        
+        column.innerHTML = `
+          <div class="cell label-cell">
+            <span class="label-text">姓名</span>
+          </div>
+          <div class="cell name-cell">
+            <span class="name-text" style="font-size: ${getAdaptiveFontSize(record.guestName, true)}px">${record.guestName}</span>
+          </div>
+          <div class="cell remark-cell">
+            <span class="remark-text">${record.remark || '\u00A0'}</span>
+          </div>
+          <div class="cell label-cell">
+            <span class="label-text">礼金</span>
+          </div>
+          <div class="cell amount-cell">
+            <div class="amount-content">
+              <span class="amount-chinese" style="font-size: ${getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)}px">${amountChinese}</span>
+              ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ''}
+            </div>
+          </div>
+          <div class="cell payment-cell">
+            <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
+            <span class="amount-number">¥${formatAmount(record.amount)}</span>
+          </div>
+        `;
+        
+        container.appendChild(column);
+      });
+
+      // 添加空白列填充到15列
+      const emptyCount = 15 - (records.length % 15 || 15);
+      if (emptyCount < 15) {
+        for (let i = 0; i < emptyCount; i++) {
+          const emptyColumn = document.createElement('div');
+          emptyColumn.className = 'record-column empty-column';
+          emptyColumn.innerHTML = `
+            <div class="cell label-cell"><span class="label-text">姓名</span></div>
+            <div class="cell name-cell"><span class="name-text">-</span></div>
+            <div class="cell label-cell"><span class="label-text">礼金</span></div>
+            <div class="cell amount-cell"><span class="amount-chinese">-</span></div>
+            <div class="cell payment-cell">
+              <span class="payment-type">-</span>
+              <span class="amount-number">-</span>
+            </div>
+          `;
+          container.appendChild(emptyColumn);
+        }
+      }
+
+      // 通知主进程渲染完成
+      ipcRenderer.send('print-ready');
+    }
+
+    // 监听渲染请求
+    ipcRenderer.on('render-giftbook', (event, data) => {
+      renderGiftbook(data);
+    });
+
+    // 页面加载完成后通知主进程
+    window.addEventListener('load', () => {
+      ipcRenderer.send('print-window-loaded');
+    });
+  </script>
+</body>
+</html>

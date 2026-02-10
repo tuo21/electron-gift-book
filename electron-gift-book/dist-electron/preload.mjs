@@ -1,23 +1,5 @@
 "use strict";
 const electron = require("electron");
-electron.contextBridge.exposeInMainWorld("ipcRenderer", {
-  on(...args) {
-    const [channel, listener] = args;
-    return electron.ipcRenderer.on(channel, (event, ...args2) => listener(event, ...args2));
-  },
-  off(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.off(channel, ...omit);
-  },
-  send(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.send(channel, ...omit);
-  },
-  invoke(...args) {
-    const [channel, ...omit] = args;
-    return electron.ipcRenderer.invoke(channel, ...omit);
-  }
-});
 electron.contextBridge.exposeInMainWorld("db", {
   getAllRecords: () => electron.ipcRenderer.invoke("db:getAllRecords"),
   getRecordById: (id) => electron.ipcRenderer.invoke("db:getRecordById", id),
@@ -26,6 +8,17 @@ electron.contextBridge.exposeInMainWorld("db", {
   updateRecord: (record) => electron.ipcRenderer.invoke("db:updateRecord", record),
   softDeleteRecord: (id) => electron.ipcRenderer.invoke("db:softDeleteRecord", id),
   getRecordHistory: (recordId) => electron.ipcRenderer.invoke("db:getRecordHistory", recordId),
+  getAllRecordHistory: () => electron.ipcRenderer.invoke("db:getAllRecordHistory"),
   getStatistics: () => electron.ipcRenderer.invoke("db:getStatistics")
+});
+electron.contextBridge.exposeInMainWorld("app", {
+  generatePDF: (data) => electron.ipcRenderer.invoke("app:generatePDF", data)
+});
+electron.contextBridge.exposeInMainWorld("electronAPI", {
+  openDatabaseFile: () => electron.ipcRenderer.invoke("electron:openDatabaseFile"),
+  createNewDatabase: (fileName) => electron.ipcRenderer.invoke("electron:createNewDatabase", fileName),
+  switchDatabase: (filePath) => electron.ipcRenderer.invoke("electron:switchDatabase", filePath),
+  saveCurrentDatabase: (fileName) => electron.ipcRenderer.invoke("electron:saveCurrentDatabase", fileName),
+  getRecentDatabases: () => electron.ipcRenderer.invoke("electron:getRecentDatabases")
 });
 //# sourceMappingURL=preload.mjs.map

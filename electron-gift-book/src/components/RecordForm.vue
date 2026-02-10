@@ -1,6 +1,12 @@
 <template>
   <div class="record-form">
-    <h2 class="form-title">礼金录入</h2>
+    <h2 class="form-title" :class="{ 'edit-mode': isEditMode }">
+      {{ isEditMode ? '编辑记录' : '礼金录入' }}
+    </h2>
+    <div v-if="isEditMode" class="edit-hint">
+      正在编辑: {{ formData.guestName }}
+      <button class="cancel-edit-btn" @click="exitEditMode">取消编辑</button>
+    </div>
 
     <div class="form-content">
       <!-- 姓名输入 -->
@@ -34,8 +40,8 @@
           @keydown.enter.prevent="onAmountEnter"
         />
         <!-- 大写金额显示 -->
-        <div v-if="amountChinese" class="amount-chinese">
-          {{ amountChinese }}
+        <div class="amount-chinese">
+          {{ amountChinese || '\u00A0' }}
         </div>
       </div>
 
@@ -99,7 +105,7 @@
           :disabled="!isValid"
           @click="onSubmit"
         >
-          保存记录 (Enter)
+          确认
         </button>
         <button
           type="button"
@@ -119,27 +125,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { numberToChinese, isValidAmount } from '../utils/amountConverter';
 import type { Record } from '../types/database';
+import { PaymentType, paymentTypeMap } from '../constants';
 
 // 定义事件
 const emit = defineEmits<{
   (e: 'submit', record: Omit<Record, 'id' | 'createTime' | 'updateTime'>): void;
+  (e: 'update', record: Record): void;
 }>();
 
-// 支付方式选项
-const paymentTypes = {
-  0: '现金',
-  1: '微信',
-  2: '内收',
-};
+// 编辑模式状态
+const isEditMode = ref(false);
+const editingId = ref<number | null>(null);
+
+// 支付方式选项（使用共享常量）
+const paymentTypes = paymentTypeMap;
 
 // 表单数据
 const formData = ref({
   guestName: '',
   amount: '',
-  paymentType: 0,
+  paymentType: PaymentType.CASH,
   remark: '',
   itemDescription: '',
 });
@@ -164,7 +172,7 @@ const isValid = computed(() => {
          isValidAmount(formData.value.amount);
 });
 
-// 金额失去焦点时转换大写
+// 金额失去焦点时转换大写（避免在输入过程中频繁转换）
 const onAmountBlur = () => {
   if (formData.value.amount && isValidAmount(formData.value.amount)) {
     amountChinese.value = numberToChinese(formData.value.amount);
@@ -172,15 +180,6 @@ const onAmountBlur = () => {
     amountChinese.value = '';
   }
 };
-
-// 监听金额变化
-watch(() => formData.value.amount, (newVal) => {
-  if (newVal && isValidAmount(newVal)) {
-    amountChinese.value = numberToChinese(newVal);
-  } else {
-    amountChinese.value = '';
-  }
-});
 
 // 金额输入框回车
 const onAmountEnter = () => {
@@ -195,27 +194,74 @@ const onAmountEnter = () => {
 const onSubmit = async () => {
   if (!isValid.value) return;
 
-  const record: Omit<Record, 'id' | 'createTime' | 'updateTime'> = {
-    guestName: formData.value.guestName.trim(),
-    amount: parseFloat(formData.value.amount),
-    amountChinese: amountChinese.value,
-    paymentType: formData.value.paymentType,
-    remark: formData.value.remark?.trim() || undefined,
-    itemDescription: formData.value.itemDescription?.trim() || undefined,
-    isDeleted: 0,
+  if (isEditMode.value && editingId.value !== null) {
+    // 编辑模式：发送更新事件
+    const record: Record = {
+      id: editingId.value,
+      guestName: formData.value.guestName.trim(),
+      amount: parseFloat(formData.value.amount),
+      amountChinese: amountChinese.value,
+      paymentType: formData.value.paymentType,
+      remark: formData.value.remark?.trim() || undefined,
+      itemDescription: formData.value.itemDescription?.trim() || undefined,
+      isDeleted: 0,
+    };
+    emit('update', record);
+    
+    // 显示成功提示
+    showSuccess.value = true;
+    setTimeout(() => {
+      showSuccess.value = false;
+    }, 1500);
+    
+    // 退出编辑模式
+    exitEditMode();
+  } else {
+    // 新增模式
+    const record: Omit<Record, 'id' | 'createTime' | 'updateTime'> = {
+      guestName: formData.value.guestName.trim(),
+      amount: parseFloat(formData.value.amount),
+      amountChinese: amountChinese.value,
+      paymentType: formData.value.paymentType,
+      remark: formData.value.remark?.trim() || undefined,
+      itemDescription: formData.value.itemDescription?.trim() || undefined,
+      isDeleted: 0,
+    };
+
+    emit('submit', record);
+
+    // 显示成功提示
+    showSuccess.value = true;
+    setTimeout(() => {
+      showSuccess.value = false;
+    }, 1500);
+
+    // 清空表单并聚焦到姓名输入框
+    clearForm();
+    focusName();
+  }
+};
+
+// 进入编辑模式
+const enterEditMode = (record: Record) => {
+  isEditMode.value = true;
+  editingId.value = record.id || null;
+  formData.value = {
+    guestName: record.guestName,
+    amount: record.amount.toString(),
+    paymentType: record.paymentType,
+    remark: record.remark || '',
+    itemDescription: record.itemDescription || '',
   };
-
-  emit('submit', record);
-
-  // 显示成功提示
-  showSuccess.value = true;
-  setTimeout(() => {
-    showSuccess.value = false;
-  }, 1500);
-
-  // 清空表单并聚焦到姓名输入框
-  clearForm();
+  amountChinese.value = record.amountChinese || numberToChinese(record.amount);
   focusName();
+};
+
+// 退出编辑模式
+const exitEditMode = () => {
+  isEditMode.value = false;
+  editingId.value = null;
+  clearForm();
 };
 
 // 清空表单
@@ -223,7 +269,7 @@ const clearForm = () => {
   formData.value = {
     guestName: '',
     amount: '',
-    paymentType: 0,
+    paymentType: PaymentType.CASH,
     remark: '',
     itemDescription: '',
   };
@@ -245,17 +291,17 @@ const handleKeydown = (e: KeyboardEvent) => {
   // F1: 现金
   if (e.key === 'F1') {
     e.preventDefault();
-    formData.value.paymentType = 0;
+    formData.value.paymentType = PaymentType.CASH;
   }
   // F2: 微信
   else if (e.key === 'F2') {
     e.preventDefault();
-    formData.value.paymentType = 1;
+    formData.value.paymentType = PaymentType.WECHAT;
   }
   // F3: 内收
   else if (e.key === 'F3') {
     e.preventDefault();
-    formData.value.paymentType = 2;
+    formData.value.paymentType = PaymentType.INTERNAL;
   }
 };
 
@@ -274,62 +320,96 @@ onUnmounted(() => {
 defineExpose({
   clearForm,
   focusName,
+  enterEditMode,
+  exitEditMode,
+  isEditMode,
 });
 </script>
 
 <style scoped>
 .record-form {
-  background: linear-gradient(135deg, #8B0000 0%, #A52A2A 100%);
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  border: 3px solid #DAA520;
-  min-width: 280px;
+  background: transparent;
 }
 
 .form-title {
-  color: #FFD700;
-  font-size: 24px;
+  color: var(--theme-primary);
+  font-size: var(--theme-font-size-xl);
   font-weight: bold;
   text-align: center;
-  margin-bottom: 24px;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-  font-family: 'KaiTi', 'STKaiti', serif;
+  margin-bottom: var(--theme-spacing-sm);
+  font-family: var(--theme-font-family);
+  border-bottom: 1px solid var(--theme-primary);
+  padding-bottom: var(--theme-spacing-sm);
+}
+
+.form-title.edit-mode {
+  color: #ff6b35;
+  border-bottom-color: #ff6b35;
+}
+
+.edit-hint {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--theme-spacing-sm);
+  background: rgba(255, 107, 53, 0.1);
+  border-radius: var(--theme-border-radius);
+  margin-bottom: var(--theme-spacing-md);
+  font-size: var(--theme-font-size-sm);
+  color: #ff6b35;
+  font-family: var(--theme-font-family);
+}
+
+.cancel-edit-btn {
+  padding: 2px 8px;
+  border: 1px solid #ff6b35;
+  border-radius: 4px;
+  background: transparent;
+  color: #ff6b35;
+  font-size: var(--theme-font-size-xs);
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.cancel-edit-btn:hover {
+  background: #ff6b35;
+  color: white;
 }
 
 .form-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--theme-spacing-xs);
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--theme-spacing-xs);
 }
 
 .form-label {
-  color: #FFD700;
-  font-size: 14px;
+  color: var(--theme-text-primary);
+  font-size: var(--theme-font-size-sm);
   font-weight: 600;
-  font-family: 'KaiTi', 'STKaiti', serif;
+  font-family: var(--theme-font-family);
 }
 
 .form-input {
-  padding: 12px 16px;
-  border: 2px solid #DAA520;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.95);
-  font-size: 16px;
+  padding: var(--theme-spacing-xs) var(--theme-spacing-md);
+  border: 1px solid var(--theme-border-color);
+  border-radius: var(--theme-border-radius);
+  background: rgba(255, 255, 255, 0.9);
+  font-size: var(--theme-font-size-md);
   transition: all 0.3s ease;
-  font-family: 'KaiTi', 'STKaiti', serif;
+  font-family: var(--theme-font-family);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #FFD700;
-  box-shadow: 0 0 12px rgba(255, 215, 0, 0.5);
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px rgba(235, 86, 74, 0.2);
   background: #fff;
 }
 
@@ -338,95 +418,100 @@ defineExpose({
 }
 
 .amount-chinese {
-  color: #FFD700;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-  font-family: 'KaiTi', 'STKaiti', serif;
-  letter-spacing: 2px;
+  color: var(--theme-text-secondary);
+  font-size: var(--theme-font-size-xs);  /* 最小字号 */
+  font-weight: normal;
+  padding: var(--theme-spacing-xs) 0;
+  background: transparent;  /* 无填充色 */
+  font-family: var(--theme-font-family);
+  letter-spacing: 1px;
+  text-align: center;
+  min-height: 20px;  /* 保持最小高度避免布局跳动 */
 }
 
 .payment-options {
   display: flex;
-  gap: 8px;
+  gap: var(--theme-spacing-sm);
 }
 
 .payment-btn {
   flex: 1;
-  padding: 10px 16px;
-  border: 2px solid #DAA520;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #FFD700;
-  font-size: 14px;
+  padding: var(--theme-spacing-xs) var(--theme-spacing-xs);
+  border: 1px solid var(--theme-border-color);
+  border-radius: var(--theme-border-radius);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--theme-text-primary);
+  font-size: var(--theme-font-size-sm);
   cursor: pointer;
   transition: all 0.3s ease;
-  font-family: 'KaiTi', 'STKaiti', serif;
+  font-family: var(--theme-font-family);
 }
 
 .payment-btn:hover {
-  background: rgba(255, 215, 0, 0.2);
+  background: rgba(235, 86, 74, 0.1);
 }
 
 .payment-btn.active {
-  background: #FFD700;
-  color: #8B0000;
+  background: var(--theme-primary);
+  color: var(--theme-text-light);
   font-weight: bold;
+  border-color: var(--theme-primary);
 }
 
 .payment-hint {
-  color: rgba(255, 215, 0, 0.7);
-  font-size: 12px;
+  color: var(--theme-text-secondary);
+  font-size: var(--theme-font-size-xs);
   text-align: center;
-  margin-top: 4px;
+  margin-top: var(--theme-spacing-xs);
+  font-family: var(--theme-font-family);
 }
 
 .form-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 8px;
+  gap: var(--theme-spacing-md);
+  margin-top: var(--theme-spacing-md);
 }
 
 .submit-btn,
 .clear-btn {
   flex: 1;
-  padding: 14px 24px;
+  padding: var(--theme-spacing-xs) var(--theme-spacing-xs);
   border: none;
-  border-radius: 8px;
-  font-size: 16px;
+  border-radius: var(--theme-border-radius);
+  font-size: var(--theme-font-size-md);
   font-weight: bold;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-family: 'KaiTi', 'STKaiti', serif;
+  font-family: var(--theme-font-family);
+  box-shadow: var(--theme-shadow);
 }
 
 .submit-btn {
-  background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-  color: #8B0000;
+  background: var(--theme-primary);
+  color: var(--theme-text-light);
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #FFE135 0%, #FFB800 100%);
-  box-shadow: 0 4px 16px rgba(255, 215, 0, 0.4);
+  background: var(--theme-primary-dark);
+  box-shadow: var(--theme-shadow-hover);
   transform: translateY(-2px);
 }
 
 .submit-btn:disabled {
-  background: #999;
-  color: #666;
+  background: #ccc;
+  color: #999;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .clear-btn {
-  background: rgba(255, 255, 255, 0.2);
-  color: #FFD700;
-  border: 2px solid #DAA520;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--theme-text-primary);
+  border: 1px solid var(--theme-border-color);
 }
 
 .clear-btn:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(235, 86, 74, 0.1);
 }
 
 .success-message {
@@ -435,12 +520,13 @@ defineExpose({
   right: 20px;
   background: #4CAF50;
   color: white;
-  padding: 16px 24px;
-  border-radius: 8px;
+  padding: var(--theme-spacing-md) var(--theme-spacing-lg);
+  border-radius: var(--theme-border-radius);
   font-weight: bold;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--theme-shadow);
   animation: slideIn 0.3s ease;
   z-index: 1000;
+  font-family: var(--theme-font-family);
 }
 
 @keyframes slideIn {

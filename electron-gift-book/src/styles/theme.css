@@ -1,0 +1,191 @@
+/*
+  ========================================
+  电子礼金簿 - 主题系统
+  ========================================
+  
+  本文件定义了应用的所有CSS变量（自定义属性），
+  通过修改这些变量可以快速调整整个应用的样式。
+  
+  使用方式：
+  1. 直接修改下面的变量值
+  2. 在浏览器开发者工具中实时调试
+  3. 通过添加类名切换主题（如 .theme-funeral）
+*/
+
+/* ==================== 红色喜庆主题（默认） ==================== */
+:root {
+  /* 
+    ----------------------------------------
+    主色调
+    ----------------------------------------
+    - primary: 主色（页面背景、按钮背景）
+    - primary-dark: 深色变体（悬停状态）
+    - primary-light: 浅色变体
+    
+    调整建议：
+    - 修改主色：调整 --theme-primary 的值
+  */
+  --theme-primary: #EB564A;
+  --theme-primary-dark: #D6453D;
+  --theme-primary-light: #F06B60;
+  
+  /* 
+    ----------------------------------------
+    纸张颜色
+    ----------------------------------------
+    - paper: 纸张背景色（统计面板、录入表单背景）
+    - paper-opacity: 纸张肌理透明度（0-1）
+  */
+  --theme-paper: #EDEDED;
+  --theme-paper-opacity: 0.18;
+  
+  /* 
+    ----------------------------------------
+    文字颜色
+    ----------------------------------------
+    - text-primary: 主要文字（黑色）
+    - text-secondary: 次要文字（深灰）
+    - text-light: 浅色文字（白色，用于深色背景）
+  */
+  --theme-text-primary: #000000;
+  --theme-text-secondary: #333333;
+  --theme-text-light: #FFFFFF;
+  
+  /* 
+    ----------------------------------------
+    强调色
+    ----------------------------------------
+    - accent: 强调色（翻页按钮、统计数字）
+    - accent-dark: 深色变体
+  */
+  --theme-accent: #E6BA37;
+  --theme-accent-dark: #D4A832;
+  
+  /* 
+    ----------------------------------------
+    阴影效果
+    ----------------------------------------
+    - shadow: 默认阴影
+    - shadow-hover: 悬停时阴影（更大更浓）
+    
+    格式：x偏移 y偏移 模糊半径 扩展半径 颜色
+  */
+  --theme-shadow: 0px 4.32px 12.96px rgba(0, 0, 0, 0.25);
+  --theme-shadow-hover: 0px 6px 18px rgba(0, 0, 0, 0.35);
+  
+  /* 
+    ----------------------------------------
+    边框
+    ----------------------------------------
+    - border-color: 边框颜色
+    - border-width: 边框宽度
+    - border-radius: 圆角大小
+  */
+  --theme-border-color: #EB564A;
+  --theme-border-width: 1px;
+  --theme-border-radius: 8px;
+  
+  /* 
+    ----------------------------------------
+    字体
+    ----------------------------------------
+    - font-family: 字体族（优先使用楷体）
+     --theme-font-size-xxxl:超超大（40px，礼金展示姓名、金额）
+    - font-size-xxl: 超大（28px，标题）
+    - font-size-xl: 大（24px，面板标题）
+    - font-size-lg: 中（20px，标题）
+    - font-size-md: 正常（16px，普通文字）
+    - font-size-sm: 小（14px，标签）
+    - font-size-xs: 超小（12px，提示文字）
+  */
+  --theme-font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
+  --theme-font-size-xxxl: 40px;
+  --theme-font-size-xxl: 28px;
+  --theme-font-size-xl: 24px;
+  --theme-font-size-lg: 20px;
+  --theme-font-size-md: 16px;
+  --theme-font-size-sm: 14px;
+  --theme-font-size-xs: 12px;
+  
+  /* 
+    ----------------------------------------
+    间距
+    ----------------------------------------
+    - spacing-xl: 超大（32px）
+    - spacing-lg: 大（24px，主内容区内边距）
+    - spacing-md: 中（16px，面板内边距）
+    - spacing-sm: 小（8px，元素间距）
+    - spacing-xs: 超小（4px）
+  */
+  --theme-spacing-xl: 32px;
+  --theme-spacing-lg: 24px;
+  --theme-spacing-md: 16px;
+  --theme-spacing-sm: 8px;
+  --theme-spacing-xs: 4px;
+  
+  /* 
+    ----------------------------------------
+    礼金簿网格
+    ----------------------------------------
+    - grid-column-width: 单列宽度（默认72px）
+    - grid-column-gap: 列间距（默认16px）
+    - grid-columns-per-page: 每页列数（默认15）
+    
+    调整建议：
+    - 修改列宽：调整 --grid-column-width
+    - 修改列间距：调整 --grid-column-gap
+  */
+  --grid-column-width: 72px;
+  --grid-column-gap: 0px;
+  --grid-columns-per-page: 15;
+}
+
+/* ==================== 预留主题扩展 ==================== */
+/* 
+  切换主题方式：在 body 或 html 标签上添加对应类名
+  例如：<body class="theme-funeral">
+*/
+
+/* 丧仪白主题（白事） */
+.theme-funeral {
+  --theme-primary: #4A4A4A;
+  --theme-primary-dark: #333333;
+  --theme-primary-light: #5A5A5A;
+  --theme-paper: #F5F5F5;
+  --theme-paper-opacity: 0.12;
+  --theme-text-primary: #000000;
+  --theme-text-secondary: #333333;
+  --theme-text-light: #FFFFFF;
+  --theme-accent: #888888;
+  --theme-accent-dark: #666666;
+  --theme-border-color: #4A4A4A;
+  --theme-shadow: 0px 4.32px 12.96px rgba(0, 0, 0, 0.2);
+  --theme-shadow-hover: 0px 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+/* 寿宴金主题（预留） */
+.theme-birthday {
+  --theme-primary: #D4A832;
+  --theme-primary-dark: #B8942F;
+  --theme-primary-light: #E5C040;
+  --theme-paper: #FFF8DC;
+  --theme-paper-opacity: 0.15;
+  --theme-text-primary: #000000;
+  --theme-text-secondary: #333333;
+  --theme-text-light: #FFFFFF;
+  --theme-accent: #DC143C;
+  --theme-accent-dark: #B01030;
+  --theme-border-color: #D4A832;
+  --theme-shadow: 0px 4.32px 12.96px rgba(212, 168, 50, 0.25);
+  --theme-shadow-hover: 0px 6px 18px rgba(212, 168, 50, 0.35);
+}
+
+/* ==================== 主题过渡动画 ==================== */
+/* 为主题切换添加平滑过渡效果 */
+.theme-transition,
+.theme-transition * {
+  transition: background-color 0.3s ease,
+              color 0.3s ease,
+              border-color 0.3s ease,
+              box-shadow 0.3s ease;
+}

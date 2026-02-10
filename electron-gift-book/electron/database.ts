@@ -1,14 +1,18 @@
 import Database from 'better-sqlite3'
 import path from 'node:path'
-import { app } from 'electron'
+import fs from 'node:fs'
 
 // 数据库连接实例
 let db: Database.Database | null = null
 
 // 获取数据库文件路径
 function getDbPath(): string {
-  const userDataPath = app.getPath('userData')
-  return path.join(userDataPath, 'gift-book.db')
+  // 使用项目目录下的 data 文件夹存储数据库
+  const dbDir = path.join(process.cwd(), 'data')
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
+  return path.join(dbDir, 'gift-book.db')
 }
 
 // 初始化数据库
@@ -21,7 +25,6 @@ export function initDatabase(): Database.Database {
   db = new Database(dbPath)
 
   // 启用外键约束
-  db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')
 
   // 创建主记录表
@@ -50,6 +53,12 @@ export function initDatabase(): Database.Database {
       ItemDescription TEXT,
       PaymentType INTEGER,
       Remark TEXT,
+      NewGuestName TEXT,
+      NewAmount DECIMAL(10, 2),
+      NewItemDescription TEXT,
+      NewPaymentType INTEGER,
+      NewRemark TEXT,
+      OperationType TEXT DEFAULT 'UPDATE',
       UpdateBy TEXT DEFAULT 'System',
       UpdateTime DATETIME DEFAULT CURRENT_TIMESTAMP,
       ChangeDesc TEXT,
@@ -64,8 +73,47 @@ export function initDatabase(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_history_recordid ON Records_History(RecordId);
   `)
 
+  // 数据库迁移：添加新列到 Records_History 表
+  migrateHistoryTable(db)
+
   console.log('Database initialized successfully')
   return db
+}
+
+// 数据库迁移：为 Records_History 表添加新列
+function migrateHistoryTable(db: Database.Database): void {
+  try {
+    // 检查并添加新列
+    const columns = db.prepare(`PRAGMA table_info(Records_History)`).all() as { name: string }[]
+    const columnNames = columns.map(col => col.name)
+
+    if (!columnNames.includes('NewGuestName')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN NewGuestName TEXT`)
+      console.log('Migration: Added NewGuestName column')
+    }
+    if (!columnNames.includes('NewAmount')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN NewAmount DECIMAL(10, 2)`)
+      console.log('Migration: Added NewAmount column')
+    }
+    if (!columnNames.includes('NewItemDescription')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN NewItemDescription TEXT`)
+      console.log('Migration: Added NewItemDescription column')
+    }
+    if (!columnNames.includes('NewPaymentType')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN NewPaymentType INTEGER`)
+      console.log('Migration: Added NewPaymentType column')
+    }
+    if (!columnNames.includes('NewRemark')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN NewRemark TEXT`)
+      console.log('Migration: Added NewRemark column')
+    }
+    if (!columnNames.includes('OperationType')) {
+      db.exec(`ALTER TABLE Records_History ADD COLUMN OperationType TEXT DEFAULT 'UPDATE'`)
+      console.log('Migration: Added OperationType column')
+    }
+  } catch (error) {
+    console.error('Migration failed:', error)
+  }
 }
 
 // 获取数据库实例
@@ -107,6 +155,12 @@ export interface RecordHistory {
   ItemDescription?: string
   PaymentType?: number
   Remark?: string
+  NewGuestName?: string
+  NewAmount?: number
+  NewItemDescription?: string
+  NewPaymentType?: number
+  NewRemark?: string
+  OperationType?: string
   UpdateBy?: string
   UpdateTime?: string
   ChangeDesc?: string
@@ -183,8 +237,16 @@ export function searchRecords(keyword: string): Record[] {
 export function insertHistory(history: RecordHistory): void {
   const db = getDatabase()
   const stmt = db.prepare(`
-    INSERT INTO Records_History (RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark, UpdateBy, ChangeDesc)
-    VALUES (@RecordId, @GuestName, @Amount, @ItemDescription, @PaymentType, @Remark, @UpdateBy, @ChangeDesc)
+    INSERT INTO Records_History (
+      RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark,
+      NewGuestName, NewAmount, NewItemDescription, NewPaymentType, NewRemark,
+      OperationType, UpdateBy, ChangeDesc
+    )
+    VALUES (
+      @RecordId, @GuestName, @Amount, @ItemDescription, @PaymentType, @Remark,
+      @NewGuestName, @NewAmount, @NewItemDescription, @NewPaymentType, @NewRemark,
+      @OperationType, @UpdateBy, @ChangeDesc
+    )
   `)
   stmt.run(history)
 }
@@ -196,6 +258,34 @@ export function getRecordHistory(recordId: number): RecordHistory[] {
     SELECT * FROM Records_History WHERE RecordId = ? ORDER BY UpdateTime DESC
   `)
   return stmt.all(recordId) as RecordHistory[]
+}
+
+// 获取所有历史记录（用于修改记录弹窗）- 只返回UPDATE和DELETE类型的记录
+export function getAllRecordHistory(): RecordHistory[] {
+  const db = getDatabase()
+  const stmt = db.prepare(`
+    SELECT 
+      h.HistoryId as historyId,
+      h.RecordId as recordId,
+      h.GuestName as guestName,
+      h.Amount as amount,
+      h.ItemDescription as itemDescription,
+      h.PaymentType as paymentType,
+      h.Remark as remark,
+      h.NewGuestName as newGuestName,
+      h.NewAmount as newAmount,
+      h.NewItemDescription as newItemDescription,
+      h.NewPaymentType as newPaymentType,
+      h.NewRemark as newRemark,
+      h.OperationType as operationType,
+      h.UpdateBy as updateBy,
+      h.UpdateTime as updateTime,
+      h.ChangeDesc as changeDesc
+    FROM Records_History h
+    WHERE h.OperationType IN ('UPDATE', 'DELETE')
+    ORDER BY h.UpdateTime DESC
+  `)
+  return stmt.all() as RecordHistory[]
 }
 
 // 获取统计数据
