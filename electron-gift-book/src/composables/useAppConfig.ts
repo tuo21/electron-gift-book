@@ -122,6 +122,16 @@ function getNextUnnamedIndex(): number {
 }
 
 /**
+ * 清理文件名中的非法字符
+ * Windows 不允许: \ / : * ? " < > |
+ * @param name 原始名称
+ * @returns 清理后的安全名称
+ */
+function sanitizeFileName(name: string): string {
+  return name.replace(/[\\/:*?"<>|]/g, '_');
+}
+
+/**
  * 生成默认文件名
  * @param eventName 事务名称
  * @returns 文件名
@@ -129,7 +139,8 @@ function getNextUnnamedIndex(): number {
 function generateFileName(eventName?: string): string {
   const name = eventName?.trim();
   if (name && name !== DEFAULT_EVENT_NAME) {
-    return `${name}.db`;
+    const safeName = sanitizeFileName(name);
+    return `${safeName}.db`;
   }
   return `未命名事务(${getNextUnnamedIndex()}).db`;
 }
