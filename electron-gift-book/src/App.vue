@@ -584,7 +584,6 @@ onUnmounted(() => {
     1. app-container: 最外层容器，占满整个视口高度(100vh)
     2. app-header: 顶部导航栏（固定高度）
     3. main-content: 主内容区（自适应剩余高度）
-    4. app-footer: 底部广告位（固定高度）
   -->
   <div v-show="isAppReady" class="app-container" :class="{ 'fade-in': isAppReady }">
     
@@ -698,13 +697,6 @@ onUnmounted(() => {
         </div>
       </aside>
     </main>
-
-    <!-- 底部广告位 -->
-    <footer class="app-footer">
-      <div class="ad-placeholder">
-        <span>广告位招租</span>
-      </div>
-    </footer>
 
     <!-- 统计详情弹窗 -->
     <div v-if="showStatisticsModal" class="modal-overlay" @click="closeStatisticsModal">
@@ -1303,27 +1295,6 @@ body {
   padding: var(--theme-spacing-lg);
   box-shadow: var(--theme-shadow);
   flex: 1;        /* 占据剩余空间 */
-}
-
-/* 
-  ========================================
-  【底部广告位】
-  ========================================
-*/
-.app-footer {
-  padding: var(--theme-spacing-sm) var(--theme-spacing-xl);
-  background: rgba(0, 0, 0, 0.1);
-}
-
-.ad-placeholder {
-  height: 60px;   /* 广告位高度 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: var(--theme-border-radius);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: var(--theme-font-size-sm);
 }
 
 /*
