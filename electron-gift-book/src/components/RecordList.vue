@@ -290,22 +290,14 @@ const getPaymentLabel = (type: number): string => {
 const getAdaptiveFontSize = (text: string, isName: boolean = false, hasItem: boolean = false): number => {
   const maxSize = 40;
   const minSize = 20;
-  // 姓名超过3个字开始缩小
-  // 礼金有物品时超过2个字开始缩小，否则超过3个字开始缩小
   const maxLength = isName ? 3 : (hasItem ? 2 : 3);
 
-  console.log('getAdaptiveFontSize:', { text, length: text?.length, isName, hasItem, maxLength });
-
   if (!text || text.length <= maxLength) {
-    console.log('  -> returning maxSize:', maxSize);
     return maxSize;
   }
 
-  // 每多一个字缩小9px
   const reduceSize = (text.length - maxLength) * 9;
-  const result = Math.max(minSize, maxSize - reduceSize);
-  console.log('  -> returning:', result);
-  return result;
+  return Math.max(minSize, maxSize - reduceSize);
 };
 
 // ==================== 暴露方法 ====================
@@ -385,7 +377,7 @@ defineExpose({
   background-image: url('/images/洒金宣纸肌理.png');
   background-size: cover;
   background-position: center;
-  opacity: 1.18;
+  opacity: 0.85;
   pointer-events: none;
 }
 
