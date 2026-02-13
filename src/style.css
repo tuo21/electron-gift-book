@@ -1,0 +1,5 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 项目样式由 theme.css 统一管理，此文件仅保留 Tailwind 指令 */
