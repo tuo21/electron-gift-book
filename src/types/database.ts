@@ -59,6 +59,7 @@ export interface DatabaseAPI {
   getRecordHistory: (recordId: number) => Promise<ApiResponse<RecordHistory[]>>
   getAllRecordHistory: () => Promise<ApiResponse<RecordHistory[]>>
   getStatistics: () => Promise<ApiResponse<Statistics>>
+  batchInsertRecords: (records: Record[]) => Promise<ApiResponse<{ count: number }>>
 }
 
 // 应用 API 接口
