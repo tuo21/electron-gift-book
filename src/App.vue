@@ -145,7 +145,7 @@ const handleUpdate = async (record: Record) => {
 };
 
 const handleDelete = async (id: number) => {
-  const confirmed = await confirmDialogRef.value?.open('确定要删除这条记录吗？');
+  const confirmed = await confirmDialogRef.value?.open();
   if (!confirmed) return;
   
   try {
@@ -448,12 +448,10 @@ const handleImportData = async (data: { eventName: string; records: any[] }) => 
 
       // 批量插入记录
       if (dbRecords.length > 0) {
-        for (const record of dbRecords) {
-          const insertResponse = await window.db.insertRecord(record as any);
-          if (!insertResponse.success) {
-            alert('导入记录失败: ' + (insertResponse.error || '未知错误'));
-            return;
-          }
+        const insertResponse = await window.db.batchInsertRecords(dbRecords as any);
+        if (!insertResponse.success) {
+          alert('导入记录失败: ' + (insertResponse.error || '未知错误'));
+          return;
         }
       }
 
@@ -562,6 +560,7 @@ onUnmounted(() => {
   <ConfirmDialog
     ref="confirmDialogRef"
     title="确认删除"
+    message="确定要删除这条记录吗？此操作不可撤销。"
     confirm-text="删除"
     cancel-text="取消"
     confirm-type="danger"

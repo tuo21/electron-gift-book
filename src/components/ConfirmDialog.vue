@@ -25,7 +25,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   title?: string;
   message: string;
   confirmText?: string;
@@ -46,7 +46,7 @@ const emit = defineEmits<{
 const visible = ref(false);
 let resolvePromise: ((value: boolean) => void) | null = null;
 
-const open = (message: string): Promise<boolean> => {
+const open = (): Promise<boolean> => {
   visible.value = true;
   return new Promise((resolve) => {
     resolvePromise = resolve;

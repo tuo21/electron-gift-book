@@ -18,10 +18,10 @@ export function recordToDbRecord(record: DbRecord): DatabaseRecord {
     Id: record.id,
     GuestName: record.guestName,
     Amount: record.amount,
-    AmountChinese: record.amountChinese || null,
-    ItemDescription: record.itemDescription || null,
+    AmountChinese: record.amountChinese || undefined,
+    ItemDescription: record.itemDescription || undefined,
     PaymentType: record.paymentType,
-    Remark: record.remark || null,
+    Remark: record.remark || undefined,
     IsDeleted: record.isDeleted ?? 0,
   };
 }

@@ -572,9 +572,11 @@ function setupIpcHandlers() {
 
       return {
         success: true,
-        headers,
-        data,
-        totalRows: data.length
+        data: {
+          headers,
+          data,
+          totalRows: data.length
+        }
       }
     } catch (error) {
       console.error('解析导入文件失败:', error)
