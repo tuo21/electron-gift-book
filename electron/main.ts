@@ -61,12 +61,24 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      devTools: true
     },
   })
 
   // 隐藏菜单栏
   win.removeMenu()
+
+  // 应用启动后立即打开开发工具
+  win.webContents.openDevTools()
+
+  // 启用开发工具快捷键
+  win.webContents.on('before-input-event', (event, input) => {
+    if (input.key === 'I' && input.control && input.shift) {
+      event.preventDefault()
+      win?.webContents.toggleDevTools()
+    }
+  })
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
@@ -237,72 +249,206 @@ function setupIpcHandlers() {
     }
   }) => {
     try {
-      // 处理 records 数组，确保其中的每个对象只包含可序列化的属性
-      const serializableData = {
-        ...data,
-        records: data.records.map((record: any) => ({
-          guestName: record.guestName,
-          amount: record.amount,
-          amountChinese: record.amountChinese,
-          itemDescription: record.itemDescription,
-          paymentType: record.paymentType,
-          remark: record.remark
-        }))
+      const { records, appName, exportDate, filename, theme } = data
+
+      // 数字转大写函数
+      const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+      const CN_UNITS = ['', '拾', '佰', '仟']
+      const CN_BIG_UNITS = ['', '万', '亿', '万亿']
+
+      function numberToChinese(amount: number): string {
+        if (isNaN(amount) || amount < 0) return ''
+        if (amount >= 1e16) return '金额过大'
+
+        const integerPart = Math.floor(amount)
+        const decimalPart = Math.round((amount - integerPart) * 100)
+
+        let result = integerToChinese(integerPart)
+        if (result === '') result = '零元'
+        else result += '元'
+
+        if (decimalPart > 0) {
+          const jiao = Math.floor(decimalPart / 10)
+          const fen = decimalPart % 10
+          if (jiao > 0) result += CN_NUMBERS[jiao] + '角'
+          else if (integerPart > 0) result += '零'
+          if (fen > 0) result += CN_NUMBERS[fen] + '分'
+        }
+
+        return result
       }
 
-      // 创建隐藏的打印窗口（使用安全配置）
+      function integerToChinese(num: number): string {
+        if (num === 0) return ''
+        let result = ''
+        let bigUnitIndex = 0
+
+        while (num > 0) {
+          const segment = num % 10000
+          if (segment !== 0) {
+            const segmentStr = segmentToChinese(segment)
+            result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result
+          } else if (result !== '' && !result.startsWith('零')) {
+            result = '零' + result
+          }
+          num = Math.floor(num / 10000)
+          bigUnitIndex++
+        }
+
+        result = result.replace(/零+/g, '零').replace(/零$/, '')
+        return result
+      }
+
+      function segmentToChinese(num: number): string {
+        if (num === 0) return ''
+        let result = ''
+        let zeroFlag = false
+
+        for (let i = 3; i >= 0; i--) {
+          const divisor = Math.pow(10, i)
+          const digit = Math.floor(num / divisor)
+          if (digit > 0) {
+            if (zeroFlag) {
+              result += '零'
+              zeroFlag = false
+            }
+            result += CN_NUMBERS[digit] + CN_UNITS[i]
+          } else if (result !== '') {
+            zeroFlag = true
+          }
+          num %= divisor
+        }
+        return result
+      }
+
+      function formatAmount(amount: number): string {
+        if (isNaN(amount)) return '0.00'
+        return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+      }
+
+      function getPaymentTypeText(type: number): string {
+        const map: { [key: number]: string } = { 0: '现金', 1: '微信', 2: '内收' }
+        return map[type] || '未知'
+      }
+
+      function getAdaptiveFontSize(text: string, isName: boolean = false, hasItem: boolean = false): number {
+        const maxSize = 28
+        const minSize = 16
+        const maxLength = isName ? 3 : (hasItem ? 2 : 3)
+        if (!text || text.length <= maxLength) return maxSize
+        const reduceSize = (text.length - maxLength) * 6
+        return Math.max(minSize, maxSize - reduceSize)
+      }
+
+      // 生成记录列 HTML
+      const recordColumns = records.map((record: any) => {
+        const amountChinese = record.amountChinese || numberToChinese(record.amount)
+        return `
+          <div class="record-column">
+            <div class="cell label-cell"><span class="label-text">姓名</span></div>
+            <div class="cell name-cell"><span class="name-text" style="font-size: ${getAdaptiveFontSize(record.guestName, true)}px">${record.guestName}</span></div>
+            <div class="cell remark-cell"><span class="remark-text">${record.remark || '\u00A0'}</span></div>
+            <div class="cell label-cell"><span class="label-text">礼金</span></div>
+            <div class="cell amount-cell">
+              <div class="amount-content">
+                <span class="amount-chinese" style="font-size: ${getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)}px">${amountChinese}</span>
+                ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ''}
+              </div>
+            </div>
+            <div class="cell payment-cell">
+              <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
+              <span class="amount-number">¥${formatAmount(record.amount)}</span>
+            </div>
+          </div>
+        `
+      }).join('')
+
+      // 添加空白列
+      const emptyCount = 15 - (records.length % 15 || 15)
+      let emptyColumns = ''
+      if (emptyCount < 15) {
+        for (let i = 0; i < emptyCount; i++) {
+          emptyColumns += `
+            <div class="record-column empty-column">
+              <div class="cell label-cell"><span class="label-text">姓名</span></div>
+              <div class="cell name-cell"><span class="name-text"></span></div>
+              <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
+              <div class="cell label-cell"><span class="label-text">礼金</span></div>
+              <div class="cell amount-cell"><span class="amount-chinese"></span></div>
+              <div class="cell payment-cell">
+                <span class="payment-type"></span>
+                <span class="amount-number"></span>
+              </div>
+            </div>
+          `
+        }
+      }
+
+      // 读取 CSS 文件
+      const cssPath = path.join(process.env.VITE_PUBLIC as string, 'print.css')
+      const cssContent = fs.readFileSync(cssPath, 'utf-8')
+
+      // 生成完整 HTML
+      const htmlContent = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>礼金簿打印</title>
+  <style>
+    ${cssContent}
+    :root {
+      --theme-primary: ${theme?.primary || '#c44a3d'};
+      --theme-paper: ${theme?.paper || '#f5f0e8'};
+      --theme-text-primary: ${theme?.textPrimary || '#333'};
+      --theme-accent: ${theme?.accent || '#eb564a'};
+    }
+  </style>
+</head>
+<body>
+  <div class="print-container">
+    <header class="print-header">
+      <h1 class="print-title">${appName || '电子礼金簿'}</h1>
+      <div class="print-meta">
+        <span>导出日期：${exportDate}</span>
+        <span>共 ${records.length} 条记录</span>
+      </div>
+    </header>
+    <main class="print-content">
+      ${recordColumns}
+      ${emptyColumns}
+    </main>
+    <footer class="print-footer">
+      <span>第 1 页</span>
+    </footer>
+  </div>
+</body>
+</html>
+      `
+
+      // 创建隐藏的打印窗口
       const printWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         show: false,
         webPreferences: {
-          preload: path.join(__dirname, 'preload.mjs'),
           contextIsolation: true,
-          nodeIntegration: false,
-          sandbox: true
+          nodeIntegration: false
         }
       })
 
-      // 等待页面加载完成并渲染
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('打印页面加载超时'))
-        }, 10000)
+      // 加载 HTML 内容
+      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
 
-        ipcMain.once('print-window-loaded', () => {
-          try {
-            // 发送数据到打印窗口
-            printWindow.webContents.send('render-giftbook', serializableData)
-          } catch (error) {
-            console.error('发送数据到打印窗口失败:', error)
-            reject(new Error('发送数据到打印窗口失败: ' + (error as Error).message))
-          }
-        })
-
-        ipcMain.once('print-ready', () => {
-          clearTimeout(timeout)
-          resolve()
-        })
-
-        // 加载打印页面
-        const printPagePath = path.join(process.env.VITE_PUBLIC as string, 'print.html')
-        printWindow.loadFile(printPagePath).catch(reject)
-      })
-
-      // 等待字体渲染
+      // 等待渲染完成
       await new Promise(resolve => setTimeout(resolve, 500))
 
-      // 生成 PDF
+      // 生成 PDF - 使用CSS @page规则控制尺寸
       const pdfBuffer = await printWindow.webContents.printToPDF({
-        margins: {
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0,
-        },
+        margins: { top: 0, bottom: 0, left: 0, right: 0 },
         printBackground: true,
-        landscape: true,
-        pageSize: 'A4'
+        preferCSSPageSize: true
       })
 
       // 关闭打印窗口
@@ -311,10 +457,8 @@ function setupIpcHandlers() {
       // 显示保存对话框
       const { filePath } = await dialog.showSaveDialog({
         title: '保存 PDF',
-        defaultPath: `${serializableData.filename}.pdf`,
-        filters: [
-          { name: 'PDF 文件', extensions: ['pdf'] }
-        ]
+        defaultPath: `${filename}.pdf`,
+        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
       })
 
       if (filePath) {

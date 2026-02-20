@@ -16,11 +16,11 @@
   --theme-text-light: #ffffff;
   --theme-border: #d4a574;
   
-  /* 尺寸 - 调整为一页刚好15列，间距为0 */
+  /* 尺寸 - 297mm x 150mm 页面 */
   --page-width: 297mm;
-  --page-height: 210mm;
+  --page-height: 150mm;
   --column-width: 18.5mm;  /* 297mm / 15 = 19.8mm，考虑边距后调整为18.5mm */
-  --column-height: 160mm;
+  --column-height: 110mm;
   --column-gap: 0mm;  /* 间距为0，与电脑显示一致 */
   
   /* 字体 */
@@ -29,8 +29,8 @@
 
 /* ==================== 页面设置 ==================== */
 @page {
-  size: A4 landscape;
-  margin: 10mm;
+  size: 297mm 150mm;
+  margin: 0;
 }
 
 * {
@@ -92,9 +92,8 @@ body {
   gap: var(--column-gap);
   background: rgba(255, 255, 255, 0.1);
   padding: 0;  /* 内边距为0 */
-  border-radius: 3mm;
   align-content: flex-start;
-  justify-content: space-between;  /* 均匀分布 */
+  justify-content: flex-start;
 }
 
 /* ==================== 记录列 ==================== */
@@ -103,19 +102,15 @@ body {
   height: var(--column-height);
   background: rgba(255, 255, 255, 0.95);
   border: 0.5mm solid var(--theme-border);
-  border-radius: 2mm;
   display: flex;
   flex-direction: column;
   padding: 2mm;
-  box-shadow: 0 1mm 3mm rgba(0, 0, 0, 0.15);
   page-break-inside: avoid;
   break-inside: avoid;
   flex-shrink: 0;  /* 防止压缩 */
 }
 
 .empty-column {
-  opacity: 0.5;
-  background: rgba(255, 255, 255, 0.7);
 }
 
 /* ==================== 单元格 ==================== */
@@ -146,8 +141,8 @@ body {
 /* 姓名单元格 */
 .name-cell {
   flex: 0 0 auto;
-  height: 45mm;
-  min-height: 40mm;
+  height: 38mm;
+  min-height: 35mm;
   justify-content: center;
 }
 
@@ -182,8 +177,8 @@ body {
 /* 礼金单元格 */
 .amount-cell {
   flex: 0 0 auto;
-  height: 55mm;
-  min-height: 50mm;
+  height: 40mm;
+  min-height: 35mm;
   justify-content: center;
 }
 
@@ -219,8 +214,8 @@ body {
 /* 支付方式单元格 */
 .payment-cell {
   flex: 0 0 auto;
-  gap: 1mm;
-  padding: 2mm 0;
+  gap: 0.5mm;
+  padding: 1mm 0;
 }
 
 .payment-type {
@@ -248,10 +243,6 @@ body {
 @media print {
   body {
     background: var(--theme-primary);
-  }
-  
-  .print-container {
-    page-break-after: always;
   }
   
   .record-column {

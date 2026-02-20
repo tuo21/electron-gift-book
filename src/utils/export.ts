@@ -83,6 +83,7 @@ export async function exportToPDF(
   // 获取当前日期
   const now = new Date()
   const exportDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
+  const filename = generateExportFileName(eventName)
 
   try {
     // 处理 records 数组，确保其中的每个对象只包含可序列化的属性
@@ -100,6 +101,7 @@ export async function exportToPDF(
       records: serializableRecords,
       appName: eventName,
       exportDate,
+      filename,
       theme
     })
 

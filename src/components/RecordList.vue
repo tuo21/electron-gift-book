@@ -95,13 +95,13 @@
           class="record-column empty-column"
         >
           <div class="cell label-cell"><span class="label-text">姓名</span></div>
-          <div class="cell name-cell"><span class="name-text">-</span></div>
+          <div class="cell name-cell"><span class="name-text"></span></div>
           <div class="cell remark-cell"><span class="remark-text"> </span></div>
           <div class="cell label-cell"><span class="label-text">礼金</span></div>
-          <div class="cell amount-cell"><span class="amount-chinese">-</span></div>
+          <div class="cell amount-cell"><span class="amount-chinese"></span></div>
           <div class="cell payment-cell">
             <div class="payment-placeholder"></div>
-            <span class="amount-number">-</span>
+            <span class="amount-number"></span>
           </div>
         </div>
       </div>
@@ -427,18 +427,18 @@ defineExpose({
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.185);  /* 白色90%不透明 */
   border: 1px solid var(--theme-border-color);
-  border-radius: var(--theme-border-radius);  /* 8px */
+  border-radius: 0;  /* 去掉圆角 */
   display: flex;
   flex-direction: column;
   padding: var(--theme-spacing-sm);   /* 8px */
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none;  /* 去掉阴影 */
   transition: all 0.3s ease;
 }
 
-/* 悬停效果：上浮+阴影增强 */
+/* 悬停效果：去掉阴影和上浮 */
 .record-column:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transform: translateY(-2px);
+  box-shadow: none;
+  transform: none;
 }
 
 /* 已删除记录样式 */
