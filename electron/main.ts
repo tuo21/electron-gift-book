@@ -21,14 +21,6 @@ import {
   type Record
 } from './database'
 
-// 数据目录
-const dataDir = path.join(process.cwd(), 'data')
-
-// 确保数据目录存在
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true })
-}
-
 // 获取当前文件目录（ES 模块兼容）
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -459,8 +451,18 @@ function setupIpcHandlers() {
       // 重新计算总页数
       const finalTotalPages = pages.length
 
-      // 读取 CSS 文件
-      const cssPath = path.join(process.env.VITE_PUBLIC as string, 'print.css')
+      // 读取 CSS 文件 - 支持开发和生产环境
+      let cssPath: string
+      if (VITE_DEV_SERVER_URL) {
+        cssPath = path.join(process.env.APP_ROOT as string, 'public', 'print.css')
+      } else {
+        cssPath = path.join(RENDERER_DIST, 'print.css')
+      }
+      console.log('尝试读取CSS文件:', cssPath)
+      
+      if (!fs.existsSync(cssPath)) {
+        throw new Error(`CSS文件不存在: ${cssPath}`)
+      }
       const cssContent = fs.readFileSync(cssPath, 'utf-8')
 
       // 生成多页 HTML
@@ -513,6 +515,11 @@ ${pagesHtml}
 </html>
       `
 
+      // 创建临时HTML文件 - 比data URL更稳定
+      const tempHtmlPath = path.join(dataDir, `temp_print_${Date.now()}.html`)
+      fs.writeFileSync(tempHtmlPath, htmlContent, 'utf-8')
+      console.log('创建临时HTML文件:', tempHtmlPath)
+
       // 创建隐藏的打印窗口
       const printWindow = new BrowserWindow({
         width: 1200,
@@ -520,42 +527,76 @@ ${pagesHtml}
         show: false,
         webPreferences: {
           contextIsolation: true,
-          nodeIntegration: false
+          nodeIntegration: false,
+          webSecurity: false
         }
       })
 
-      // 加载 HTML 内容
-      await printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(htmlContent)}`)
+      let pdfBuffer: Buffer | null = null
 
-      // 等待渲染完成
-      await new Promise(resolve => setTimeout(resolve, 500))
+      try {
+        // 加载临时HTML文件
+        await printWindow.loadFile(tempHtmlPath)
+        console.log('HTML文件加载成功')
 
-      // 生成 PDF - 使用CSS @page规则控制尺寸
-      const pdfBuffer = await printWindow.webContents.printToPDF({
-        margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        printBackground: true,
-        preferCSSPageSize: true
-      })
+        // 等待渲染完成，增加等待时间确保资源加载
+        await new Promise(resolve => setTimeout(resolve, 1000))
 
-      // 关闭打印窗口
-      printWindow.close()
+        // 生成 PDF - 使用CSS @page规则控制尺寸
+        console.log('开始生成PDF...')
+        pdfBuffer = await printWindow.webContents.printToPDF({
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+          printBackground: true,
+          preferCSSPageSize: true
+        })
+        console.log('PDF生成成功')
 
-      // 显示保存对话框
-      const { filePath } = await dialog.showSaveDialog({
-        title: '保存 PDF',
-        defaultPath: `${filename}.pdf`,
-        filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
-      })
+        // 关闭打印窗口
+        printWindow.close()
 
-      if (filePath) {
-        fs.writeFileSync(filePath, pdfBuffer)
-        return { success: true, data: { filePath } }
-      } else {
-        return { success: false, error: '用户取消保存' }
+        // 显示保存对话框
+        const { filePath } = await dialog.showSaveDialog({
+          title: '保存 PDF',
+          defaultPath: `${filename}.pdf`,
+          filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
+        })
+
+        if (filePath && pdfBuffer) {
+          fs.writeFileSync(filePath, pdfBuffer)
+          return { success: true, data: { filePath } }
+        } else if (!filePath) {
+          return { success: false, error: '用户取消保存' }
+        } else {
+          return { success: false, error: 'PDF生成失败' }
+        }
+      } finally {
+        // 删除临时HTML文件
+        try {
+          if (fs.existsSync(tempHtmlPath)) {
+            fs.unlinkSync(tempHtmlPath)
+            console.log('删除临时HTML文件成功')
+          }
+        } catch (cleanupError) {
+          console.error('删除临时文件失败:', cleanupError)
+        }
       }
     } catch (error) {
       console.error('生成 PDF 失败:', error)
-      return { success: false, error: (error as Error).message }
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      let userFriendlyMessage = '导出 PDF 失败，请重试。'
+      
+      if (errorMessage.includes('CSS文件不存在')) {
+        userFriendlyMessage = 'PDF样式文件丢失，请重新安装应用。'
+      } else if (errorMessage.includes('ENOENT')) {
+        userFriendlyMessage = '无法访问文件系统，请检查磁盘空间和权限。'
+      } else if (errorMessage.includes('printToPDF')) {
+        userFriendlyMessage = 'PDF生成引擎异常，请重启应用后重试。'
+      }
+      
+      return { 
+        success: false, 
+        error: `${userFriendlyMessage}\n\n技术细节: ${errorMessage}` 
+      }
     }
   })
 
@@ -859,13 +900,32 @@ app.on('activate', () => {
   }
 })
 
+// 数据目录 - 使用用户应用数据目录，避免权限问题
+// 开发环境使用当前目录，生产环境使用用户应用数据目录
+let dataDir: string = VITE_DEV_SERVER_URL
+  ? path.join(process.cwd(), 'data')
+  : ''
+
 app.whenReady().then(() => {
   try {
+    // 生产环境：使用用户应用数据目录，避免在 Program Files 等系统目录下写入
+    if (!VITE_DEV_SERVER_URL) {
+      dataDir = path.join(app.getPath('userData'), 'data')
+    }
+    console.log('数据目录:', dataDir)
+
+    // 确保数据目录存在
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true })
+      console.log('创建数据目录成功')
+    }
+
     // 初始化数据库
     initDatabase()
     console.log('Database initialized successfully')
   } catch (error) {
     console.error('Failed to initialize database:', error)
+    dialog.showErrorBox('初始化失败', `无法初始化应用数据目录或数据库：\n${error}`)
   }
   // 设置 IPC 处理器
   setupIpcHandlers()
