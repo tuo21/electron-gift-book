@@ -70,7 +70,7 @@ function createWindow() {
   win.removeMenu()
 
   // 应用启动后立即打开开发工具
-  win.webContents.openDevTools()
+
 
   // 启用开发工具快捷键
   win.webContents.on('before-input-event', (event, input) => {
@@ -340,8 +340,12 @@ function setupIpcHandlers() {
         return Math.max(minSize, maxSize - reduceSize)
       }
 
-      // 生成记录列 HTML
-      const recordColumns = records.map((record: any) => {
+      // 计算总金额
+      const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
+      const totalAmountChinese = numberToChinese(totalAmount)
+
+      // 生成单条记录列 HTML
+      function generateRecordColumn(record: any): string {
         const amountChinese = record.amountChinese || numberToChinese(record.amount)
         return `
           <div class="record-column">
@@ -361,32 +365,123 @@ function setupIpcHandlers() {
             </div>
           </div>
         `
-      }).join('')
-
-      // 添加空白列
-      const emptyCount = 15 - (records.length % 15 || 15)
-      let emptyColumns = ''
-      if (emptyCount < 15) {
-        for (let i = 0; i < emptyCount; i++) {
-          emptyColumns += `
-            <div class="record-column empty-column">
-              <div class="cell label-cell"><span class="label-text">姓名</span></div>
-              <div class="cell name-cell"><span class="name-text"></span></div>
-              <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
-              <div class="cell label-cell"><span class="label-text">礼金</span></div>
-              <div class="cell amount-cell"><span class="amount-chinese"></span></div>
-              <div class="cell payment-cell">
-                <span class="payment-type"></span>
-                <span class="amount-number"></span>
-              </div>
-            </div>
-          `
-        }
       }
+
+      // 生成空白列 HTML
+      function generateEmptyColumn(): string {
+        return `
+          <div class="record-column empty-column">
+            <div class="cell label-cell"><span class="label-text">姓名</span></div>
+            <div class="cell name-cell"><span class="name-text"></span></div>
+            <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
+            <div class="cell label-cell"><span class="label-text">礼金</span></div>
+            <div class="cell amount-cell"><span class="amount-chinese"></span></div>
+            <div class="cell payment-cell">
+              <span class="payment-type"></span>
+              <span class="amount-number"></span>
+            </div>
+          </div>
+        `
+      }
+
+      // 生成汇总列 HTML（竖排显示在最后一列）
+      function generateSummaryColumn(): string {
+        return `
+          <div class="record-column summary-column">
+            <div class="cell label-cell"><span class="label-text">汇总</span></div>
+            <div class="cell summary-name-cell">
+              <span class="summary-text-vertical">汇总：${totalAmountChinese}</span>
+            </div>
+            <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
+            <div class="cell label-cell"><span class="label-text">汇总</span></div>
+            <div class="cell summary-amount-cell">
+              <span class="summary-number-vertical">${formatAmount(totalAmount)}元</span>
+            </div>
+            <div class="cell payment-cell">
+              <span class="payment-type"></span>
+              <span class="amount-number"></span>
+            </div>
+          </div>
+        `
+      }
+
+      // 将记录分页，每页15条
+      const recordsPerPage = 15
+      const totalPages = Math.ceil(records.length / recordsPerPage)
+      const pages: Array<{ content: string; amount: number; isLastPage: boolean }> = []
+      
+      // 检查最后一页是否满15条
+      const lastPageRecordCount = records.length % recordsPerPage || recordsPerPage
+      const lastPageFull = lastPageRecordCount === 15
+
+      for (let pageNum = 0; pageNum < totalPages; pageNum++) {
+        const startIdx = pageNum * recordsPerPage
+        const endIdx = Math.min(startIdx + recordsPerPage, records.length)
+        const pageRecords = records.slice(startIdx, endIdx)
+        const isLastPage = pageNum === totalPages - 1
+        
+        // 计算当前页金额合计
+        const pageAmount = pageRecords.reduce((sum, r) => sum + r.amount, 0)
+
+        // 生成当前页的记录列
+        let pageContent = pageRecords.map(generateRecordColumn).join('')
+
+        if (isLastPage && !lastPageFull) {
+          // 最后一页且不满15条：填充到14列，最后一列显示汇总
+          const emptyCount = 14 - pageRecords.length
+          for (let i = 0; i < emptyCount; i++) {
+            pageContent += generateEmptyColumn()
+          }
+          pageContent += generateSummaryColumn()
+        } else {
+          // 非最后一页 或 最后一页满15条：填充到15列
+          const emptyCount = recordsPerPage - pageRecords.length
+          for (let i = 0; i < emptyCount; i++) {
+            pageContent += generateEmptyColumn()
+          }
+        }
+
+        pages.push({ content: pageContent, amount: pageAmount, isLastPage })
+      }
+
+      // 如果最后一页满15条，需要添加一个汇总页
+      if (lastPageFull) {
+        let summaryPageContent = ''
+        // 14个空白列
+        for (let i = 0; i < 14; i++) {
+          summaryPageContent += generateEmptyColumn()
+        }
+        // 最后一列是汇总
+        summaryPageContent += generateSummaryColumn()
+        pages.push({ content: summaryPageContent, amount: 0, isLastPage: true })
+      }
+
+      // 重新计算总页数
+      const finalTotalPages = pages.length
 
       // 读取 CSS 文件
       const cssPath = path.join(process.env.VITE_PUBLIC as string, 'print.css')
       const cssContent = fs.readFileSync(cssPath, 'utf-8')
+
+      // 生成多页 HTML
+      const pagesHtml = pages.map((page, pageIndex) => `
+  <div class="print-container">
+    <header class="print-header">
+      <h1 class="print-title">${appName || '电子礼金簿'}</h1>
+      <div class="print-meta">
+        <span>日期：${exportDate}</span>
+      </div>
+    </header>
+    <main class="print-content">
+      ${page.content}
+    </main>
+    <footer class="print-footer">
+      <span class="footer-left">共 ${records.length} 条记录</span>
+      <span class="footer-center">第 ${pageIndex + 1} 页 / 共 ${finalTotalPages} 页</span>
+      <span class="footer-right">本页小计：¥${formatAmount(page.amount)}</span>
+    </footer>
+  </div>
+`).join('\n')
 
       // 生成完整 HTML
       const htmlContent = `
@@ -404,25 +499,16 @@ function setupIpcHandlers() {
       --theme-text-primary: ${theme?.textPrimary || '#333'};
       --theme-accent: ${theme?.accent || '#eb564a'};
     }
+    .print-container {
+      page-break-after: always;
+    }
+    .print-container:last-child {
+      page-break-after: auto;
+    }
   </style>
 </head>
 <body>
-  <div class="print-container">
-    <header class="print-header">
-      <h1 class="print-title">${appName || '电子礼金簿'}</h1>
-      <div class="print-meta">
-        <span>导出日期：${exportDate}</span>
-        <span>共 ${records.length} 条记录</span>
-      </div>
-    </header>
-    <main class="print-content">
-      ${recordColumns}
-      ${emptyColumns}
-    </main>
-    <footer class="print-footer">
-      <span>第 1 页</span>
-    </footer>
-  </div>
+${pagesHtml}
 </body>
 </html>
       `

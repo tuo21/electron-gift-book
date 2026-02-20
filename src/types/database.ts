@@ -68,6 +68,7 @@ export interface AppAPI {
     records: Record[]
     appName: string
     exportDate: string
+    filename: string
     theme?: {
       primary?: string
       paper?: string
