@@ -31,35 +31,6 @@
   </div>
 
   <script>
-    // 使用 contextBridge 暴露的安全 API
-    // 等待 preload 脚本注入
-    let ipcRenderer = null;
-    
-    // 检查是否通过 contextBridge 注入了 API
-    if (window.electronAPI && window.electronAPI.sendToMain) {
-      ipcRenderer = {
-        send: (channel, data) => {
-          const validChannels = ['print-ready', 'render-giftbook'];
-          if (validChannels.includes(channel)) {
-            window.electronAPI.sendToMain(channel, data);
-          }
-        },
-        on: (channel, callback) => {
-          const validChannels = ['render-giftbook'];
-          if (validChannels.includes(channel)) {
-            window.electronAPI.onFromMain(channel, callback);
-          }
-        }
-      };
-    } else {
-      // 降级处理：如果 contextBridge 不可用，使用 require（仅用于开发）
-      ipcRenderer = window.require ? window.require('electron').ipcRenderer : null;
-    }
-    
-    if (!ipcRenderer) {
-      console.error('无法初始化 IPC 通信');
-    }
-    
     // 数字转大写
     const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖'];
     const CN_UNITS = ['', '拾', '佰', '仟'];
@@ -213,12 +184,12 @@
           emptyColumn.className = 'record-column empty-column';
           emptyColumn.innerHTML = `
             <div class="cell label-cell"><span class="label-text">姓名</span></div>
-            <div class="cell name-cell"><span class="name-text">-</span></div>
+            <div class="cell name-cell"><span class="name-text"></span></div>
             <div class="cell label-cell"><span class="label-text">礼金</span></div>
-            <div class="cell amount-cell"><span class="amount-chinese">-</span></div>
+            <div class="cell amount-cell"><span class="amount-chinese"></span></div>
             <div class="cell payment-cell">
-              <span class="payment-type">-</span>
-              <span class="amount-number">-</span>
+              <span class="payment-type"></span>
+              <span class="amount-number"></span>
             </div>
           `;
           container.appendChild(emptyColumn);
@@ -226,18 +197,17 @@
       }
 
       // 通知主进程渲染完成
-      ipcRenderer.send('print-ready');
+      if (window.electronAPI && window.electronAPI.sendToMain) {
+        window.electronAPI.sendToMain('print-ready');
+      }
     }
 
     // 监听渲染请求
-    ipcRenderer.on('render-giftbook', (event, data) => {
-      renderGiftbook(data);
-    });
-
-    // 页面加载完成后通知主进程
-    window.addEventListener('load', () => {
-      ipcRenderer.send('print-window-loaded');
-    });
+    if (window.electronAPI && window.electronAPI.onFromMain) {
+      window.electronAPI.onFromMain('render-giftbook', (event, data) => {
+        renderGiftbook(data);
+      });
+    }
   </script>
 </body>
 </html>
