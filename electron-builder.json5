@@ -5,7 +5,7 @@
   "asar": true,
   "productName": "电子礼金簿",
   "directories": {
-    "output": "build/${version}-latest"
+    "output": "build/${version}-new"
   },
   "files": [
     "dist",

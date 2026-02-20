@@ -94,6 +94,7 @@ body {
   padding: 0;  /* 内边距为0 */
   align-content: flex-start;
   justify-content: flex-start;
+  position: relative;  /* 用于汇总信息绝对定位 */
 }
 
 /* ==================== 记录列 ==================== */
@@ -231,12 +232,29 @@ body {
 
 /* ==================== 页脚 ==================== */
 .print-footer {
-  margin-top: 2mm;  /* 减小顶部间距 */
-  padding-top: 2mm;  /* 减小顶部内边距 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2mm;
+  padding-top: 2mm;
   border-top: 1px solid rgba(255, 255, 255, 0.3);
-  text-align: center;
   color: rgba(255, 255, 255, 0.9);
   font-size: 9pt;
+}
+
+.footer-left {
+  flex: 1;
+  text-align: left;
+}
+
+.footer-center {
+  flex: 1;
+  text-align: center;
+}
+
+.footer-right {
+  flex: 1;
+  text-align: right;
 }
 
 /* ==================== 打印优化 ==================== */
@@ -249,6 +267,53 @@ body {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+}
+
+/* ==================== 汇总列样式 ==================== */
+.summary-column {
+  background: rgba(255, 255, 255, 0.95);
+  border: 0.5mm solid var(--theme-primary);
+}
+
+.summary-column .label-text {
+  color: var(--theme-primary);
+  font-size: 10pt;
+}
+
+.summary-name-cell {
+  flex: 0 0 auto;
+  height: 38mm;
+  min-height: 35mm;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+}
+
+.summary-text-vertical {
+  font-weight: bold;
+  color: var(--theme-primary);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 1mm;
+  font-size: 14pt;
+  line-height: 1.4;
+}
+
+.summary-amount-cell {
+  flex: 0 0 auto;
+  height: 40mm;
+  min-height: 35mm;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+}
+
+.summary-number-vertical {
+  font-weight: bold;
+  color: var(--theme-primary);
+  font-size: 12pt;
+  transform: rotate(90deg);
+  white-space: nowrap;
 }
 
 /* ==================== 隐藏滚动条 ==================== */
