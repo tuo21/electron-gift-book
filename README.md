@@ -121,4 +121,4 @@ A: 可以在启动页选择不同的主题，也可以在应用设置中修改�
 
 ---
 欢迎关注我的公众号：
-![公众号二维码](electron-gift-book\Img\wei-QR.png)
+![公众号二维码](Img/wei-QR.png)
