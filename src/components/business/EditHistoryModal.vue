@@ -11,11 +11,12 @@
             暂无修改记录
           </div>
           <div v-else class="history-list">
-            <div 
-              v-for="(history, index) in editHistoryList" 
-              :key="index" 
-              class="history-item" 
+            <div
+              v-for="(history, index) in editHistoryList"
+              :key="index"
+              class="history-item"
               :class="{ 'deleted-item': history.operationType === 'DELETE' }"
+              @contextmenu.prevent="showContextMenu($event, history)"
             >
               <div class="history-header">
                 <span class="history-name">{{ history.guestName }}</span>
@@ -46,28 +47,128 @@
       </div>
     </div>
   </div>
+
+  <!-- 右键菜单 -->
+  <div
+    v-if="contextMenuVisible"
+    class="context-menu"
+    :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    @click.stop
+  >
+    <div class="context-menu-item" @click="handleLocate">
+      <span class="menu-icon">📍</span>
+      <span>定位到该项</span>
+    </div>
+    <div
+      class="context-menu-item"
+      :class="{ 'disabled': selectedHistory?.operationType === 'DELETE' }"
+      @click="handleRevert"
+    >
+      <span class="menu-icon">↩️</span>
+      <span>还原修改</span>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { useRecordsStore } from '../../stores/useRecordsStore'
-import { storeToRefs } from 'pinia'
+import { ref, onMounted, onUnmounted } from 'vue'
+import type { RecordHistory } from '../../types/database'
+
+interface Props {
+  editHistoryList: RecordHistory[]
+}
 
 interface Emits {
   (e: 'close'): void
+  (e: 'locate', recordId: number): void
+  (e: 'revert', history: RecordHistory): void
 }
 
+defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const recordsStore = useRecordsStore()
-const { editHistoryList } = storeToRefs(recordsStore)
+// 右键菜单状态
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const selectedHistory = ref<RecordHistory | null>(null)
 
 const formatMoney = (amount: number) => {
   return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
+
+// 显示右键菜单
+const showContextMenu = (event: MouseEvent, history: RecordHistory) => {
+  event.preventDefault()
+  selectedHistory.value = history
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuVisible.value = true
+}
+
+// 关闭右键菜单
+const closeContextMenu = () => {
+  contextMenuVisible.value = false
+  selectedHistory.value = null
+}
+
+// 点击其他地方关闭菜单
+onMounted(() => {
+  document.addEventListener('click', closeContextMenu)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', closeContextMenu)
+})
+
+// 定位到该项
+const handleLocate = () => {
+  if (!selectedHistory.value) {
+    closeContextMenu()
+    return
+  }
+  // 先保存记录ID，再关闭菜单
+  const recordId = selectedHistory.value.recordId
+  closeContextMenu()
+  emit('locate', recordId)
+}
+
+// 还原修改
+const handleRevert = () => {
+  if (!selectedHistory.value || selectedHistory.value.operationType === 'DELETE') {
+    closeContextMenu()
+    return
+  }
+
+  // 先保存选中的历史记录，再关闭菜单
+  const historyToRevert = selectedHistory.value
+
+  closeContextMenu()
+
+  if (!confirm('确定要还原此修改吗？')) return
+
+  emit('revert', historyToRevert)
+}
 </script>
 
 <style scoped>
-.edit-history-modal {
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-container {
+  background: var(--theme-paper);
+  border-radius: var(--theme-border-radius);
+  box-shadow: var(--theme-shadow);
   min-width: 500px;
   max-width: 90vw;
   max-height: 80vh;
@@ -139,6 +240,7 @@ const formatMoney = (amount: number) => {
   border: 1px solid rgba(235, 86, 74, 0.2);
   border-radius: var(--theme-border-radius);
   padding: var(--theme-spacing-md);
+  cursor: context-menu;
 }
 
 .history-header {
@@ -205,5 +307,45 @@ const formatMoney = (amount: number) => {
   padding: 2px 8px;
   border-radius: 4px;
   margin-left: 8px;
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius);
+  box-shadow: var(--theme-shadow);
+  z-index: 1000;
+  min-width: 140px;
+  padding: 4px 0;
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+  font-size: var(--theme-font-size-sm);
+  color: var(--theme-text-primary);
+}
+
+.context-menu-item:hover {
+  background: rgba(235, 86, 74, 0.1);
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.context-menu-item.disabled:hover {
+  background: transparent;
+}
+
+.menu-icon {
+  font-size: 14px;
 }
 </style>

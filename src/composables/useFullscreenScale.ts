@@ -26,17 +26,15 @@ function calculateScale(): number {
   const sx = w / baselineWidth
   const sy = h / baselineHeight
   const candidate = Math.min(sx, sy)
-  // 仅放大，不缩小
-  if (candidate > 1) return Math.min(2, candidate)
+  // 仅放大，不缩小，最大放大到 3 倍以适应 2K/4K 屏幕
+  if (candidate > 1) return Math.min(3, candidate)
   return 1
 }
 
 function updateScale(): void {
   const newScale = calculateScale()
-  if (newScale > scale.value) {
-    scale.value = newScale
-    document.documentElement.style.setProperty('--fullscreen-scale', scale.value.toString())
-  }
+  scale.value = newScale
+  document.documentElement.style.setProperty('--fullscreen-scale', scale.value.toString())
 }
 
 function getCurrentScale(): number {
