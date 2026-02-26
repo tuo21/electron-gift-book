@@ -227,13 +227,81 @@ export function softDeleteRecord(id: number): void {
   stmt.run(id)
 }
 
-// 获取所有未删除的记录
+  // 获取所有未删除的记录
 export function getAllRecords(): Record[] {
   const db = getDatabase()
   const stmt = db.prepare(`
-    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime DESC
+    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime DESC, Id DESC
   `)
   return stmt.all() as Record[]
+}
+
+// 分页获取记录
+export function getRecordsPaginated(page: number, pageSize: number): { records: Record[], total: number, page: number, pageSize: number, totalPages: number } {
+  const db = getDatabase()
+  
+  // 参数验证
+  const validPage = Math.max(1, page)
+  const validPageSize = Math.max(1, pageSize)
+  const offset = (validPage - 1) * validPageSize
+  
+  // 获取总数
+  const countStmt = db.prepare(`
+    SELECT COUNT(*) as total FROM Records WHERE IsDeleted = 0
+  `)
+  const countResult = countStmt.get() as { total: number }
+  const total = countResult.total
+  
+  // 计算总页数
+  const totalPages = Math.ceil(total / validPageSize)
+  
+  // 如果请求的页码超过总页数，返回空结果
+  if (validPage > totalPages) {
+    return {
+      records: [],
+      total,
+      page: validPage,
+      pageSize: validPageSize,
+      totalPages,
+    }
+  }
+  
+  // 获取分页数据
+  const stmt = db.prepare(`
+    SELECT * FROM Records 
+    WHERE IsDeleted = 0 
+    ORDER BY CreateTime DESC, Id DESC
+    LIMIT ? OFFSET ?
+  `)
+  const records = stmt.all(validPageSize, offset) as Record[]
+  
+  return {
+    records,
+    total,
+    page: validPage,
+    pageSize: validPageSize,
+    totalPages,
+  }
+}
+
+// 获取记录所在页码
+export function getRecordPage(recordId: number, pageSize: number): number {
+  const db = getDatabase()
+  // 计算记录在排序中的位置（0-index）
+  const positionStmt = db.prepare(`
+    SELECT COUNT(*) as position
+    FROM Records 
+    WHERE IsDeleted = 0 
+    AND (
+      CreateTime > (SELECT CreateTime FROM Records WHERE Id = ? AND IsDeleted = 0)
+      OR (CreateTime = (SELECT CreateTime FROM Records WHERE Id = ? AND IsDeleted = 0) 
+          AND Id > ?)
+    )
+  `)
+  const result = positionStmt.get(recordId, recordId, recordId) as { position: number }
+  const position = result.position
+  // 计算页码（1-index）
+  return Math.floor(position / pageSize) + 1
 }
 
 // 根据ID获取记录
@@ -251,7 +319,7 @@ export function searchRecords(keyword: string): Record[] {
   const stmt = db.prepare(`
     SELECT * FROM Records 
     WHERE IsDeleted = 0 AND (GuestName LIKE ? OR Remark LIKE ? OR ItemDescription LIKE ?)
-    ORDER BY CreateTime DESC
+    ORDER BY CreateTime DESC, Id DESC
   `)
   const likeKeyword = `%${keyword}%`
   return stmt.all(likeKeyword, likeKeyword, likeKeyword) as Record[]

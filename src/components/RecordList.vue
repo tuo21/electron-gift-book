@@ -117,7 +117,7 @@
       <button
         class="page-btn"
         :disabled="currentPage <= 1"
-        @click="currentPage--"
+        @click="goToPrevPage"
       >
         ← 上一页
       </button>
@@ -130,7 +130,7 @@
       <button
         class="page-btn"
         :disabled="currentPage >= totalPages"
-        @click="currentPage++"
+        @click="goToNextPage"
       >
         下一页 →
       </button>
@@ -166,11 +166,14 @@ import { PaymentType, getPaymentTypeText } from '../constants';
 const props = defineProps<{
   records: Record[];
   pageSize?: number;  // 每页显示条数，默认15
+  currentPage?: number; // 当前页码，默认1
+  totalPages?: number; // 总页数，如果提供则使用，否则根据records长度计算
 }>();
 
 const emit = defineEmits<{
   (e: 'edit', record: Record): void;
   (e: 'delete', id: number): void;
+  (e: 'update:currentPage', page: number): void;
 }>();
 
 // ==================== 右键菜单逻辑 ====================
@@ -247,16 +250,31 @@ onUnmounted(() => {
 });
 
 // ==================== 分页逻辑 ====================
-const currentPage = ref(1);
 const pageSize = computed(() => props.pageSize || 15);
 
-// 总页数
+// 当前页码（支持外部控制）
+const currentPage = computed({
+  get: () => props.currentPage ?? 1,
+  set: (value) => emit('update:currentPage', value)
+});
+
+// 总页数（优先使用外部传入的totalPages，否则基于records长度计算）
 const totalPages = computed(() => {
+  if (props.totalPages !== undefined) {
+    return props.totalPages;
+  }
+  // 客户端分页模式：基于records长度计算
   return Math.max(1, Math.ceil(props.records.length / pageSize.value));
 });
 
 // 当前页数据（切片）- 使用缓存避免重复计算
+// 如果外部已经提供分页数据（records仅为当前页数据），则直接返回
 const paginatedRecords = computed(() => {
+  // 如果提供了totalPages且records长度小于等于pageSize，假定records已经是当前页数据
+  if (props.totalPages !== undefined && props.records.length <= pageSize.value) {
+    return props.records;
+  }
+  // 否则进行客户端切片
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
   // 返回切片后的数据（不反转，保持原始顺序）
@@ -269,10 +287,25 @@ const emptyColumns = computed(() => {
   return Math.max(0, pageSize.value - currentCount);
 });
 
-// 监听记录变化，重置到第一页
+// 监听记录变化，重置到第一页（仅客户端分页模式）
 watch(() => props.records.length, () => {
-  currentPage.value = 1;
+  // 仅在未提供totalPages（客户端分页）时重置页码
+  if (props.totalPages === undefined) {
+    currentPage.value = 1;
+  }
 });
+
+// 分页操作
+const goToPrevPage = () => {
+  if (currentPage.value > 1) {
+    currentPage.value = currentPage.value - 1;
+  }
+};
+const goToNextPage = () => {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value = currentPage.value + 1;
+  }
+};
 
 // ==================== 辅助函数 ====================
 const getPaymentIcon = (type: number): string => {
