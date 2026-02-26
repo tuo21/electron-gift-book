@@ -9,10 +9,12 @@ import { getLunarDisplay } from './utils/lunarCalendar';
 import { exportToExcel, exportToPDF } from './utils/export';
 import { useTheme } from './composables/useTheme';
 import { useAppConfig } from './composables/useAppConfig';
+import { useFullscreenScale } from './composables/useFullscreenScale';
 
 // ==================== 启动页和配置 ====================
 const { setTheme, applyThemeToDocument } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig } = useAppConfig();
+const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
 
 // 启动页状态
 const showSplashScreen = ref(true);
@@ -539,22 +541,25 @@ const scanDataDirectory = async () => {
 onMounted(async () => {
   // 初始化配置
   initConfig();
-  
+
   // 应用保存的主题
   if (config.value.theme) {
     applyThemeToDocument(config.value.theme);
   }
-  
+
   // 扫描 data 目录获取文件列表
   await scanDataDirectory();
-  
+
   // 默认显示启动页，让用户选择要打开的礼金簿
   showSplashScreen.value = true;
   isAppReady.value = false;
-  
+
   intervalId.value = window.setInterval(() => {
     lunarDate.value = getLunarDisplay();
   }, 60000);
+
+  // 初始化全屏缩放功能
+  initFullscreenScale();
 });
 
 onUnmounted(() => {
@@ -562,6 +567,8 @@ onUnmounted(() => {
     clearInterval(intervalId.value);
     intervalId.value = null;
   }
+  // 销毁全屏缩放功能
+  destroyFullscreenScale();
 });
 </script>
 
@@ -1080,6 +1087,10 @@ body {
   flex-direction: column;
   background: var(--theme-primary);
   overflow: hidden;
+  transform: scale(var(--fullscreen-scale));
+  transform-origin: top left;
+  width: calc(100% / var(--fullscreen-scale));
+  height: calc(100vh / var(--fullscreen-scale));
 }
 
 /* 

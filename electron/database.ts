@@ -227,11 +227,11 @@ export function softDeleteRecord(id: number): void {
   stmt.run(id)
 }
 
-  // 获取所有未删除的记录
+  // 获取所有未删除的记录（按创建时间升序，先输入的在前）
 export function getAllRecords(): Record[] {
   const db = getDatabase()
   const stmt = db.prepare(`
-    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime DESC, Id DESC
+    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC
   `)
   return stmt.all() as Record[]
 }
@@ -284,28 +284,59 @@ export function getRecordsPaginated(page: number, pageSize: number): { records: 
   }
 }
 
-// 获取记录所在页码
-export function getRecordPage(recordId: number, pageSize: number): number {
+// 获取记录所在页码（支持已删除的记录）
+// 注意：前端显示时记录是按 CreateTime 升序排列的（先输入的在前）
+// 第1条数据在第1页第1列，第48条数据在第4页第3列（每页15列）
+export function getRecordPage(recordId: number, pageSize: number): number | null {
   const db = getDatabase()
-  // 计算记录在排序中的位置（0-index）
+  
+  // 首先检查记录是否存在（包括已删除的）
+  const recordStmt = db.prepare(`
+    SELECT CreateTime, IsDeleted FROM Records WHERE Id = ?
+  `)
+  const record = recordStmt.get(recordId) as { CreateTime: string; IsDeleted: number } | undefined
+  
+  if (!record) {
+    return null // 记录不存在
+  }
+  
+  // 如果记录已删除，返回null（无法定位到已删除的记录）
+  if (record.IsDeleted === 1) {
+    return null
+  }
+  
+  // 计算记录在升序排列中的位置（0-index）
+  // 升序时，CreateTime 越小，位置越靠前
+  // 所以计算有多少条记录的 CreateTime 小于当前记录（或者相等但Id更小）
   const positionStmt = db.prepare(`
     SELECT COUNT(*) as position
     FROM Records 
     WHERE IsDeleted = 0 
     AND (
-      CreateTime > (SELECT CreateTime FROM Records WHERE Id = ? AND IsDeleted = 0)
-      OR (CreateTime = (SELECT CreateTime FROM Records WHERE Id = ? AND IsDeleted = 0) 
-          AND Id > ?)
+      CreateTime < ?
+      OR (CreateTime = ? AND Id < ?)
     )
   `)
-  const result = positionStmt.get(recordId, recordId, recordId) as { position: number }
+  const result = positionStmt.get(record.CreateTime, record.CreateTime, recordId) as { position: number }
   const position = result.position
+  
   // 计算页码（1-index）
+  // 第1条记录 position=0，在第1页
+  // 第48条记录 position=47，在第4页 (47/15=3.13，取整后+1=4)
   return Math.floor(position / pageSize) + 1
 }
 
-// 根据ID获取记录
+// 根据ID获取记录（包含已删除的）
 export function getRecordById(id: number): Record | undefined {
+  const db = getDatabase()
+  const stmt = db.prepare(`
+    SELECT * FROM Records WHERE Id = ?
+  `)
+  return stmt.get(id) as Record | undefined
+}
+
+// 根据ID获取未删除的记录
+export function getActiveRecordById(id: number): Record | undefined {
   const db = getDatabase()
   const stmt = db.prepare(`
     SELECT * FROM Records WHERE Id = ? AND IsDeleted = 0

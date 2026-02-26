@@ -73,7 +73,7 @@ export const useRecordsStore = defineStore('records', (): RecordsState & Records
     }
   }
 
-  const findRecordPage = async (recordId: number): Promise<number> => {
+  const findRecordPage = async (recordId: number): Promise<number | null> => {
     loading.value = true
     error.value = null
     try {
