@@ -12,6 +12,8 @@ import {
   updateRecord,
   softDeleteRecord,
   getAllRecords,
+  getRecordsPaginated,
+  getRecordPage,
   getRecordById,
   searchRecords,
   insertHistory,
@@ -95,6 +97,24 @@ function setupIpcHandlers() {
   ipcMain.handle('db:getAllRecords', () => {
     try {
       return { success: true, data: getAllRecords() }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 分页获取记录
+  ipcMain.handle('db:getRecordsPaginated', (_, page: number, pageSize: number) => {
+    try {
+      return { success: true, data: getRecordsPaginated(page, pageSize) }
+    } catch (error) {
+      return { success: false, error: (error as Error).message }
+    }
+  })
+
+  // 获取记录所在页码
+  ipcMain.handle('db:getRecordPage', (_, recordId: number, pageSize: number) => {
+    try {
+      return { success: true, data: getRecordPage(recordId, pageSize) }
     } catch (error) {
       return { success: false, error: (error as Error).message }
     }

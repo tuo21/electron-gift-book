@@ -4,17 +4,17 @@
       <div class="confirm-dialog" @click.stop>
         <div class="confirm-header">
           <span class="confirm-icon">⚠️</span>
-          <span class="confirm-title">{{ title }}</span>
+          <span class="confirm-title">{{ dialogTitle }}</span>
         </div>
         <div class="confirm-body">
-          <p class="confirm-message">{{ message }}</p>
+          <p class="confirm-message">{{ dialogMessage }}</p>
         </div>
         <div class="confirm-actions">
           <button class="confirm-btn cancel" @click="handleCancel">
-            {{ cancelText }}
+            {{ dialogCancelText }}
           </button>
-          <button class="confirm-btn confirm" :class="confirmType" @click="handleConfirm">
-            {{ confirmText }}
+          <button class="confirm-btn confirm" :class="dialogConfirmType" @click="handleConfirm">
+            {{ dialogConfirmText }}
           </button>
         </div>
       </div>
@@ -25,28 +25,35 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-withDefaults(defineProps<{
-  title?: string;
-  message: string;
-  confirmText?: string;
-  cancelText?: string;
-  confirmType?: 'danger' | 'warning' | 'primary';
-}>(), {
-  title: '确认操作',
-  confirmText: '确定',
-  cancelText: '取消',
-  confirmType: 'danger'
-});
-
 const emit = defineEmits<{
   (e: 'confirm'): void;
   (e: 'cancel'): void;
 }>();
 
 const visible = ref(false);
+const dialogTitle = ref('确认操作')
+const dialogMessage = ref('')
+const dialogConfirmText = ref('确定')
+const dialogCancelText = ref('取消')
+const dialogConfirmType = ref<'danger' | 'warning' | 'primary'>('danger')
 let resolvePromise: ((value: boolean) => void) | null = null;
 
-const open = (): Promise<boolean> => {
+interface OpenOptions {
+  title?: string
+  message: string
+  confirmText?: string
+  cancelText?: string
+  confirmType?: 'danger' | 'warning' | 'primary'
+}
+
+const open = (options?: OpenOptions): Promise<boolean> => {
+  if (options) {
+    dialogTitle.value = options.title || '确认操作'
+    dialogMessage.value = options.message
+    dialogConfirmText.value = options.confirmText || '确定'
+    dialogCancelText.value = options.cancelText || '取消'
+    dialogConfirmType.value = options.confirmType || 'danger'
+  }
   visible.value = true;
   return new Promise((resolve) => {
     resolvePromise = resolve;
