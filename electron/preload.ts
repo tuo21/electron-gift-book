@@ -17,9 +17,20 @@ interface DbRecord {
   isDeleted?: number
 }
 
+// 分页结果类型
+interface PaginationResult<T> {
+  records: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 // 数据库操作 API
 interface DatabaseAPI {
   getAllRecords: () => Promise<ApiResponse<DbRecord[]>>
+  getRecordsPaginated: (page: number, pageSize: number) => Promise<ApiResponse<PaginationResult<DbRecord>>>
+  getRecordPage: (recordId: number, pageSize: number) => Promise<ApiResponse<number>>
   getRecordById: (id: number) => Promise<ApiResponse<DbRecord>>
   searchRecords: (keyword: string) => Promise<ApiResponse<DbRecord[]>>
   insertRecord: (record: DbRecord) => Promise<ApiResponse<{ id: number }>>
@@ -70,6 +81,8 @@ interface ElectronAPI {
 // 只暴露必要的数据库 API，遵循 Electron 安全最佳实践
 contextBridge.exposeInMainWorld('db', {
   getAllRecords: () => ipcRenderer.invoke('db:getAllRecords'),
+  getRecordsPaginated: (page: number, pageSize: number) => ipcRenderer.invoke('db:getRecordsPaginated', page, pageSize),
+  getRecordPage: (recordId: number, pageSize: number) => ipcRenderer.invoke('db:getRecordPage', recordId, pageSize),
   getRecordById: (id: number) => ipcRenderer.invoke('db:getRecordById', id),
   searchRecords: (keyword: string) => ipcRenderer.invoke('db:searchRecords', keyword),
   insertRecord: (record: DbRecord) => ipcRenderer.invoke('db:insertRecord', record),
