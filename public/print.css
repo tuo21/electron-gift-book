@@ -2,7 +2,21 @@
  * 礼金簿打印样式
  * 用于 PDF 导出和打印
  * 使用 CSS 变量支持主题换肤
+ * 
+ * 字体规范：
+ * - 姓名文本和大写金额：演示春风楷
+ * - 固定文字内容：宋体
+ * - 其他变量文字：楷体
  */
+
+/* ==================== 字体定义 ==================== */
+@font-face {
+  font-family: '演示春风楷';
+  src: url('./fonts/XuandongKaishu.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ==================== CSS 变量定义 ==================== */
 :root {
@@ -24,7 +38,9 @@
   --column-gap: 0mm;  /* 间距为0，与电脑显示一致 */
   
   /* 字体 */
-  --font-family: 'Noto Serif SC', 'SimSun', 'STSong', 'Source Han Serif SC', serif;
+  --font-name-amount: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+  --font-family-fixed: 'SimSun', 'STSong', 'Noto Serif SC', serif;
+  --font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
 }
 
 /* ==================== 页面设置 ==================== */
@@ -73,7 +89,7 @@ body {
   font-weight: bold;
   color: var(--theme-text-light);
   margin: 0;
-  font-family: var(--font-family);
+  font-family: var(--font-name-amount);
 }
 
 .print-meta {
@@ -137,6 +153,7 @@ body {
   font-size: 8pt;
   color: var(--theme-primary);
   font-weight: bold;
+  font-family: var(--font-family-fixed);
 }
 
 /* 姓名单元格 */
@@ -148,13 +165,13 @@ body {
 }
 
 .name-text {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2mm;
   font-size: 20pt;
   line-height: 1.2;
+  font-family: var(--font-name-amount);
 }
 
 /* 备注单元格 */
@@ -173,6 +190,7 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-family);
 }
 
 /* 礼金单元格 */
@@ -193,13 +211,13 @@ body {
 }
 
 .amount-chinese {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 1mm;
   line-height: 1.4;
   font-size: 14pt;
+  font-family: var(--font-name-amount);
 }
 
 .item-description {
@@ -210,6 +228,7 @@ body {
   letter-spacing: 0.5mm;
   max-height: 100%;
   overflow: hidden;
+  font-family: var(--font-family);
 }
 
 /* 支付方式单元格 */
@@ -223,11 +242,13 @@ body {
   font-size: 7pt;
   color: var(--theme-primary);
   font-weight: bold;
+  font-family: var(--font-family-fixed);
 }
 
 .amount-number {
   font-size: 7pt;
   color: var(--theme-text-secondary);
+  font-family: var(--font-family-fixed);
 }
 
 /* ==================== 页脚 ==================== */
@@ -278,6 +299,7 @@ body {
 .summary-column .label-text {
   color: var(--theme-primary);
   font-size: 10pt;
+  font-family: var(--font-family-fixed);
 }
 
 .summary-name-cell {
@@ -297,6 +319,7 @@ body {
   letter-spacing: 1mm;
   font-size: 14pt;
   line-height: 1.4;
+  font-family: var(--font-name-amount);
 }
 
 .summary-amount-cell {

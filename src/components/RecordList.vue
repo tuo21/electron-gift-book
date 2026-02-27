@@ -40,7 +40,7 @@
         <div
           v-for="record in paginatedRecords"
           :key="record.id"
-          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, newRecordAnimationMap.get(record.id)]"
+          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, record.id ? newRecordAnimationMap.get(record.id) ?? false : false]"
           class="record-column"
           :class="{ 
             'deleted': record.isDeleted, 
@@ -483,7 +483,9 @@ defineExpose({
   flex: 1;
   position: relative;
   overflow: hidden;
-  padding: var(--theme-spacing-lg);  /* 24px */
+  padding: var(--theme-spacing-lg);
+  width: 100%;
+  max-width: 1290px;
 }
 
 /* 
@@ -527,10 +529,12 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: row;
-  gap: var(--grid-column-gap);       /* 16px，在theme.css中定义 */
+  gap: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: var(--theme-spacing-md);  /* 16px */
+  padding: var(--theme-spacing-md);
+  width: 100%;
+  max-width: 1290px;
 }
 
 /* 
@@ -539,7 +543,7 @@ defineExpose({
   ========================================
   - width: 列宽（CSS变量控制，默认72px）
   - background: 半透明白色背景
-  - border: 边框
+  - border: 边框（只保留左、上、下，右边框由相邻列共享）
   - writing-mode: vertical-rl 竖排文字
   
   调整建议：
@@ -554,13 +558,19 @@ defineExpose({
   min-height: 507px;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.185);  /* 白色90%不透明 */
-  border: 1px solid var(--theme-border-color);
+  border: 1px solid rgba(235, 86, 74, 0.28);
+  border-right: none;  /* 去掉右边框，由相邻列共享 */
   border-radius: 0;  /* 去掉圆角 */
   display: flex;
   flex-direction: column;
   padding: var(--theme-spacing-sm);   /* 8px */
   box-shadow: none;  /* 去掉阴影 */
   transition: all 0.3s ease;
+}
+
+/* 最后一列补上右边框 */
+.record-column:last-child {
+  border-right: 1px solid rgba(235, 86, 74, 0.15);
 }
 
 /* 悬停效果：去掉阴影和上浮 */
@@ -618,6 +628,12 @@ defineExpose({
 .empty-column {
   opacity: 0.4;
   background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(235, 86, 74, 0.08);  /* 空白列边框更淡 */
+}
+
+/* 空白列最后一列补上右边框 */
+.empty-column:last-child {
+  border-right: 1px solid rgba(235, 86, 74, 0.08);
 }
 
 /* 
@@ -630,7 +646,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   padding: var(--theme-spacing-xs) 0;  /* 4px */
-  border-bottom: 1px dashed rgba(235, 86, 74, 0.2);  /* 虚线分隔 */
+  border-bottom: 1px dotted rgba(235, 86, 74, 0.12);  /* 点线分隔，更细更淡 */
 }
 
 .cell:last-child { border-bottom: none; }
@@ -643,6 +659,7 @@ defineExpose({
   color: var(--theme-primary);
   font-weight: bold;
   writing-mode: horizontal-tb;  /* 水平文字 */
+  font-family: var(--font-family-fixed);  /* 固定文字使用宋体 */
 }
 
 /* 
@@ -665,12 +682,12 @@ defineExpose({
 }
 
 .name-text {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 4px;
   transition: font-size 0.2s ease;
+  font-family: var(--font-name-amount);  /* 姓名使用演示春风楷 */
 }
 
 /* 备注单元格 */
@@ -717,13 +734,13 @@ defineExpose({
 }
 
 .amount-chinese {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2px;
   line-height: 1.6;
   transition: font-size 0.2s ease;
+  font-family: var(--font-name-amount);  /* 大写金额使用演示春风楷 */
 }
 
 .item-description {
