@@ -9,13 +9,38 @@ import { numberToChinese } from './amountConverter'
 import { getPaymentTypeText } from '../constants'
 
 /**
+ * 从记录列表中获取事务日期（最早的记录创建时间）
+ * @param records 记录列表
+ * @returns 事务日期对象，如果没有记录则返回当前日期
+ */
+function getEventDate(records: Record[]): Date {
+  if (records.length === 0) {
+    return new Date()
+  }
+
+  // 找到最早的创建时间
+  const earliestRecord = records.reduce((earliest, record) => {
+    if (!record.createTime) return earliest
+    if (!earliest.createTime) return record
+    return new Date(record.createTime) < new Date(earliest.createTime) ? record : earliest
+  })
+
+  if (!earliestRecord.createTime) {
+    return new Date()
+  }
+
+  return new Date(earliestRecord.createTime)
+}
+
+/**
  * 生成导出文件名
  * @param eventName 事务名称
+ * @param eventDate 事务日期（可选，默认为当前日期）
  * @returns 文件名（不含扩展名）
  */
-function generateExportFileName(eventName: string): string {
-  const now = new Date()
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+function generateExportFileName(eventName: string, eventDate?: Date): string {
+  const date = eventDate || new Date()
+  const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
   // 清理事务名称中的非法字符
   const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
   return `${cleanName}_${dateStr}`
@@ -27,7 +52,10 @@ function generateExportFileName(eventName: string): string {
  * @param eventName 事务名称（用于生成文件名）
  */
 export function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): void {
-  const filename = generateExportFileName(eventName)
+  // 获取事务日期（最早的记录创建时间）
+  const eventDate = getEventDate(records)
+  const filename = generateExportFileName(eventName, eventDate)
+
   // 准备数据
   const data = records.map((record, index) => ({
     '序号': index + 1,
@@ -68,22 +96,17 @@ export function exportToExcel(records: Record[], eventName: string = '电子礼�
  * 导出为 PDF 文件（使用 Electron printToPDF）
  * @param records 记录列表
  * @param eventName 事务名称（用于生成文件名和标题）
- * @param theme 主题配置
+ * @param theme 主题类型：'red' | 'gray'
  */
 export async function exportToPDF(
   records: Record[],
   eventName: string = '电子礼金簿',
-  theme?: {
-    primary?: string
-    paper?: string
-    textPrimary?: string
-    accent?: string
-  }
+  theme: 'red' | 'gray' = 'red'
 ): Promise<void> {
-  // 获取当前日期
-  const now = new Date()
-  const exportDate = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`
-  const filename = generateExportFileName(eventName)
+  // 获取事务日期（最早的记录创建时间）
+  const eventDate = getEventDate(records)
+  const exportDate = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日`
+  const filename = generateExportFileName(eventName, eventDate)
 
   try {
     // 处理 records 数组，确保其中的每个对象只包含可序列化的属性

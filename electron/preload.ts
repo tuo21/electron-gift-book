@@ -49,12 +49,7 @@ interface AppAPI {
     appName: string
     exportDate: string
     filename: string
-    theme?: {
-      primary?: string
-      paper?: string
-      textPrimary?: string
-      accent?: string
-    }
+    theme?: 'red' | 'gray'
   }) => Promise<ApiResponse<{ filePath: string }>>
 }
 

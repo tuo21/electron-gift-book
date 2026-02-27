@@ -14,7 +14,7 @@ import Toast from './components/Toast.vue';
 import EditHistoryModal from './components/business/EditHistoryModal.vue';
 
 // ==================== 启动页和配置 ====================
-const { setTheme, applyThemeToDocument } = useTheme();
+const { setTheme, applyThemeToDocument, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig } = useAppConfig();
 const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
 
@@ -374,17 +374,11 @@ const handleExportPDF = async () => {
 
   isExporting.value = true;
   try {
-    // 获取当前主题色（从 CSS 变量）
-    const rootStyles = getComputedStyle(document.documentElement);
-    const theme = {
-      primary: rootStyles.getPropertyValue('--theme-primary').trim() || '#c44a3d',
-      paper: rootStyles.getPropertyValue('--theme-paper').trim() || '#f5f0e8',
-      textPrimary: rootStyles.getPropertyValue('--theme-text-primary').trim() || '#333333',
-      accent: rootStyles.getPropertyValue('--theme-accent').trim() || '#eb564a',
-    };
+    // 获取当前主题类型（wedding/funeral）
+    const themeType = currentTheme.value === 'funeral' ? 'gray' : 'red';
     
     // 使用事务名称作为文件名
-    await exportToPDF(records.value, appName.value, theme);
+    await exportToPDF(records.value, appName.value, themeType);
     closeExportModal();
     toastRef.value?.success('PDF 导出成功！', 3000);
   } catch (error) {
@@ -990,8 +984,16 @@ body {
 
 /* ==================== PDF 导出样式 ==================== */
 /* 这些样式用于 PDF 导出时的渲染，不在主界面显示 */
+@font-face {
+  font-family: '演示春风楷';
+  src: url('/fonts/XuandongKaishu.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :global(.pdf-export-container) {
-  font-family: 'Noto Serif SC', 'SimSun', 'STSong', serif;
+  font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
 }
 
 :global(.pdf-giftbook) {
@@ -1014,12 +1016,13 @@ body {
   font-size: 28px;
   font-weight: bold;
   margin: 0;
-  font-family: 'Noto Serif SC', 'SimSun', serif;
+  font-family: '演示春风楷', 'KaiTi', 'SimSun', serif;
 }
 
 :global(.pdf-date) {
   color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-content) {
@@ -1070,6 +1073,7 @@ body {
   font-size: 11px;
   color: #c44a3d;
   font-weight: bold;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-name-cell) {
@@ -1080,12 +1084,12 @@ body {
 }
 
 :global(.pdf-name) {
-  font-weight: bold;
   color: #333;
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 3px;
   font-size: 28px;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-remark-cell) {
@@ -1100,6 +1104,7 @@ body {
 :global(.pdf-remark) {
   font-size: 10px;
   color: #666;
+  font-family: 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-amount-cell) {
@@ -1119,13 +1124,13 @@ body {
 }
 
 :global(.pdf-amount-chinese) {
-  font-weight: bold;
   color: #333;
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2px;
   line-height: 1.5;
   font-size: 22px;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-item-desc) {
@@ -1134,6 +1139,7 @@ body {
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 1px;
+  font-family: 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-payment-cell) {
@@ -1146,11 +1152,13 @@ body {
   font-size: 10px;
   color: #c44a3d;
   font-weight: bold;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-amount-number) {
   font-size: 10px;
   color: #666;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-footer) {
@@ -1164,24 +1172,27 @@ body {
 </style>
 
 <style scoped>
-/* 
+/*
   ========================================
   最外层容器
   ========================================
   - height: 100vh 占满整个视口高度
   - display: flex + flex-direction: column 垂直排列
   - background: 使用主题主色
+  - 缩放逻辑：以左上角为原点缩放，保持原始比例
+  - 缩放后容器尺寸需要反向计算，确保内容完整显示
 */
 .app-container {
-  height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--theme-primary);
   overflow: hidden;
   transform: scale(var(--fullscreen-scale));
   transform-origin: top left;
-  width: calc(100% / var(--fullscreen-scale));
+  width: calc(100vw / var(--fullscreen-scale));
   height: calc(100vh / var(--fullscreen-scale));
+  min-width: calc(1522px * 0.7);
+  min-height: calc(930px * 0.7);
 }
 
 /* 
@@ -1236,7 +1247,7 @@ body {
   padding: var(--theme-spacing-xs) var(--theme-spacing-sm);
   border: 1px solid var(--theme-accent);
   border-radius: var(--theme-border-radius);
-  background: var(--theme-text-primary);
+  background: var(--theme-paper);
   color: var(--theme-text-primary);
   width: 200px;   /* 输入框宽度 */
 }
@@ -1288,7 +1299,7 @@ body {
   margin-top: 2px;
 }
 
-/* 
+/*
   ========================================
   【主内容区】
   ========================================
@@ -1297,25 +1308,26 @@ body {
   - display: flex 左右两栏布局
   - gap: 左右栏间距 24px
   - padding: 内边距 24px
-  
+
   调整建议：
   - 修改左右栏间距：调整 gap
   - 修改内边距：调整 padding
 */
 .main-content {
-  flex: 1;        /* 占据剩余空间 */
+  flex: 1;
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: flex-start; /* 垂直顶部对齐 */
-  gap: var(--theme-spacing-lg);          /* 24px */
-  padding: var(--theme-spacing-lg);      /* 24px */
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--theme-spacing-lg);
+  padding: var(--theme-spacing-lg);
   overflow: hidden;
+  min-width: calc(1522px * 0.7);
 }
 
 /* 【左侧】礼金簿展示区 */
 .giftbook-section {
-  flex: 1;        /* 自适应宽度 */
-  min-width: 0;   /* 防止内容撑开 */
+  width: 1290px;
+  flex-shrink: 0;
   overflow: hidden;
 }
 

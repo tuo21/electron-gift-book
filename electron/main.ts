@@ -22,6 +22,7 @@ import {
   getStatistics,
   type Record
 } from './database'
+import { createPDFGeneratorService } from './pdfGeneratorService'
 
 // 获取当前文件目录（ES 模块兼容）
 const __filename = fileURLToPath(import.meta.url)
@@ -50,8 +51,8 @@ let win: BrowserWindow | null
 function createWindow() {
   win = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'images', 'logo.png'),
-    width: 1445,
-    height: 950,
+    width: 1550,
+    height: 960,
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -247,375 +248,38 @@ function setupIpcHandlers() {
     }
   })
 
-  // 生成 PDF
+  // 生成 PDF（基于模板图片）
   ipcMain.handle('app:generatePDF', async (_, data: {
     records: any[],
     appName: string,
     exportDate: string,
     filename: string,
-    theme?: {
-      primary?: string
-      paper?: string
-      textPrimary?: string
-      accent?: string
-    }
+    theme?: 'red' | 'gray'
   }) => {
     try {
       const { records, appName, exportDate, filename, theme } = data
 
-      // 数字转大写函数
-      const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
-      const CN_UNITS = ['', '拾', '佰', '仟']
-      const CN_BIG_UNITS = ['', '万', '亿', '万亿']
+      const assetsPath = VITE_DEV_SERVER_URL
+        ? path.join(process.env.APP_ROOT as string, 'public')
+        : RENDERER_DIST
 
-      function numberToChinese(amount: number): string {
-        if (isNaN(amount) || amount < 0) return ''
-        if (amount >= 1e16) return '金额过大'
+      const pdfService = createPDFGeneratorService(assetsPath)
 
-        const integerPart = Math.floor(amount)
-        const decimalPart = Math.round((amount - integerPart) * 100)
+      const result = await pdfService.generatePDF({
+        records,
+        appName,
+        exportDate,
+        theme: theme || 'red',
+        filename
+      }, dataDir)
 
-        let result = integerToChinese(integerPart)
-        if (result === '') result = '零元'
-        else result += '元'
-
-        if (decimalPart > 0) {
-          const jiao = Math.floor(decimalPart / 10)
-          const fen = decimalPart % 10
-          if (jiao > 0) result += CN_NUMBERS[jiao] + '角'
-          else if (integerPart > 0) result += '零'
-          if (fen > 0) result += CN_NUMBERS[fen] + '分'
-        }
-
-        return result
-      }
-
-      function integerToChinese(num: number): string {
-        if (num === 0) return ''
-        let result = ''
-        let bigUnitIndex = 0
-
-        while (num > 0) {
-          const segment = num % 10000
-          if (segment !== 0) {
-            const segmentStr = segmentToChinese(segment)
-            result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result
-          } else if (result !== '' && !result.startsWith('零')) {
-            result = '零' + result
-          }
-          num = Math.floor(num / 10000)
-          bigUnitIndex++
-        }
-
-        result = result.replace(/零+/g, '零').replace(/零$/, '')
-        return result
-      }
-
-      function segmentToChinese(num: number): string {
-        if (num === 0) return ''
-        let result = ''
-        let zeroFlag = false
-
-        for (let i = 3; i >= 0; i--) {
-          const divisor = Math.pow(10, i)
-          const digit = Math.floor(num / divisor)
-          if (digit > 0) {
-            if (zeroFlag) {
-              result += '零'
-              zeroFlag = false
-            }
-            result += CN_NUMBERS[digit] + CN_UNITS[i]
-          } else if (result !== '') {
-            zeroFlag = true
-          }
-          num %= divisor
-        }
-        return result
-      }
-
-      function formatAmount(amount: number): string {
-        if (isNaN(amount)) return '0.00'
-        return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-      }
-
-      function getPaymentTypeText(type: number): string {
-        const map: { [key: number]: string } = { 0: '现金', 1: '微信', 2: '内收' }
-        return map[type] || '未知'
-      }
-
-      function getAdaptiveFontSize(text: string, isName: boolean = false, hasItem: boolean = false): number {
-        const maxSize = 28
-        const minSize = 16
-        const maxLength = isName ? 3 : (hasItem ? 2 : 3)
-        if (!text || text.length <= maxLength) return maxSize
-        const reduceSize = (text.length - maxLength) * 6
-        return Math.max(minSize, maxSize - reduceSize)
-      }
-
-      // 计算总金额
-      const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
-      const totalAmountChinese = numberToChinese(totalAmount)
-
-      // 生成单条记录列 HTML
-      function generateRecordColumn(record: any): string {
-        const amountChinese = record.amountChinese || numberToChinese(record.amount)
-        return `
-          <div class="record-column">
-            <div class="cell label-cell"><span class="label-text">姓名</span></div>
-            <div class="cell name-cell"><span class="name-text" style="font-size: ${getAdaptiveFontSize(record.guestName, true)}px">${record.guestName}</span></div>
-            <div class="cell remark-cell"><span class="remark-text">${record.remark || '\u00A0'}</span></div>
-            <div class="cell label-cell"><span class="label-text">礼金</span></div>
-            <div class="cell amount-cell">
-              <div class="amount-content">
-                <span class="amount-chinese" style="font-size: ${getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)}px">${amountChinese}</span>
-                ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ''}
-              </div>
-            </div>
-            <div class="cell payment-cell">
-              <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
-              <span class="amount-number">¥${formatAmount(record.amount)}</span>
-            </div>
-          </div>
-        `
-      }
-
-      // 生成空白列 HTML
-      function generateEmptyColumn(): string {
-        return `
-          <div class="record-column empty-column">
-            <div class="cell label-cell"><span class="label-text">姓名</span></div>
-            <div class="cell name-cell"><span class="name-text"></span></div>
-            <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
-            <div class="cell label-cell"><span class="label-text">礼金</span></div>
-            <div class="cell amount-cell"><span class="amount-chinese"></span></div>
-            <div class="cell payment-cell">
-              <span class="payment-type"></span>
-              <span class="amount-number"></span>
-            </div>
-          </div>
-        `
-      }
-
-      // 生成汇总列 HTML（竖排显示在最后一列）
-      function generateSummaryColumn(): string {
-        return `
-          <div class="record-column summary-column">
-            <div class="cell label-cell"><span class="label-text">汇总</span></div>
-            <div class="cell summary-name-cell">
-              <span class="summary-text-vertical">汇总：${totalAmountChinese}</span>
-            </div>
-            <div class="cell remark-cell"><span class="remark-text">\u00A0</span></div>
-            <div class="cell label-cell"><span class="label-text">汇总</span></div>
-            <div class="cell summary-amount-cell">
-              <span class="summary-number-vertical">${formatAmount(totalAmount)}元</span>
-            </div>
-            <div class="cell payment-cell">
-              <span class="payment-type"></span>
-              <span class="amount-number"></span>
-            </div>
-          </div>
-        `
-      }
-
-      // 将记录分页，每页15条
-      const recordsPerPage = 15
-      const totalPages = Math.ceil(records.length / recordsPerPage)
-      const pages: Array<{ content: string; amount: number; isLastPage: boolean }> = []
-      
-      // 检查最后一页是否满15条
-      const lastPageRecordCount = records.length % recordsPerPage || recordsPerPage
-      const lastPageFull = lastPageRecordCount === 15
-
-      for (let pageNum = 0; pageNum < totalPages; pageNum++) {
-        const startIdx = pageNum * recordsPerPage
-        const endIdx = Math.min(startIdx + recordsPerPage, records.length)
-        const pageRecords = records.slice(startIdx, endIdx)
-        const isLastPage = pageNum === totalPages - 1
-        
-        // 计算当前页金额合计
-        const pageAmount = pageRecords.reduce((sum, r) => sum + r.amount, 0)
-
-        // 生成当前页的记录列
-        let pageContent = pageRecords.map(generateRecordColumn).join('')
-
-        if (isLastPage && !lastPageFull) {
-          // 最后一页且不满15条：填充到14列，最后一列显示汇总
-          const emptyCount = 14 - pageRecords.length
-          for (let i = 0; i < emptyCount; i++) {
-            pageContent += generateEmptyColumn()
-          }
-          pageContent += generateSummaryColumn()
-        } else {
-          // 非最后一页 或 最后一页满15条：填充到15列
-          const emptyCount = recordsPerPage - pageRecords.length
-          for (let i = 0; i < emptyCount; i++) {
-            pageContent += generateEmptyColumn()
-          }
-        }
-
-        pages.push({ content: pageContent, amount: pageAmount, isLastPage })
-      }
-
-      // 如果最后一页满15条，需要添加一个汇总页
-      if (lastPageFull) {
-        let summaryPageContent = ''
-        // 14个空白列
-        for (let i = 0; i < 14; i++) {
-          summaryPageContent += generateEmptyColumn()
-        }
-        // 最后一列是汇总
-        summaryPageContent += generateSummaryColumn()
-        pages.push({ content: summaryPageContent, amount: 0, isLastPage: true })
-      }
-
-      // 重新计算总页数
-      const finalTotalPages = pages.length
-
-      // 读取 CSS 文件 - 支持开发和生产环境
-      let cssPath: string
-      if (VITE_DEV_SERVER_URL) {
-        cssPath = path.join(process.env.APP_ROOT as string, 'public', 'print.css')
-      } else {
-        cssPath = path.join(RENDERER_DIST, 'print.css')
-      }
-      console.log('尝试读取CSS文件:', cssPath)
-      
-      if (!fs.existsSync(cssPath)) {
-        throw new Error(`CSS文件不存在: ${cssPath}`)
-      }
-      const cssContent = fs.readFileSync(cssPath, 'utf-8')
-
-      // 生成多页 HTML
-      const pagesHtml = pages.map((page, pageIndex) => `
-  <div class="print-container">
-    <header class="print-header">
-      <h1 class="print-title">${appName || '电子礼金簿'}</h1>
-      <div class="print-meta">
-        <span>日期：${exportDate}</span>
-      </div>
-    </header>
-    <main class="print-content">
-      ${page.content}
-    </main>
-    <footer class="print-footer">
-      <span class="footer-left">共 ${records.length} 条记录</span>
-      <span class="footer-center">第 ${pageIndex + 1} 页 / 共 ${finalTotalPages} 页</span>
-      <span class="footer-right">本页小计：¥${formatAmount(page.amount)}</span>
-    </footer>
-  </div>
-`).join('\n')
-
-      // 生成完整 HTML
-      const htmlContent = `
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>礼金簿打印</title>
-  <style>
-    ${cssContent}
-    :root {
-      --theme-primary: ${theme?.primary || '#c44a3d'};
-      --theme-paper: ${theme?.paper || '#f5f0e8'};
-      --theme-text-primary: ${theme?.textPrimary || '#333'};
-      --theme-accent: ${theme?.accent || '#eb564a'};
-    }
-    .print-container {
-      page-break-after: always;
-    }
-    .print-container:last-child {
-      page-break-after: auto;
-    }
-  </style>
-</head>
-<body>
-${pagesHtml}
-</body>
-</html>
-      `
-
-      // 创建临时HTML文件 - 比data URL更稳定
-      const tempHtmlPath = path.join(dataDir, `temp_print_${Date.now()}.html`)
-      fs.writeFileSync(tempHtmlPath, htmlContent, 'utf-8')
-      console.log('创建临时HTML文件:', tempHtmlPath)
-
-      // 创建隐藏的打印窗口
-      const printWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        show: false,
-        webPreferences: {
-          contextIsolation: true,
-          nodeIntegration: false,
-          webSecurity: false
-        }
-      })
-
-      let pdfBuffer: Buffer | null = null
-
-      try {
-        // 加载临时HTML文件
-        await printWindow.loadFile(tempHtmlPath)
-        console.log('HTML文件加载成功')
-
-        // 等待渲染完成，增加等待时间确保资源加载
-        await new Promise(resolve => setTimeout(resolve, 1000))
-
-        // 生成 PDF - 使用CSS @page规则控制尺寸
-        console.log('开始生成PDF...')
-        pdfBuffer = await printWindow.webContents.printToPDF({
-          margins: { top: 0, bottom: 0, left: 0, right: 0 },
-          printBackground: true,
-          preferCSSPageSize: true
-        })
-        console.log('PDF生成成功')
-
-        // 关闭打印窗口
-        printWindow.close()
-
-        // 显示保存对话框
-        const { filePath } = await dialog.showSaveDialog({
-          title: '保存 PDF',
-          defaultPath: `${filename}.pdf`,
-          filters: [{ name: 'PDF 文件', extensions: ['pdf'] }]
-        })
-
-        if (filePath && pdfBuffer) {
-          fs.writeFileSync(filePath, pdfBuffer)
-          return { success: true, data: { filePath } }
-        } else if (!filePath) {
-          return { success: false, error: '用户取消保存' }
-        } else {
-          return { success: false, error: 'PDF生成失败' }
-        }
-      } finally {
-        // 删除临时HTML文件
-        try {
-          if (fs.existsSync(tempHtmlPath)) {
-            fs.unlinkSync(tempHtmlPath)
-            console.log('删除临时HTML文件成功')
-          }
-        } catch (cleanupError) {
-          console.error('删除临时文件失败:', cleanupError)
-        }
-      }
+      return result
     } catch (error) {
       console.error('生成 PDF 失败:', error)
       const errorMessage = error instanceof Error ? error.message : String(error)
-      let userFriendlyMessage = '导出 PDF 失败，请重试。'
-      
-      if (errorMessage.includes('CSS文件不存在')) {
-        userFriendlyMessage = 'PDF样式文件丢失，请重新安装应用。'
-      } else if (errorMessage.includes('ENOENT')) {
-        userFriendlyMessage = '无法访问文件系统，请检查磁盘空间和权限。'
-      } else if (errorMessage.includes('printToPDF')) {
-        userFriendlyMessage = 'PDF生成引擎异常，请重启应用后重试。'
-      }
-      
-      return { 
-        success: false, 
-        error: `${userFriendlyMessage}\n\n技术细节: ${errorMessage}` 
+      return {
+        success: false,
+        error: `导出 PDF 失败，请重试。\n\n技术细节: ${errorMessage}`
       }
     }
   })

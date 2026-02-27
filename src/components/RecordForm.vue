@@ -423,7 +423,7 @@ defineExpose({
   font-weight: normal;
   padding: var(--theme-spacing-xs) 0;
   background: transparent;  /* 无填充色 */
-  font-family: var(--theme-font-family);
+  font-family: var(--font-name-amount);  /* 大写金额使用演示春风楷 */
   letter-spacing: 1px;
   text-align: center;
   min-height: 20px;  /* 保持最小高度避免布局跳动 */

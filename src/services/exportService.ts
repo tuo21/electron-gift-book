@@ -9,6 +9,47 @@ import { numberToChinese } from '../utils/amountConverter'
 import { getPaymentTypeText } from '../constants'
 
 /**
+ * 从记录列表中获取事务日期（最早的记录创建时间）
+ * @param records 记录列表
+ * @returns 事务日期对象，如果没有记录则返回当前日期
+ */
+function getEventDate(records: Record[]): Date {
+  if (records.length === 0) {
+    return new Date()
+  }
+
+  // 找到最早的创建时间
+  const earliestRecord = records.reduce((earliest, record) => {
+    if (!record.createTime) return earliest
+    if (!earliest.createTime) return record
+    return new Date(record.createTime) < new Date(earliest.createTime) ? record : earliest
+  })
+
+  if (!earliestRecord.createTime) {
+    return new Date()
+  }
+
+  return new Date(earliestRecord.createTime)
+}
+
+/**
+ * 生成导出文件名
+ * @param eventName 事务名称
+ * @param suffix 文件名后缀（如'统计报告'、'编辑历史'）
+ * @param eventDate 事务日期
+ * @returns 文件名（不含扩展名）
+ */
+function generateExportFileName(eventName: string, suffix: string = '', eventDate?: Date): string {
+  const date = eventDate || new Date()
+  const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
+  const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
+  if (suffix) {
+    return `${cleanName}_${suffix}_${dateStr}`
+  }
+  return `${cleanName}_${dateStr}`
+}
+
+/**
  * 准备记录数据用于导出
  * @param records 记录列表
  * @param includeStats 是否包含统计信息
@@ -99,18 +140,13 @@ export function exportRecordsToExcel(
  * 导出记录到 PDF
  * @param records 记录列表
  * @param eventName 事务名称
- * @param theme 主题配置
+ * @param theme 主题类型：'red' | 'gray'
  * @param includeStats 是否包含统计信息
  */
 export async function exportRecordsToPDF(
   records: Record[],
   eventName: string = '电子礼金簿',
-  theme?: {
-    primary?: string
-    paper?: string
-    textPrimary?: string
-    accent?: string
-  }
+  theme: 'red' | 'gray' = 'red'
 ): Promise<void> {
   // 调用现有的导出函数
   await exportToPDF(records, eventName, theme)
@@ -180,11 +216,9 @@ export async function exportStatisticsReport(
   // 添加工作表
   XLSX.utils.book_append_sheet(wb, ws, '统计报告')
 
-  // 生成文件名
-  const now = new Date()
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-  const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
-  const filename = `${cleanName}_统计报告_${dateStr}`
+  // 生成文件名（使用事务日期）
+  const eventDate = getEventDate(records)
+  const filename = generateExportFileName(eventName, '统计报告', eventDate)
 
   // 保存文件
   XLSX.writeFile(wb, `${filename}.xlsx`)
@@ -194,6 +228,7 @@ export async function exportStatisticsReport(
  * 导出编辑历史
  * @param historyList 编辑历史列表
  * @param eventName 事务名称
+ * @param records 记录列表（用于获取事务日期）
  */
 export function exportEditHistory(
   historyList: Array<{
@@ -205,7 +240,8 @@ export function exportEditHistory(
     changeTime: string
     operator: string
   }>,
-  eventName: string = '电子礼金簿'
+  eventName: string = '电子礼金簿',
+  records?: Record[]
 ): void {
   if (historyList.length === 0) {
     throw new Error('没有编辑历史可导出')
@@ -243,11 +279,9 @@ export function exportEditHistory(
   // 添加工作表
   XLSX.utils.book_append_sheet(wb, ws, '编辑历史')
 
-  // 生成文件名
-  const now = new Date()
-  const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
-  const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
-  const filename = `${cleanName}_编辑历史_${dateStr}`
+  // 生成文件名（使用事务日期，如果提供了记录列表）
+  const eventDate = records && records.length > 0 ? getEventDate(records) : undefined
+  const filename = generateExportFileName(eventName, '编辑历史', eventDate)
 
   // 保存文件
   XLSX.writeFile(wb, `${filename}.xlsx`)
