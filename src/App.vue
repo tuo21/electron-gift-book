@@ -90,8 +90,10 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
         } else if (newRecords.length !== currentRecords.length) {
           // 如果记录数量变化但没有找到新记录，可能是删除或批量操作
           records.value = newRecords;
+        } else {
+          // 记录数量相同，可能是更新操作，强制刷新
+          records.value = newRecords;
         }
-        // 如果长度相同且没有新记录，不更新（避免不必要的渲染）
       } else {
         // 首次加载或强制刷新
         records.value = newRecords;
@@ -102,6 +104,12 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
       if (!keepCurrentPage) {
         const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
         currentPage.value = totalPages;
+      } else {
+        // 保持当前页码，但确保不超过总页数
+        const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+        if (currentPage.value > totalPages) {
+          currentPage.value = totalPages;
+        }
       }
     } else if (!response.success) {
       alert('加载记录失败: ' + (response.error || '未知错误'));
@@ -125,6 +133,109 @@ const loadStatistics = async () => {
   }
 };
 
+// ==================== 增量更新函数 ====================
+
+/**
+ * 新增记录增量更新
+ * 只添加新记录到数组末尾，保持当前页码和显示位置
+ */
+const addRecordIncrementally = async (newRecordId: number) => {
+  try {
+    const response = await window.db.getRecordById(newRecordId);
+    if (response.success && response.data) {
+      const dbRecord = response.data as any;
+      const newRecord = {
+        id: dbRecord.Id,
+        guestName: dbRecord.GuestName,
+        amount: dbRecord.Amount,
+        amountChinese: dbRecord.AmountChinese,
+        itemDescription: dbRecord.ItemDescription,
+        paymentType: dbRecord.PaymentType,
+        remark: dbRecord.Remark,
+        createTime: dbRecord.CreateTime,
+        updateTime: dbRecord.UpdateTime,
+        isDeleted: dbRecord.IsDeleted,
+      };
+      
+      records.value = [...records.value, newRecord];
+      
+      await loadStatistics();
+      
+      await nextTick();
+      recordListRef.value?.markNewRecord(newRecordId);
+    }
+  } catch (error) {
+    console.error('增量添加记录失败:', error);
+    await loadRecords(true);
+  }
+};
+
+/**
+ * 修改记录增量更新
+ * 只更新对应记录，保持当前页码和显示位置
+ */
+const updateRecordIncrementally = async (updatedRecordId: number) => {
+  try {
+    const response = await window.db.getRecordById(updatedRecordId);
+    if (response.success && response.data) {
+      const dbRecord = response.data as any;
+      const updatedRecord = {
+        id: dbRecord.Id,
+        guestName: dbRecord.GuestName,
+        amount: dbRecord.Amount,
+        amountChinese: dbRecord.AmountChinese,
+        itemDescription: dbRecord.ItemDescription,
+        paymentType: dbRecord.PaymentType,
+        remark: dbRecord.Remark,
+        createTime: dbRecord.CreateTime,
+        updateTime: dbRecord.UpdateTime,
+        isDeleted: dbRecord.IsDeleted,
+      };
+      
+      const index = records.value.findIndex(r => r.id === updatedRecordId);
+      
+      if (index !== -1) {
+        const newRecords = [...records.value];
+        newRecords[index] = updatedRecord;
+        records.value = newRecords;
+      } else {
+        await loadRecords(true);
+      }
+      
+      await loadStatistics();
+    } else {
+      await loadRecords(true);
+    }
+  } catch (error) {
+    console.error('增量更新记录失败:', error);
+    await loadRecords(true);
+  }
+};
+
+/**
+ * 删除记录增量更新
+ * 标记记录为已删除，保持当前页码和显示位置
+ */
+const deleteRecordIncrementally = async (deletedRecordId: number) => {
+  try {
+    // 找到并标记记录为已删除
+    const index = records.value.findIndex(r => r.id === deletedRecordId);
+    if (index !== -1) {
+      // 创建新数组，只更新对应记录
+      const newRecords = [...records.value];
+      newRecords[index] = { ...newRecords[index], isDeleted: 1 };
+      records.value = newRecords;
+    }
+    
+    // 更新统计信息
+    await loadStatistics();
+  } catch (error) {
+    console.error('增量删除记录失败:', error);
+    // 失败时回退到全量刷新
+    await loadRecords(true);
+  }
+};
+
 const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
   try {
     const dbRecord = {
@@ -139,17 +250,8 @@ const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTi
     const response = await window.db.insertRecord(dbRecord as any);
     if (response.success && response.data) {
       const newRecordId = response.data.id;
-      // 使用增量更新，传入新记录ID以保留现有记录
-      await loadRecords(true, newRecordId);
-      await loadStatistics();
-      // 使用 nextTick 确保 DOM 更新后再触发动画
-      await nextTick();
-      // 跳转到最后一页
-      recordListRef.value?.goToLastPage();
-      // 等待页面切换完成后再触发动画
-      requestAnimationFrame(() => {
-        recordListRef.value?.markNewRecord(newRecordId);
-      });
+      // 使用增量更新，只添加新记录，保持当前显示位置
+      await addRecordIncrementally(newRecordId);
     } else {
       alert('保存失败: ' + (response.error || '未知错误'));
     }
@@ -181,8 +283,14 @@ const handleUpdate = async (record: Record) => {
 
     const response = await window.db.updateRecord(dbRecord as any);
     if (response.success) {
-      await loadRecords();
-      await loadStatistics();
+      // 使用增量更新，只更新修改的记录，保持当前显示位置
+      // record.id 可能为 0，需要使用 !== null 和 !== undefined 判断
+      if (record.id !== null && record.id !== undefined) {
+        await updateRecordIncrementally(record.id);
+      } else {
+        // 如果record.id不存在，回退到全量刷新
+        await loadRecords(true);
+      }
     } else {
       alert('更新失败: ' + (response.error || '未知错误'));
     }
@@ -197,8 +305,8 @@ const handleDelete = async (id: number) => {
   try {
     const response = await window.db.softDeleteRecord(id);
     if (response.success) {
-      await loadRecords();
-      await loadStatistics();
+      // 使用增量更新，只标记删除的记录，保持当前显示位置
+      await deleteRecordIncrementally(id);
     } else {
       alert('删除失败: ' + (response.error || '未知错误'));
     }
@@ -455,30 +563,41 @@ const handleSearchResultClick = (record: Record) => {
 
 // 处理启动页开始事件
 const handleSplashStart = async (data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }) => {
-  // 设置主题
-  setTheme(data.theme, true);
-  
-  // 设置事务名称
-  appName.value = data.eventName;
-  setEventName(data.eventName);
-  
-  if (data.action === 'new') {
-    // 新建礼金簿
-    await handleCreateNewBook(data.eventName);
-  } else if (data.action === 'open' && data.filePath) {
-    // 打开已有数据
-    await handleOpenExistingBook(data.filePath, data.eventName);
-  // 移除 import 分支，因为 handleSplashStart 函数不支持 import 动作
-
+  try {
+    // 设置主题
+    setTheme(data.theme, true);
+    
+    // 设置事务名称
+    appName.value = data.eventName;
+    setEventName(data.eventName);
+    
+    if (data.action === 'new') {
+      // 新建礼金簿
+      await handleCreateNewBook(data.eventName);
+    } else if (data.action === 'open' && data.filePath) {
+      // 打开已有数据
+      await handleOpenExistingBook(data.filePath, data.eventName);
+    } else {
+      // 不支持的操作
+      console.error('不支持的操作:', data.action);
+      alert('不支持的操作');
+      return;
+    }
+    
+    // 隐藏启动页，显示主应用
+    showSplashScreen.value = false;
+    isAppReady.value = true;
+    
+    // 加载数据
+    await loadRecords();
+    await loadStatistics();
+  } catch (error) {
+    console.error('启动失败:', error);
+    alert('启动失败，请重试');
+    // 即使出错也要隐藏启动页
+    showSplashScreen.value = false;
+    isAppReady.value = true;
   }
-  
-  // 隐藏启动页，显示主应用
-  showSplashScreen.value = false;
-  isAppReady.value = true;
-  
-  // 加载数据
-  await loadRecords();
-  await loadStatistics();
 };
 
 // 新建礼金簿
@@ -509,11 +628,15 @@ const handleCreateNewBook = async (eventName: string) => {
         internalAmount: 0,
       };
     } else {
-      alert('创建新数据库失败: ' + (response.error || '未知错误'));
+      const errorMsg = '创建新数据库失败: ' + (response.error || '未知错误');
+      alert(errorMsg);
+      throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
     console.error('新建礼金簿失败:', error);
-    alert('新建礼金簿失败，请重试');
+    const errorMsg = '新建礼金簿失败，请重试';
+    alert(errorMsg);
+    throw new Error(errorMsg); // 抛出错误，让上级处理
   }
 };
 
@@ -540,11 +663,15 @@ const handleOpenExistingBook = async (filePath: string, eventName: string) => {
       setCurrentDbPath(filePath);
       addToRecentBooks(finalEventName, filePath);
     } else {
-      alert('打开数据库失败: ' + (response.error || '未知错误'));
+      const errorMsg = '打开数据库失败：' + (response.error || '未知错误');
+      alert(errorMsg);
+      throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
     console.error('打开已有数据失败:', error);
-    alert('打开已有数据失败，请重试');
+    const errorMsg = '打开已有数据失败，请重试';
+    alert(errorMsg);
+    throw new Error(errorMsg); // 抛出错误，让上级处理
   }
 };
 

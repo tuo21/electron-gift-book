@@ -27,17 +27,17 @@
                 <template v-if="history.operationType === 'DELETE'">
                   <div class="change-row">
                     <span class="change-label">删除前：</span>
-                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
                   </div>
                 </template>
                 <template v-else>
                   <div class="change-row">
                     <span class="change-label">修改前：</span>
-                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
                   </div>
                   <div class="change-row">
                     <span class="change-label">修改后：</span>
-                    <span class="change-value new-value">{{ history.newGuestName }} - {{ formatMoney(history.newAmount || 0) }}</span>
+                    <span class="change-value new-value">{{ history.newGuestName }} - {{ formatMoney(history.newAmount || 0) }}{{ history.newItemDescription ? ' - ' + history.newItemDescription : '' }}</span>
                   </div>
                 </template>
               </div>
