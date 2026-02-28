@@ -245,7 +245,8 @@ const onSubmit = async () => {
 // 进入编辑模式
 const enterEditMode = (record: Record) => {
   isEditMode.value = true;
-  editingId.value = record.id || null;
+  // 使用 record.id，如果为 null 或 undefined，则保持原值
+  editingId.value = record.id ?? null;
   formData.value = {
     guestName: record.guestName,
     amount: record.amount.toString(),

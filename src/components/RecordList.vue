@@ -40,12 +40,12 @@
         <div
           v-for="record in paginatedRecords"
           :key="record.id"
-          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, record.id ? newRecordAnimationMap.get(record.id) ?? false : false]"
+          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, record.id ? newRecordIds.has(record.id) : false]"
           class="record-column"
           :class="{ 
             'deleted': record.isDeleted, 
             'highlighted': record.id === highlightedRecordId,
-            'new-record': record.id && newRecordAnimationMap.get(record.id)
+            'new-record': record.id && newRecordIds.has(record.id)
           }"
           @contextmenu.prevent="showContextMenu($event, record)"
         >
@@ -183,18 +183,18 @@ import { numberToChinese, formatAmount } from '../utils/amountConverter';
 import { PaymentType, getPaymentTypeText } from '../constants';
 
 // ==================== 动画相关 ====================
-// 使用响应式 Map 跟踪新记录动画状态，确保 Vue 能检测到变化
-const newRecordAnimationMap = ref<Map<number, boolean>>(new Map());
+// 使用响应式 Set 跟踪新记录动画状态（更高效）
+const newRecordIds = ref<Set<number>>(new Set());
 
 // 添加新记录动画标记
 const markNewRecord = (recordId: number) => {
-  newRecordAnimationMap.value.set(recordId, true);
+  newRecordIds.value.add(recordId);
   // 触发响应式更新
-  newRecordAnimationMap.value = new Map(newRecordAnimationMap.value);
+  newRecordIds.value = new Set(newRecordIds.value);
   // 动画完成后移除标记（与CSS动画时长匹配）
   setTimeout(() => {
-    newRecordAnimationMap.value.delete(recordId);
-    newRecordAnimationMap.value = new Map(newRecordAnimationMap.value);
+    newRecordIds.value.delete(recordId);
+    newRecordIds.value = new Set(newRecordIds.value);
   }, 400);
 };
 
@@ -335,15 +335,8 @@ const paginatedRecords = computed(() => {
   const end = start + pageSize.value;
   const newSlice = props.records.slice(start, end);
   
-  // 只有当切片内容真正变化时才更新缓存
-  // 比较数组长度和第一个/最后一个元素的id
-  const cached = cachedPaginatedRecords.value;
-  if (cached.length !== newSlice.length ||
-      cached.length === 0 || newSlice.length === 0 ||
-      cached[0]?.id !== newSlice[0]?.id ||
-      cached[cached.length - 1]?.id !== newSlice[newSlice.length - 1]?.id) {
-    cachedPaginatedRecords.value = newSlice;
-  }
+  // 强制更新缓存，确保响应式更新
+  cachedPaginatedRecords.value = newSlice;
   
   return cachedPaginatedRecords.value;
 });
@@ -358,10 +351,12 @@ const emptyColumns = computed(() => {
 });
 
 // 监听记录变化，重置到第一页（仅客户端分页模式）
+// 注意：增量更新时不需要重置页码，只有在全量刷新时才重置
 watch(() => props.records.length, () => {
-  // 仅在未提供totalPages（客户端分页）时重置页码
+  // 仅在未提供totalPages（客户端分页）时处理
   if (props.totalPages === undefined) {
-    currentPage.value = 1;
+    // 不再自动重置到第一页，保持当前页码
+    // 由父组件控制页码逻辑
   }
 });
 
@@ -596,7 +591,7 @@ defineExpose({
 }
 
 .record-column.highlighted {
-  animation: highlight-pulse 1s ease-in-out 3;
+  animation: highlight-pulse 1s ease-in-out 1;
   border: 2px solid var(--theme-accent);
   z-index: 10;
 }

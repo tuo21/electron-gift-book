@@ -185,6 +185,13 @@ const handleCreateNew = async () => {
 const handleOpenRecentFile = async (file: RecentFile) => {
   if (isAnimating.value) return;
   
+  // 检查文件路径是否有效
+  if (!file.path) {
+    alert('文件路径无效');
+    isAnimating.value = false;
+    return;
+  }
+  
   isAnimating.value = true;
   emit('start', {
     eventName: '',
