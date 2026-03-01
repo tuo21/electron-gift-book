@@ -185,6 +185,13 @@ const handleCreateNew = async () => {
 const handleOpenRecentFile = async (file: RecentFile) => {
   if (isAnimating.value) return;
   
+  // 检查文件路径是否有效
+  if (!file.path) {
+    alert('文件路径无效');
+    isAnimating.value = false;
+    return;
+  }
+  
   isAnimating.value = true;
   emit('start', {
     eventName: '',
@@ -337,8 +344,8 @@ onMounted(() => {
             @click="selectTheme('wedding')"
           >
             <div class="theme-icon wedding-icon">🎊</div>
-            <div class="theme-name">红事</div>
-            <div class="theme-desc">喜庆婚礼、满月酒等</div>
+            <div class="theme-name">喜庆红</div>
+            <div class="theme-desc">婚礼、满月酒等</div>
             <div v-if="isWeddingTheme" class="selected-indicator" style="background: #EB564A;">
               <span>✓</span>
             </div>
@@ -355,8 +362,8 @@ onMounted(() => {
             @click="selectTheme('funeral')"
           >
             <div class="theme-icon funeral-icon">🕯️</div>
-            <div class="theme-name">白事</div>
-            <div class="theme-desc">肃穆庄重</div>
+            <div class="theme-name">肃穆灰</div>
+            <div class="theme-desc">庄重肃穆</div>
             <div v-if="isFuneralTheme" class="selected-indicator" style="background: #4A4A4A;">
               <span>✓</span>
             </div>
@@ -621,7 +628,7 @@ onMounted(() => {
 }
 
 .funeral-icon {
-  filter: drop-shadow(0 2px 4px rgba(74, 74, 74, 0.3));
+  filter: grayscale(100%) drop-shadow(0 2px 4px rgba(74, 74, 74, 0.3));
 }
 
 .theme-name {

@@ -35,12 +35,18 @@
           数据列
           每列包含：姓名标签、姓名、备注、礼金标签、礼金大写、支付方式+小写金额
           支持右键菜单：编辑、删除
+          使用 v-memo 优化渲染，仅当记录数据变化时才重新渲染
         -->
         <div
-          v-for="(record, index) in paginatedRecords"
-          :key="record.id || index"
+          v-for="record in paginatedRecords"
+          :key="record.id"
+          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, record.id ? newRecordIds.has(record.id) : false]"
           class="record-column"
-          :class="{ 'deleted': record.isDeleted }"
+          :class="{ 
+            'deleted': record.isDeleted, 
+            'highlighted': record.id === highlightedRecordId,
+            'new-record': record.id && newRecordIds.has(record.id)
+          }"
           @contextmenu.prevent="showContextMenu($event, record)"
         >
           <!-- 姓名标签 -->
@@ -88,15 +94,17 @@
         <!-- 
           空白列填充
           用于保持每页固定显示15格，不足时显示空白占位
+          使用 v-show 控制显示，避免 DOM 频繁创建销毁导致闪烁
         -->
         <div 
-          v-for="n in emptyColumns" 
+          v-for="n in pageSize" 
           :key="'empty-' + n" 
+          v-show="n <= emptyColumns"
           class="record-column empty-column"
         >
           <div class="cell label-cell"><span class="label-text">姓名</span></div>
           <div class="cell name-cell"><span class="name-text"></span></div>
-          <div class="cell remark-cell"><span class="remark-text"> </span></div>
+          <div class="cell remark-cell"><span class="remark-text">&nbsp;</span></div>
           <div class="cell label-cell"><span class="label-text">礼金</span></div>
           <div class="cell amount-cell"><span class="amount-chinese"></span></div>
           <div class="cell payment-cell">
@@ -123,7 +131,19 @@
       </button>
       
       <div class="page-info">
-        <span class="page-number">第 {{ currentPage }} / {{ totalPages }} 页</span>
+        <div class="page-input-wrapper">
+          <span>第</span>
+          <input
+            type="number"
+            class="page-input"
+            :value="currentPage"
+            min="1"
+            :max="totalPages"
+            @keydown.enter="handlePageInput"
+            @blur="handlePageInput"
+          />
+          <span>/ {{ totalPages }} 页</span>
+        </div>
         <span class="record-count">共 {{ records.length }} 条记录</span>
       </div>
       
@@ -157,24 +177,55 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue';
 import type { Record } from '../types/database';
 import { numberToChinese, formatAmount } from '../utils/amountConverter';
 import { PaymentType, getPaymentTypeText } from '../constants';
 
+// ==================== 动画相关 ====================
+// 使用响应式 Set 跟踪新记录动画状态（更高效）
+const newRecordIds = ref<Set<number>>(new Set());
+
+// 添加新记录动画标记
+const markNewRecord = (recordId: number) => {
+  newRecordIds.value.add(recordId);
+  // 触发响应式更新
+  newRecordIds.value = new Set(newRecordIds.value);
+  // 动画完成后移除标记（与CSS动画时长匹配）
+  setTimeout(() => {
+    newRecordIds.value.delete(recordId);
+    newRecordIds.value = new Set(newRecordIds.value);
+  }, 400);
+};
+
+// ==================== 缓存优化 ====================
+// 使用 shallowRef 缓存分页数据，避免不必要的重新渲染
+const cachedPaginatedRecords = shallowRef<Record[]>([]);
+
 // ==================== Props & Emits ====================
 const props = defineProps<{
   records: Record[];
-  pageSize?: number;  // 每页显示条数，默认15
-  currentPage?: number; // 当前页码，默认1
-  totalPages?: number; // 总页数，如果提供则使用，否则根据records长度计算
+  currentPage?: number;
+  totalPages?: number;
+  pageSize?: number;
 }>();
 
 const emit = defineEmits<{
+  (e: 'update:currentPage', page: number): void;
   (e: 'edit', record: Record): void;
   (e: 'delete', id: number): void;
-  (e: 'update:currentPage', page: number): void;
 }>();
+
+// ==================== 高亮记录 ====================
+const highlightedRecordId = ref<number | null>(null);
+
+const highlightRecord = (recordId: number) => {
+  highlightedRecordId.value = recordId;
+  // 3秒后取消高亮
+  setTimeout(() => {
+    highlightedRecordId.value = null;
+  }, 3000);
+};
 
 // ==================== 右键菜单逻辑 ====================
 const contextMenu = ref({
@@ -268,30 +319,44 @@ const totalPages = computed(() => {
 });
 
 // 当前页数据（切片）- 使用缓存避免重复计算
-// 如果外部已经提供分页数据（records仅为当前页数据），则直接返回
+// 只有当页码或记录数量真正变化时才重新计算
 const paginatedRecords = computed(() => {
   // 如果提供了totalPages且records长度小于等于pageSize，假定records已经是当前页数据
   if (props.totalPages !== undefined && props.records.length <= pageSize.value) {
-    return props.records;
+    // 只有当记录真正变化时才更新缓存
+    if (props.records !== cachedPaginatedRecords.value) {
+      cachedPaginatedRecords.value = props.records;
+    }
+    return cachedPaginatedRecords.value;
   }
+  
   // 否则进行客户端切片
   const start = (currentPage.value - 1) * pageSize.value;
   const end = start + pageSize.value;
-  // 返回切片后的数据（不反转，保持原始顺序）
-  return props.records.slice(start, end);
+  const newSlice = props.records.slice(start, end);
+  
+  // 强制更新缓存，确保响应式更新
+  cachedPaginatedRecords.value = newSlice;
+  
+  return cachedPaginatedRecords.value;
 });
 
-// 空白列数量（用于填充到固定格数）
+// 空白列数量（用于填充到固定格数）- 使用缓存确保稳定
 const emptyColumns = computed(() => {
   const currentCount = paginatedRecords.value.length;
-  return Math.max(0, pageSize.value - currentCount);
+  const maxSlots = pageSize.value;
+  const newEmptyCount = Math.max(0, maxSlots - currentCount);
+  
+  return newEmptyCount;
 });
 
 // 监听记录变化，重置到第一页（仅客户端分页模式）
+// 注意：增量更新时不需要重置页码，只有在全量刷新时才重置
 watch(() => props.records.length, () => {
-  // 仅在未提供totalPages（客户端分页）时重置页码
+  // 仅在未提供totalPages（客户端分页）时处理
   if (props.totalPages === undefined) {
-    currentPage.value = 1;
+    // 不再自动重置到第一页，保持当前页码
+    // 由父组件控制页码逻辑
   }
 });
 
@@ -305,6 +370,27 @@ const goToNextPage = () => {
   if (currentPage.value < totalPages.value) {
     currentPage.value = currentPage.value + 1;
   }
+};
+
+// 处理页码输入跳转
+const handlePageInput = (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  let page = parseInt(target.value, 10);
+
+  // 验证页码范围
+  if (isNaN(page) || page < 1) {
+    page = 1;
+  } else if (page > totalPages.value) {
+    page = totalPages.value;
+  }
+
+  // 跳转页码
+  if (page !== currentPage.value) {
+    currentPage.value = page;
+  }
+
+  // 更新输入框显示（防止非法值）
+  target.value = page.toString();
 };
 
 // ==================== 辅助函数 ====================
@@ -355,6 +441,10 @@ defineExpose({
     }
     return false;
   },
+  // 高亮指定记录
+  highlightRecord,
+  // 标记新记录（触发动画）
+  markNewRecord,
 });
 </script>
 
@@ -388,7 +478,9 @@ defineExpose({
   flex: 1;
   position: relative;
   overflow: hidden;
-  padding: var(--theme-spacing-lg);  /* 24px */
+  padding: var(--theme-spacing-lg);
+  width: 100%;
+  max-width: 1290px;
 }
 
 /* 
@@ -412,7 +504,7 @@ defineExpose({
   background-image: url('/images/洒金宣纸肌理.png');
   background-size: cover;
   background-position: center;
-  opacity: 0.85;
+  opacity: 0.45;
   pointer-events: none;
 }
 
@@ -432,10 +524,12 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: row;
-  gap: var(--grid-column-gap);       /* 16px，在theme.css中定义 */
+  gap: 0;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: var(--theme-spacing-md);  /* 16px */
+  padding: var(--theme-spacing-md);
+  width: 100%;
+  max-width: 1290px;
 }
 
 /* 
@@ -444,7 +538,7 @@ defineExpose({
   ========================================
   - width: 列宽（CSS变量控制，默认72px）
   - background: 半透明白色背景
-  - border: 边框
+  - border: 边框（只保留左、上、下，右边框由相邻列共享）
   - writing-mode: vertical-rl 竖排文字
   
   调整建议：
@@ -459,13 +553,19 @@ defineExpose({
   min-height: 507px;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.185);  /* 白色90%不透明 */
-  border: 1px solid var(--theme-border-color);
+  border: 1px solid rgba(235, 86, 74, 0.28);
+  border-right: none;  /* 去掉右边框，由相邻列共享 */
   border-radius: 0;  /* 去掉圆角 */
   display: flex;
   flex-direction: column;
   padding: var(--theme-spacing-sm);   /* 8px */
   box-shadow: none;  /* 去掉阴影 */
   transition: all 0.3s ease;
+}
+
+/* 最后一列补上右边框 */
+.record-column:last-child {
+  border-right: 1px solid rgba(235, 86, 74, 0.15);
 }
 
 /* 悬停效果：去掉阴影和上浮 */
@@ -480,10 +580,55 @@ defineExpose({
   background: rgba(200, 200, 200, 0.8);
 }
 
+/* 高亮动画 */
+@keyframes highlight-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(235, 86, 74, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(235, 86, 74, 0);
+  }
+}
+
+.record-column.highlighted {
+  animation: highlight-pulse 1s ease-in-out 1;
+  border: 2px solid var(--theme-accent);
+  z-index: 10;
+}
+
+/* 新记录入场动画 - 简化动画，提升流畅度 */
+@keyframes slide-in-from-top {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.record-column.new-record {
+  animation: slide-in-from-top 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+}
+
+/* 优化性能：使用 GPU 加速 */
+.record-column {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 /* 空白列样式 */
 .empty-column {
   opacity: 0.4;
   background: rgba(255, 255, 255, 0.5);
+  border-color: rgba(235, 86, 74, 0.08);  /* 空白列边框更淡 */
+}
+
+/* 空白列最后一列补上右边框 */
+.empty-column:last-child {
+  border-right: 1px solid rgba(235, 86, 74, 0.08);
 }
 
 /* 
@@ -496,7 +641,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   padding: var(--theme-spacing-xs) 0;  /* 4px */
-  border-bottom: 1px dashed rgba(235, 86, 74, 0.2);  /* 虚线分隔 */
+  border-bottom: 1px dotted rgba(235, 86, 74, 0.12);  /* 点线分隔，更细更淡 */
 }
 
 .cell:last-child { border-bottom: none; }
@@ -509,6 +654,7 @@ defineExpose({
   color: var(--theme-primary);
   font-weight: bold;
   writing-mode: horizontal-tb;  /* 水平文字 */
+  font-family: var(--font-family-fixed);  /* 固定文字使用宋体 */
 }
 
 /* 
@@ -531,12 +677,12 @@ defineExpose({
 }
 
 .name-text {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 4px;
   transition: font-size 0.2s ease;
+  font-family: var(--font-name-amount);  /* 姓名使用演示春风楷 */
 }
 
 /* 备注单元格 */
@@ -583,13 +729,13 @@ defineExpose({
 }
 
 .amount-chinese {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2px;
   line-height: 1.6;
   transition: font-size 0.2s ease;
+  font-family: var(--font-name-amount);  /* 大写金额使用演示春风楷 */
 }
 
 .item-description {
@@ -708,6 +854,39 @@ defineExpose({
 .record-count {
   font-size: var(--theme-font-size-xs);  /* 12px */
   color: var(--theme-text-secondary);
+}
+
+/* 页码输入框样式 */
+.page-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--theme-font-size-md);
+  color: var(--theme-text-primary);
+}
+
+.page-input {
+  width: 50px;
+  padding: 4px 8px;
+  border: 1px solid var(--theme-border-color);
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+  background: white;
+  color: var(--theme-text-primary);
+  font-family: var(--theme-font-family);
+}
+
+.page-input:focus {
+  outline: none;
+  border-color: var(--theme-accent);
+}
+
+/* 隐藏数字输入框的上下箭头 */
+.page-input::-webkit-outer-spin-button,
+.page-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* 滚动条样式 */

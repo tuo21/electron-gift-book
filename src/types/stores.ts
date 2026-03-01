@@ -23,7 +23,7 @@ export interface RecordsState {
 export interface RecordsActions {
   loadRecords(): Promise<void>
   loadRecordsPaginated(page: number, pageSize: number): Promise<void>
-  findRecordPage(recordId: number): Promise<number>
+  findRecordPage(recordId: number): Promise<number | null>
   addRecord(record: Omit<Record, 'id' | 'createTime' | 'updateTime'>): Promise<number>
   updateRecord(record: Record): Promise<void>
   deleteRecord(id: number): Promise<void>

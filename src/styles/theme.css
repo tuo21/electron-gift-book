@@ -10,7 +10,21 @@
   1. 直接修改下面的变量值
   2. 在浏览器开发者工具中实时调试
   3. 通过添加类名切换主题（如 .theme-funeral）
+  
+  字体规范：
+  - 姓名文本和大写金额：演示春风楷
+  - 固定文字内容：宋体
+  - 其他变量文字：楷体
 */
+
+/* ==================== 字体定义 ==================== */
+@font-face {
+  font-family: '演示春风楷';
+  src: url('/fonts/XuandongKaishu.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ==================== 红色喜庆主题（默认） ==================== */
 :root {
@@ -89,8 +103,13 @@
     ----------------------------------------
     字体
     ----------------------------------------
-    - font-family: 字体族（优先使用楷体）
-     --theme-font-size-xxxl:超超大（40px，礼金展示姓名、金额）
+    字体规范：
+    - font-name-amount: 姓名和大写金额字体（演示春风楷）
+    - font-family-fixed: 固定文字内容字体（宋体）
+    - font-family: 其他变量文字字体（楷体）
+    
+    字号：
+    - font-size-xxxl: 超超大（40px，礼金展示姓名、金额）
     - font-size-xxl: 超大（28px，标题）
     - font-size-xl: 大（24px，面板标题）
     - font-size-lg: 中（20px，标题）
@@ -98,6 +117,8 @@
     - font-size-sm: 小（14px，标签）
     - font-size-xs: 超小（12px，提示文字）
   */
+  --font-name-amount: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+  --font-family-fixed: 'SimSun', 'STSong', 'Noto Serif SC', serif;
   --theme-font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
   --theme-font-size-xxxl: 40px;
   --theme-font-size-xxl: 28px;
@@ -123,22 +144,41 @@
   --theme-spacing-sm: 8px;
   --theme-spacing-xs: 4px;
   
-  /* 
+  /*
     ----------------------------------------
     礼金簿网格
     ----------------------------------------
-    - grid-column-width: 单列宽度（默认72px）
-    - grid-column-gap: 列间距（默认16px）
+    - grid-column-width: 单列宽度（默认80px）
+    - grid-column-gap: 列间距（默认0px）
     - grid-columns-per-page: 每页列数（默认15）
-    
+
     调整建议：
     - 修改列宽：调整 --grid-column-width
     - 修改列间距：调整 --grid-column-gap
   */
-  --grid-column-width: 72px;
+  --grid-column-width: 80px;
   --grid-column-gap: 0px;
   --grid-columns-per-page: 15;
-  
+
+  /*
+    ----------------------------------------
+    礼金簿展示区基础尺寸参数
+    ----------------------------------------
+    - giftbook-base-width: 基础宽度 1290px（15列*80px + 两侧边距90px）
+    - giftbook-base-height: 基础高度 741px
+    - giftbook-padding-x: 水平边距 45px
+    - giftbook-padding-y: 垂直边距 24px
+    - giftbook-default-window-width: 默认窗口宽度 1444px
+    - giftbook-default-window-height: 默认窗口高度 823px
+  */
+  --giftbook-base-width: 1290px;
+  --giftbook-base-height: 741px;
+  --giftbook-padding-x: 45px;
+  --giftbook-padding-y: 24px;
+  --giftbook-default-window-width: 1522px;
+  --giftbook-default-window-height: 930px;
+  --app-min-scale: 0.7;
+
   --fullscreen-scale: 1;
 }
 

@@ -61,7 +61,7 @@ export interface PaginationResult<T> {
 export interface DatabaseAPI {
   getAllRecords: () => Promise<ApiResponse<Record[]>>
   getRecordsPaginated: (page: number, pageSize: number) => Promise<ApiResponse<PaginationResult<Record>>>
-  getRecordPage: (recordId: number, pageSize: number) => Promise<ApiResponse<number>>
+  getRecordPage: (recordId: number, pageSize: number) => Promise<ApiResponse<number | null>>
   getRecordById: (id: number) => Promise<ApiResponse<Record>>
   searchRecords: (keyword: string) => Promise<ApiResponse<Record[]>>
   insertRecord: (record: Record) => Promise<ApiResponse<{ id: number }>>
@@ -80,12 +80,7 @@ export interface AppAPI {
     appName: string
     exportDate: string
     filename: string
-    theme?: {
-      primary?: string
-      paper?: string
-      textPrimary?: string
-      accent?: string
-    }
+    theme?: 'red' | 'gray'
   }) => Promise<ApiResponse<{ filePath: string }>>
 }
 
