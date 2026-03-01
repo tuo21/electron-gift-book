@@ -11,9 +11,17 @@
     "test:coverage": "vitest --coverage",
     "test:ui": "vitest --ui",
     "optimize-templates": "npx tsx scripts/optimizeTemplates.ts public",
-    "create-placeholder": "npx tsx scripts/optimizeTemplates.ts public --placeholder"
+    "create-placeholder": "npx tsx scripts/optimizeTemplates.ts public --placeholder",
+    "tauri": "tauri",
+    "tauri:dev": "cross-env TAURI_ENV=true tauri dev",
+    "tauri:build": "cross-env TAURI_ENV=true tauri build"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.10.1",
+    "@tauri-apps/plugin-dialog": "^2.6.0",
+    "@tauri-apps/plugin-fs": "^2.4.5",
+    "@tauri-apps/plugin-shell": "^2.3.5",
+    "@tauri-apps/plugin-sql": "^2.3.2",
     "better-sqlite3": "^12.6.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
@@ -25,10 +33,12 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@tauri-apps/cli": "^2.10.0",
     "@types/better-sqlite3": "^7.6.13",
     "@vitejs/plugin-vue": "^5.0.4",
     "@vue/test-utils": "^2.4.6",
     "autoprefixer": "^10.4.24",
+    "cross-env": "^10.1.0",
     "electron": "^30.0.1",
     "electron-builder": "^24.13.3",
     "happy-dom": "^20.7.0",

@@ -12,6 +12,7 @@ import { useAppConfig } from './composables/useAppConfig';
 import { useFullscreenScale } from './composables/useFullscreenScale';
 import Toast from './components/Toast.vue';
 import EditHistoryModal from './components/business/EditHistoryModal.vue';
+import AboutDialog from './components/AboutDialog.vue';
 
 // ==================== 启动页和配置 ====================
 const { setTheme, applyThemeToDocument, currentTheme } = useTheme();
@@ -59,22 +60,25 @@ const isSearching = ref(false);
 const showExportModal = ref(false);
 const isExporting = ref(false);
 
+// 关于弹窗状态
+const showAboutDialog = ref(false);
+
 // ==================== 方法函数 ====================
 const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: number) => {
   try {
     const response = await window.db.getAllRecords();
     if (response.success && response.data) {
       const newRecords = response.data.map((record: any) => ({
-        id: record.Id,
-        guestName: record.GuestName,
-        amount: record.Amount,
-        amountChinese: record.AmountChinese,
-        itemDescription: record.ItemDescription,
-        paymentType: record.PaymentType,
-        remark: record.Remark,
-        createTime: record.CreateTime,
-        updateTime: record.UpdateTime,
-        isDeleted: record.IsDeleted,
+        id: record.id,
+        guestName: record.guestName,
+        amount: record.amount,
+        amountChinese: record.amountChinese,
+        itemDescription: record.itemDescription,
+        paymentType: record.paymentType,
+        remark: record.remark,
+        createTime: record.createTime,
+        updateTime: record.updateTime,
+        isDeleted: record.isDeleted,
       }));
       
       const currentRecords = records.value;
@@ -145,16 +149,16 @@ const addRecordIncrementally = async (newRecordId: number) => {
     if (response.success && response.data) {
       const dbRecord = response.data as any;
       const newRecord = {
-        id: dbRecord.Id,
-        guestName: dbRecord.GuestName,
-        amount: dbRecord.Amount,
-        amountChinese: dbRecord.AmountChinese,
-        itemDescription: dbRecord.ItemDescription,
-        paymentType: dbRecord.PaymentType,
-        remark: dbRecord.Remark,
-        createTime: dbRecord.CreateTime,
-        updateTime: dbRecord.UpdateTime,
-        isDeleted: dbRecord.IsDeleted,
+        id: dbRecord.id,
+        guestName: dbRecord.guestName,
+        amount: dbRecord.amount,
+        amountChinese: dbRecord.amountChinese,
+        itemDescription: dbRecord.itemDescription,
+        paymentType: dbRecord.paymentType,
+        remark: dbRecord.remark,
+        createTime: dbRecord.createTime,
+        updateTime: dbRecord.updateTime,
+        isDeleted: dbRecord.isDeleted,
       };
       
       records.value = [...records.value, newRecord];
@@ -180,16 +184,16 @@ const updateRecordIncrementally = async (updatedRecordId: number) => {
     if (response.success && response.data) {
       const dbRecord = response.data as any;
       const updatedRecord = {
-        id: dbRecord.Id,
-        guestName: dbRecord.GuestName,
-        amount: dbRecord.Amount,
-        amountChinese: dbRecord.AmountChinese,
-        itemDescription: dbRecord.ItemDescription,
-        paymentType: dbRecord.PaymentType,
-        remark: dbRecord.Remark,
-        createTime: dbRecord.CreateTime,
-        updateTime: dbRecord.UpdateTime,
-        isDeleted: dbRecord.IsDeleted,
+        id: dbRecord.id,
+        guestName: dbRecord.guestName,
+        amount: dbRecord.amount,
+        amountChinese: dbRecord.amountChinese,
+        itemDescription: dbRecord.itemDescription,
+        paymentType: dbRecord.paymentType,
+        remark: dbRecord.remark,
+        createTime: dbRecord.createTime,
+        updateTime: dbRecord.updateTime,
+        isDeleted: dbRecord.isDeleted,
       };
       
       const index = records.value.findIndex(r => r.id === updatedRecordId);
@@ -239,13 +243,13 @@ const deleteRecordIncrementally = async (deletedRecordId: number) => {
 const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
   try {
     const dbRecord = {
-      GuestName: record.guestName.trim(),
-      Amount: record.amount,
-      AmountChinese: record.amountChinese || null,
-      ItemDescription: record.itemDescription?.trim() || null,
-      PaymentType: record.paymentType,
-      Remark: record.remark?.trim() || null,
-      IsDeleted: 0,
+      guestName: record.guestName.trim(),
+      amount: record.amount,
+      amountChinese: record.amountChinese || null,
+      itemDescription: record.itemDescription?.trim() || null,
+      paymentType: record.paymentType,
+      remark: record.remark?.trim() || null,
+      isDeleted: 0,
     };
     const response = await window.db.insertRecord(dbRecord as any);
     if (response.success && response.data) {
@@ -271,14 +275,14 @@ const handleEdit = (record: Record) => {
 const handleUpdate = async (record: Record) => {
   try {
     const dbRecord = {
-      Id: record.id,
-      GuestName: record.guestName.trim(),
-      Amount: record.amount,
-      AmountChinese: record.amountChinese || null,
-      ItemDescription: record.itemDescription?.trim() || null,
-      PaymentType: record.paymentType,
-      Remark: record.remark?.trim() || null,
-      IsDeleted: record.isDeleted,
+      id: record.id,
+      guestName: record.guestName.trim(),
+      amount: record.amount,
+      amountChinese: record.amountChinese || null,
+      itemDescription: record.itemDescription?.trim() || null,
+      paymentType: record.paymentType,
+      remark: record.remark?.trim() || null,
+      isDeleted: record.isDeleted,
     };
 
     const response = await window.db.updateRecord(dbRecord as any);
@@ -398,14 +402,14 @@ const handleRevertRecord = async (history: RecordHistory) => {
 
     // 构建还原后的记录数据
     const revertedRecord = {
-      Id: history.recordId,
-      GuestName: history.guestName || '',
-      Amount: history.amount || 0,
-      AmountChinese: currentRecordResponse.data?.amountChinese || null,
-      ItemDescription: history.itemDescription || null,
-      PaymentType: history.paymentType || 1,
-      Remark: history.remark || null,
-      IsDeleted: 0, // 还原时恢复为未删除状态
+      id: history.recordId,
+      guestName: history.guestName || '',
+      amount: history.amount || 0,
+      amountChinese: currentRecordResponse.data?.amountChinese || null,
+      itemDescription: history.itemDescription || null,
+      paymentType: history.paymentType || 1,
+      remark: history.remark || null,
+      isDeleted: 0, // 还原时恢复为未删除状态
     };
 
     // 更新记录
@@ -463,17 +467,23 @@ const handleExportExcel = async () => {
   isExporting.value = true;
   try {
     // 使用事务名称作为文件名
-    exportToExcel(records.value, appName.value);
+    await exportToExcel(records.value, appName.value);
     closeExportModal();
+    toastRef.value?.success('Excel 导出成功！', 3000);
   } catch (error) {
     console.error('导出 Excel 失败:', error);
-    alert('导出 Excel 失败，请重试');
+    if ((error as Error).message !== '用户取消保存') {
+      toastRef.value?.error('导出 Excel 失败，请重试');
+    }
   } finally {
     isExporting.value = false;
   }
 };
 
-// 导出为 PDF
+// 导出进度
+const exportProgress = ref(0);
+
+// 导出为 PDF（使用 iframe 打印方案，与 Electron 版本一致）
 const handleExportPDF = async () => {
   if (records.value.length === 0) {
     alert('没有可导出的记录');
@@ -481,17 +491,21 @@ const handleExportPDF = async () => {
   }
 
   isExporting.value = true;
+  
   try {
     // 获取当前主题类型（wedding/funeral）
     const themeType = currentTheme.value === 'funeral' ? 'gray' : 'red';
     
-    // 使用事务名称作为文件名
+    // 使用 iframe 打印方案导出 PDF
     await exportToPDF(records.value, appName.value, themeType);
+    
     closeExportModal();
-    toastRef.value?.success('PDF 导出成功！', 3000);
+    toastRef.value?.success('PDF 导出成功！请使用浏览器打印功能保存为 PDF。', 5000);
   } catch (error) {
     console.error('导出 PDF 失败:', error);
-    toastRef.value?.error('导出 PDF 失败，请重试');
+    if ((error as Error).message !== '用户取消保存') {
+      toastRef.value?.error('导出 PDF 失败，请重试');
+    }
   } finally {
     isExporting.value = false;
   }
@@ -693,14 +707,14 @@ const handleImportData = async (data: { eventName: string; records: any[] }) => 
 
       // 转换记录格式并批量插入
       const dbRecords = data.records.map(record => ({
-        GuestName: record.guestName,
-        Amount: record.amount,
-        AmountChinese: record.amountChinese || null,
-        ItemDescription: record.itemDescription || null,
-        PaymentType: record.paymentType,
-        Remark: record.remark || null,
-        CreateTime: record.createTime || new Date().toISOString(),
-        IsDeleted: 0
+        guestName: record.guestName,
+        amount: record.amount,
+        amountChinese: record.amountChinese || null,
+        itemDescription: record.itemDescription || null,
+        paymentType: record.paymentType,
+        remark: record.remark || null,
+        createTime: record.createTime || new Date().toISOString(),
+        isDeleted: 0
       }));
 
       // 批量插入记录
@@ -892,6 +906,9 @@ onUnmounted(() => {
         <button class="func-btn" @click="handleBackToSplash">
           <span class="btn-icon">🏠</span><span class="btn-text">返回首页</span>
         </button>
+        <button class="func-btn about-btn" @click="showAboutDialog = true">
+          <span class="btn-icon">ℹ️</span><span class="btn-text">关于</span>
+        </button>
       </div>
 
       <!-- 右侧：农历日期 -->
@@ -1079,11 +1096,17 @@ onUnmounted(() => {
             </button>
           </div>
           <div v-if="isExporting" class="export-loading">
-            <span class="loading-text">正在导出，请稍候...</span>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: exportProgress + '%' }"></div>
+            </div>
+            <span class="loading-text">正在生成 PDF... {{ exportProgress }}%</span>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 关于弹窗 -->
+    <AboutDialog v-model="showAboutDialog" />
   </div>
 </template>
 
@@ -1924,6 +1947,22 @@ body {
   text-align: center;
   padding: var(--theme-spacing-md);
   margin-top: var(--theme-spacing-md);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--theme-spacing-sm);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--theme-primary), var(--theme-accent));
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 
 .loading-text {

@@ -1,24 +1,88 @@
-/**
- * 导出功能工具函数
- * 支持 Excel 和 PDF 格式导出
- */
-
 import * as XLSX from 'xlsx'
 import type { Record } from '../types/database'
-import { numberToChinese } from './amountConverter'
-import { getPaymentTypeText } from '../constants'
+import { exportToPDFWithSave } from './pdfExport'
 
-/**
- * 从记录列表中获取事务日期（最早的记录创建时间）
- * @param records 记录列表
- * @returns 事务日期对象，如果没有记录则返回当前日期
- */
+const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+const CN_UNITS = ['', '拾', '佰', '仟']
+const CN_BIG_UNITS = ['', '万', '亿', '万亿']
+
+function numberToChinese(amount: number): string {
+  if (isNaN(amount) || amount < 0) return ''
+  if (amount >= 1e16) return '金额过大'
+
+  const integerPart = Math.floor(amount)
+  const decimalPart = Math.round((amount - integerPart) * 100)
+
+  let result = integerToChinese(integerPart)
+  if (result === '') result = '零元'
+  else result += '元'
+
+  if (decimalPart > 0) {
+    const jiao = Math.floor(decimalPart / 10)
+    const fen = decimalPart % 10
+    if (jiao > 0) result += CN_NUMBERS[jiao] + '角'
+    else if (integerPart > 0) result += '零'
+    if (fen > 0) result += CN_NUMBERS[fen] + '分'
+  }
+
+  return result
+}
+
+function integerToChinese(num: number): string {
+  if (num === 0) return ''
+  let result = ''
+  let bigUnitIndex = 0
+
+  while (num > 0) {
+    const segment = num % 10000
+    if (segment !== 0) {
+      const segmentStr = segmentToChinese(segment)
+      result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result
+    } else if (result !== '' && !result.startsWith('零')) {
+      result = '零' + result
+    }
+    num = Math.floor(num / 10000)
+    bigUnitIndex++
+  }
+
+  result = result.replace(/零+/g, '零').replace(/零$/, '')
+  return result
+}
+
+function segmentToChinese(num: number): string {
+  if (num === 0) return ''
+  let result = ''
+  let zeroFlag = false
+
+  for (let i = 3; i >= 0; i--) {
+    const divisor = Math.pow(10, i)
+    const digit = Math.floor(num / divisor)
+    if (digit > 0) {
+      if (zeroFlag) {
+        result += '零'
+        zeroFlag = false
+      }
+      result += CN_NUMBERS[digit] + CN_UNITS[i]
+    } else if (result !== '') {
+      zeroFlag = true
+    }
+    num %= divisor
+  }
+  return result
+}
+
+// formatAmount 函数已移至 pdfExport.ts 中统一使用
+
+function getPaymentTypeText(type: number): string {
+  const map: { [key: number]: string } = { 0: '现金', 1: '微信', 2: '内收' }
+  return map[type] || '未知'
+}
+
 function getEventDate(records: Record[]): Date {
   if (records.length === 0) {
     return new Date()
   }
 
-  // 找到最早的创建时间
   const earliestRecord = records.reduce((earliest, record) => {
     if (!record.createTime) return earliest
     if (!earliest.createTime) return record
@@ -32,107 +96,58 @@ function getEventDate(records: Record[]): Date {
   return new Date(earliestRecord.createTime)
 }
 
-/**
- * 生成导出文件名
- * @param eventName 事务名称
- * @param eventDate 事务日期（可选，默认为当前日期）
- * @returns 文件名（不含扩展名）
- */
 function generateExportFileName(eventName: string, eventDate?: Date): string {
   const date = eventDate || new Date()
   const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
-  // 清理事务名称中的非法字符
   const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
   return `${cleanName}_${dateStr}`
 }
 
-/**
- * 导出为 Excel 文件
- * @param records 记录列表
- * @param eventName 事务名称（用于生成文件名）
- */
-export function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): void {
-  // 获取事务日期（最早的记录创建时间）
+export async function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): Promise<void> {
   const eventDate = getEventDate(records)
-  const filename = generateExportFileName(eventName, eventDate)
+  const filename = generateExportFileName(eventName, eventDate) + '.xlsx'
 
-  // 准备数据
   const data = records.map((record, index) => ({
     '序号': index + 1,
     '姓名': record.guestName,
-    '金额（元）': record.amount,
-    '金额（大写）': record.amountChinese || numberToChinese(record.amount),
+    '金额（元）': record.amount / 100,
+    '金额（大写）': record.amountChinese || numberToChinese(record.amount / 100),
     '物品': record.itemDescription || '',
     '支付方式': getPaymentTypeText(record.paymentType),
     '备注': record.remark || '',
     '创建时间': record.createTime || '',
   }))
 
-  // 创建工作簿
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(data)
 
-  // 设置列宽
   const colWidths = [
-    { wch: 8 },   // 序号
-    { wch: 15 },  // 姓名
-    { wch: 15 },  // 金额（元）
-    { wch: 25 },  // 金额（大写）
-    { wch: 15 },  // 物品
-    { wch: 10 },  // 支付方式
-    { wch: 20 },  // 备注
-    { wch: 20 },  // 创建时间
+    { wch: 8 },
+    { wch: 15 },
+    { wch: 15 },
+    { wch: 25 },
+    { wch: 15 },
+    { wch: 10 },
+    { wch: 20 },
+    { wch: 20 },
   ]
   ws['!cols'] = colWidths
 
-  // 添加工作表到工作簿
   XLSX.utils.book_append_sheet(wb, ws, '礼金记录')
-
-  // 生成文件并下载
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+  XLSX.writeFile(wb, filename)
 }
 
-/**
- * 导出为 PDF 文件（使用 Electron printToPDF）
- * @param records 记录列表
- * @param eventName 事务名称（用于生成文件名和标题）
- * @param theme 主题类型：'red' | 'gray'
- */
 export async function exportToPDF(
   records: Record[],
   eventName: string = '电子礼金簿',
-  theme: 'red' | 'gray' = 'red'
+  theme: 'red' | 'gray' = 'red',
+  onProgress?: (progress: number) => void
 ): Promise<void> {
-  // 获取事务日期（最早的记录创建时间）
-  const eventDate = getEventDate(records)
-  const exportDate = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日`
-  const filename = generateExportFileName(eventName, eventDate)
-
-  try {
-    // 处理 records 数组，确保其中的每个对象只包含可序列化的属性
-    const serializableRecords = records.map(record => ({
-      guestName: record.guestName,
-      amount: record.amount,
-      amountChinese: record.amountChinese,
-      itemDescription: record.itemDescription,
-      paymentType: record.paymentType,
-      remark: record.remark
-    }))
-
-    // 调用 Electron API 生成 PDF
-    const response = await window.app.generatePDF({
-      records: serializableRecords,
-      appName: eventName,
-      exportDate,
-      filename,
-      theme
-    })
-
-    if (!response.success) {
-      throw new Error(response.error || '生成 PDF 失败')
+  const result = await exportToPDFWithSave(records, eventName, theme, onProgress)
+  
+  if (!result.success) {
+    if (result.error !== '用户取消保存') {
+      throw new Error(result.error || '导出 PDF 失败')
     }
-  } catch (error) {
-    console.error('导出 PDF 失败:', error)
-    throw error
   }
 }
