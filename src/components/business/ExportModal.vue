@@ -16,7 +16,7 @@
               @click="emit('export', 'excel')"
               :disabled="isExporting || totalRecords === 0"
             >
-              <span class="export-icon">📊</span>
+              <IconSvg name="table" :size="32" />
               <span class="export-label">导出为 Excel</span>
               <span class="export-desc">表格格式，适合数据分析</span>
             </button>
@@ -25,7 +25,7 @@
               @click="emit('export', 'pdf')"
               :disabled="isExporting || totalRecords === 0"
             >
-              <span class="export-icon">📄</span>
+              <IconSvg name="file-text" :size="32" />
               <span class="export-label">导出为 PDF</span>
               <span class="export-desc">礼金簿样式，适合打印存档</span>
             </button>
@@ -42,6 +42,7 @@
 <script setup lang="ts">
 import { useRecordsStore } from '../../stores/useRecordsStore'
 import { storeToRefs } from 'pinia'
+import IconSvg from '../IconSvg.vue'
 
 interface Props {
   isExporting: boolean
@@ -149,7 +150,9 @@ const { totalRecords } = storeToRefs(recordsStore)
 }
 
 .export-icon {
-  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .export-label {

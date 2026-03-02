@@ -3,7 +3,7 @@
     <div v-if="visible" class="confirm-overlay" @click="handleOverlayClick">
       <div class="confirm-dialog" @click.stop>
         <div class="confirm-header">
-          <span class="confirm-icon">⚠️</span>
+          <IconSvg name="info" :size="24" color="#f59e0b" />
           <span class="confirm-title">{{ dialogTitle }}</span>
         </div>
         <div class="confirm-body">
@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import IconSvg from './IconSvg.vue';
 
 const emit = defineEmits<{
   (e: 'confirm'): void;
@@ -117,7 +118,9 @@ defineExpose({ open });
 }
 
 .confirm-icon {
-  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .confirm-title {
