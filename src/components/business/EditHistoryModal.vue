@@ -56,7 +56,7 @@
     @click.stop
   >
     <div class="context-menu-item" @click="handleLocate">
-      <span class="menu-icon">📍</span>
+      <IconSvg name="map-pin" :size="14" />
       <span>定位到该项</span>
     </div>
     <div
@@ -64,7 +64,7 @@
       :class="{ 'disabled': selectedHistory?.operationType === 'DELETE' }"
       @click="handleRevert"
     >
-      <span class="menu-icon">↩️</span>
+      <IconSvg name="undo" :size="14" />
       <span>还原修改</span>
     </div>
   </div>
@@ -72,6 +72,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import IconSvg from '../IconSvg.vue'
 import type { RecordHistory } from '../../types/database'
 
 interface Props {
@@ -346,6 +347,8 @@ const handleRevert = () => {
 }
 
 .menu-icon {
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

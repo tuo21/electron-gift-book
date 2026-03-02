@@ -45,7 +45,7 @@
             <!-- 使用小提示区域 -->
             <div class="tips-section">
               <h4 class="tips-title">
-                <span class="info-icon">ℹ️</span>
+                <IconSvg name="info" :size="18" color="#409eff" />
                 使用小提示
               </h4>
               <div class="collapse-list">
@@ -57,7 +57,11 @@
                 >
                   <div class="collapse-header" @click="toggleItem(index)">
                     <span class="collapse-title">{{ item.title }}</span>
-                    <span class="collapse-arrow">{{ activeIndex === index ? '▼' : '▶' }}</span>
+                    <IconSvg 
+                      :name="activeIndex === index ? 'chevron-down' : 'chevron-right'" 
+                      :size="14" 
+                      color="#909399" 
+                    />
                   </div>
                   <Transition name="collapse">
                     <div v-show="activeIndex === index" class="collapse-content">
@@ -84,8 +88,9 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import IconSvg from './IconSvg.vue'
 
-const props = defineProps<{
+defineProps<{
   modelValue: boolean
 }>()
 

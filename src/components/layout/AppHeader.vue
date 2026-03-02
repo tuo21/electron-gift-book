@@ -24,22 +24,22 @@
     <!-- 中间：功能按钮 -->
     <div class="header-center">
       <button class="func-btn" @click="emit('save')">
-        <span class="btn-icon">💾</span><span class="btn-text">保存</span>
+        <IconSvg name="save" :size="20" /><span class="btn-text">保存</span>
       </button>
       <button class="func-btn" @click="emit('export')">
-        <span class="btn-icon">📤</span><span class="btn-text">导出</span>
+        <IconSvg name="export" :size="20" /><span class="btn-text">导出</span>
       </button>
       <button class="func-btn" @click="emit('edit-click')">
-        <span class="btn-icon">✏️</span><span class="btn-text">修改记录</span>
+        <IconSvg name="edit" :size="20" /><span class="btn-text">修改记录</span>
       </button>
       <button class="func-btn" @click="emit('open-statistics')">
-        <span class="btn-icon">📊</span><span class="btn-text">统计</span>
+        <IconSvg name="chart" :size="20" /><span class="btn-text">统计</span>
       </button>
       <button class="func-btn" @click="emit('search')">
-        <span class="btn-icon">🔍</span><span class="btn-text">搜索</span>
+        <IconSvg name="search" :size="20" /><span class="btn-text">搜索</span>
       </button>
       <button class="func-btn" @click="emit('back-to-splash')">
-        <span class="btn-icon">🏠</span><span class="btn-text">返回首页</span>
+        <IconSvg name="home" :size="20" /><span class="btn-text">返回首页</span>
       </button>
     </div>
 
@@ -55,6 +55,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import IconSvg from '../IconSvg.vue'
 
 interface Props {
   appName: string
@@ -171,7 +172,6 @@ const handleNameEnter = () => {
   transform: translateY(-2px);  /* 悬停上浮效果 */
 }
 
-.btn-icon { font-size: 20px; }
 .btn-text { font-size: var(--theme-font-size-xs); }  /* 12px */
 
 .header-right { text-align: right; }

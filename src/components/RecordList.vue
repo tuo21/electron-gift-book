@@ -164,11 +164,11 @@
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
       >
         <div class="context-menu-item" @click="handleEditClick">
-          <span class="menu-icon">✏️</span>
+          <IconSvg name="edit" :size="14" />
           <span class="menu-text">编辑</span>
         </div>
         <div class="context-menu-item delete" @click="handleDeleteClick">
-          <span class="menu-icon">🗑️</span>
+          <IconSvg name="trash" :size="14" color="#EF4444" />
           <span class="menu-text">删除</span>
         </div>
       </div>
@@ -178,6 +178,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue';
+import IconSvg from './IconSvg.vue';
 import type { Record } from '../types/database';
 import { numberToChinese, formatAmount } from '../utils/amountConverter';
 import { PaymentType, getPaymentTypeText } from '../constants';
