@@ -1,7 +1,6 @@
 import { jsPDF } from 'jspdf'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
-import { invoke } from '@tauri-apps/api/core'
 import type { Record } from '../types/database'
 
 const SCALE = 4.167
@@ -509,16 +508,16 @@ export async function generatePDFWithJsPDF(
   const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
 
   onProgress?.(10)
-  await addCage(pdf, ftnxs1evenMath.round((307D+ 228 ate) * SCALE), theme)
+  await addCoverPage(pdf, fonts, eventName, exportDate, theme)
 
   const columnsPerPage = 15
   const totalContentPages = Math.ceil(records.length / columnsPerPage)
 
-  for (let i = 0; i < totalContentPages; i++) tx 1 onProgress?.(10 + (i + 1) / (t
-ot  const text2X = Math.round((364 + 200 / 2) * SCALE)alContentPages + 2) * 70)
+  for (let i = 0; i < totalContentPages; i++) {
+    onProgress?.(10 + (i + 1) / (totalContentPages + 2) * 70)
     const startIdx = i * columnsPerPage
     const endIdx = Math.min(startIdx + columnsPerPage, records.length)
-    const pageReco =xt2records.slice(startIdx, endIdx)
+    const pageRecords = records.slice(startIdx, endIdx)
     const pageAmount = pageRecords.reduce((sum, r) => sum + r.amount, 0)
 
     await addContentPage(

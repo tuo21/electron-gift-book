@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import IconSvg from './IconSvg.vue';
 import type { FieldMapping, ImportPreview, ParsedRecord } from '../utils/import';
 import { standardFieldMappings, checkRequiredFields, parseRecords } from '../utils/import';
 
@@ -157,7 +158,10 @@ const handleClose = () => {
     <div class="modal-content import-dialog" @click.stop>
       <!-- 头部 -->
       <div class="modal-header">
-        <h3 class="modal-title">📥 导入数据</h3>
+        <h3 class="modal-title">
+          <IconSvg name="download" :size="20" />
+          导入数据
+        </h3>
         <button class="modal-close" @click="handleClose">×</button>
       </div>
 
@@ -186,7 +190,7 @@ const handleClose = () => {
           
           <!-- 缺失必需字段警告 -->
           <div v-if="missingRequiredFields.length > 0" class="warning-banner">
-            <span class="warning-icon">⚠️</span>
+            <IconSvg name="info" :size="16" color="#c62828" />
             <span>缺少必需字段: {{ missingRequiredFields.join('、') }}</span>
           </div>
 
@@ -331,6 +335,9 @@ const handleClose = () => {
   font-weight: 600;
   color: #333;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-close {
@@ -436,7 +443,9 @@ const handleClose = () => {
 }
 
 .warning-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ==================== 映射表格 ==================== */

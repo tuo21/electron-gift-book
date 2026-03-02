@@ -7,7 +7,7 @@
         class="toast"
         :class="[toast.type, { 'toast-closable': toast.closable }]"
       >
-        <span class="toast-icon">{{ getIcon(toast.type) }}</span>
+        <IconSvg :name="getIconName(toast.type)" :size="16" color="white" />
         <span class="toast-message">{{ toast.message }}</span>
         <button v-if="toast.closable" class="toast-close" @click="removeToast(toast.id)">×</button>
       </div>
@@ -17,6 +17,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import IconSvg from './IconSvg.vue';
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info';
 
@@ -31,12 +32,12 @@ export interface Toast {
 const toasts = ref<Toast[]>([]);
 let toastId = 0;
 
-const getIcon = (type: ToastType): string => {
+const getIconName = (type: ToastType): string => {
   const icons = {
-    success: '✓',
-    error: '✕',
-    warning: '⚠',
-    info: 'ℹ'
+    success: 'check',
+    error: 'x',
+    warning: 'info',
+    info: 'info'
   };
   return icons[type];
 };
@@ -134,10 +135,7 @@ defineExpose({
   color: white;
 }
 
-.toast-icon {
-  font-size: 16px;
-  font-weight: bold;
-}
+
 
 .toast-message {
   flex: 1;

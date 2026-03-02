@@ -13,6 +13,7 @@ import { useFullscreenScale } from './composables/useFullscreenScale';
 import Toast from './components/Toast.vue';
 import EditHistoryModal from './components/business/EditHistoryModal.vue';
 import AboutDialog from './components/AboutDialog.vue';
+import IconSvg from './components/IconSvg.vue';
 
 // ==================== 启动页和配置 ====================
 const { setTheme, applyThemeToDocument, currentTheme } = useTheme();
@@ -883,31 +884,33 @@ onUnmounted(() => {
 
       <!-- 中间：功能按钮 -->
       <div class="header-center">
-        <!-- TODO: 导入导出功能待实现，暂时隐藏
-        <button class="func-btn" @click="handleImport">
-          <span class="btn-icon">📥</span><span class="btn-text">导入</span>
-        </button>
-        -->
         <button class="func-btn" @click="handleSave">
-          <span class="btn-icon">💾</span><span class="btn-text">保存</span>
+          <IconSvg name="save" :size="20" />
+          <span class="btn-text">保存</span>
         </button>
         <button class="func-btn" @click="handleExport">
-          <span class="btn-icon">📤</span><span class="btn-text">导出</span>
+          <IconSvg name="export" :size="20" />
+          <span class="btn-text">导出</span>
         </button>
         <button class="func-btn" @click="handleEditClick">
-          <span class="btn-icon">✏️</span><span class="btn-text">修改记录</span>
+          <IconSvg name="edit" :size="20" />
+          <span class="btn-text">修改记录</span>
         </button>
         <button class="func-btn" @click="openStatisticsModal">
-          <span class="btn-icon">📊</span><span class="btn-text">统计</span>
+          <IconSvg name="chart" :size="20" />
+          <span class="btn-text">统计</span>
         </button>
         <button class="func-btn" @click="handleSearch">
-          <span class="btn-icon">🔍</span><span class="btn-text">搜索</span>
+          <IconSvg name="search" :size="20" />
+          <span class="btn-text">搜索</span>
         </button>
         <button class="func-btn" @click="handleBackToSplash">
-          <span class="btn-icon">🏠</span><span class="btn-text">返回首页</span>
+          <IconSvg name="home" :size="20" />
+          <span class="btn-text">返回首页</span>
         </button>
         <button class="func-btn about-btn" @click="showAboutDialog = true">
-          <span class="btn-icon">ℹ️</span><span class="btn-text">关于</span>
+          <IconSvg name="info" :size="20" />
+          <span class="btn-text">关于</span>
         </button>
       </div>
 
@@ -1081,7 +1084,7 @@ onUnmounted(() => {
               @click="handleExportExcel"
               :disabled="isExporting || records.length === 0"
             >
-              <span class="export-icon">📊</span>
+              <IconSvg name="table" :size="32" />
               <span class="export-label">导出为 Excel</span>
               <span class="export-desc">表格格式，适合数据分析</span>
             </button>
@@ -1090,7 +1093,7 @@ onUnmounted(() => {
               @click="handleExportPDF"
               :disabled="isExporting || records.length === 0"
             >
-              <span class="export-icon">📄</span>
+              <IconSvg name="file-text" :size="32" />
               <span class="export-label">导出为 PDF</span>
               <span class="export-desc">礼金簿样式，适合打印存档</span>
             </button>
@@ -1427,7 +1430,6 @@ body {
   transform: translateY(-2px);  /* 悬停上浮效果 */
 }
 
-.btn-icon { font-size: 20px; }
 .btn-text { font-size: var(--theme-font-size-xs); }  /* 12px */
 
 /* 【导航栏右侧】农历日期 */
@@ -1505,6 +1507,10 @@ body {
   border-radius: var(--theme-border-radius);   /* 8px */
   padding: 11px;            /* 11px */
   box-shadow: var(--theme-shadow);
+  flex: 1;                  /* 占据剩余空间 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 垂直居中 */
 }
 
 /* 统计垂直布局：上下排列 */
@@ -1929,7 +1935,9 @@ body {
 }
 
 .export-icon {
-  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .export-label {
