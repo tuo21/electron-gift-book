@@ -134,17 +134,23 @@ async function loadFontAsBase64(fontPath: string): Promise<string | null> {
 interface LoadedFonts {
   xuandongKaiti: string | null
   chunfengKaiti: string | null
+  zhiSong: string | null
+  kaiTi: string | null
 }
 
 async function loadAllFonts(): Promise<LoadedFonts> {
-  const [xuandongBase64, chunfengBase64] = await Promise.all([
+  const [xuandongBase64, chunfengBase64, zhiSongBase64, kaiTiBase64] = await Promise.all([
     loadFontAsBase64('/fonts/XuandongKaishu.ttf'),
-    loadFontAsBase64('/fonts/演示春风楷.ttf')
+    loadFontAsBase64('/fonts/演示春风楷.ttf'),
+    loadFontAsBase64('/fonts/LXGWNeoZhiSongPlus.ttf'),
+    loadFontAsBase64('/fonts/gkai00mp.ttf')
   ])
   
   return {
     xuandongKaiti: xuandongBase64,
-    chunfengKaiti: chunfengBase64
+    chunfengKaiti: chunfengBase64,
+    zhiSong: zhiSongBase64,
+    kaiTi: kaiTiBase64
   }
 }
 
@@ -191,7 +197,6 @@ async function createChinesePDF(): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
 
   const fonts = await loadAllFonts()
   
-  // 注册 XuandongKaishu 字体（用于竖排文字：名字、金额）
   if (fonts.xuandongKaiti) {
     pdf.addFileToVFS('XuandongKaishu.ttf', fonts.xuandongKaiti)
     pdf.addFont('XuandongKaishu.ttf', 'XuandongKaishu', 'normal')
@@ -199,7 +204,6 @@ async function createChinesePDF(): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
     console.warn('XuandongKaishu 字体加载失败')
   }
   
-  // 注册演示春风楷字体（用于横排文字：备注、物品）
   if (fonts.chunfengKaiti) {
     pdf.addFileToVFS('ChunfengKai.ttf', fonts.chunfengKaiti)
     pdf.addFont('ChunfengKai.ttf', 'ChunfengKai', 'normal')
@@ -207,7 +211,20 @@ async function createChinesePDF(): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
     console.warn('演示春风楷字体加载失败')
   }
 
-  // 默认使用 XuandongKaishu
+  if (fonts.zhiSong) {
+    pdf.addFileToVFS('ZhiSong.ttf', fonts.zhiSong)
+    pdf.addFont('ZhiSong.ttf', 'ZhiSong', 'normal')
+  } else {
+    console.warn('LXGWNeoZhiSongPlus 字体加载失败')
+  }
+
+  if (fonts.kaiTi) {
+    pdf.addFileToVFS('KaiTi.ttf', fonts.kaiTi)
+    pdf.addFont('KaiTi.ttf', 'KaiTi', 'normal')
+  } else {
+    console.warn('gkai00mp 楷体字体加载失败')
+  }
+
   if (fonts.xuandongKaiti) {
     pdf.setFont('XuandongKaishu')
   } else if (fonts.chunfengKaiti) {
@@ -217,18 +234,15 @@ async function createChinesePDF(): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
   return { pdf, fonts }
 }
 
-function setFont(pdf: jsPDF, fonts: LoadedFonts, fontName: 'XuandongKaishu' | 'ChunfengKai' | 'SongTi'): void {
+function setFont(pdf: jsPDF, fonts: LoadedFonts, fontName: 'XuandongKaishu' | 'ChunfengKai' | 'ZhiSong' | 'KaiTi'): void {
   if (fontName === 'XuandongKaishu' && fonts.xuandongKaiti) {
     pdf.setFont('XuandongKaishu')
   } else if (fontName === 'ChunfengKai' && fonts.chunfengKaiti) {
     pdf.setFont('ChunfengKai')
-  } else if (fontName === 'SongTi') {
-    // 宋体不存在，使用 ChunfengKai 作为替代
-    if (fonts.chunfengKaiti) {
-      pdf.setFont('ChunfengKai')
-    } else if (fonts.xuandongKaiti) {
-      pdf.setFont('XuandongKaishu')
-    }
+  } else if (fontName === 'ZhiSong' && fonts.zhiSong) {
+    pdf.setFont('ZhiSong')
+  } else if (fontName === 'KaiTi' && fonts.kaiTi) {
+    pdf.setFont('KaiTi')
   } else if (fonts.xuandongKaiti) {
     pdf.setFont('XuandongKaishu')
   } else if (fonts.chunfengKaiti) {
@@ -260,13 +274,11 @@ async function addCoverPage(
     pdf.setTextColor(255, 102, 102)
   }
 
-  // 封面标题使用 XuandongKaishu
   setFont(pdf, fonts, 'XuandongKaishu')
   pdf.setFontSize(Math.round(24 * SCALE))
   pdf.text(appName || '礼金簿', textX, titleY, { align: 'center' })
 
-  // 封面日期使用 SongTi（实际使用 ChunfengKai 替代）
-  setFont(pdf, fonts, 'SongTi')
+  setFont(pdf, fonts, 'ZhiSong')
   pdf.setFontSize(Math.round(14 * SCALE))
   pdf.text(exportDate, textX, dateY, { align: 'center' })
 }
@@ -302,19 +314,18 @@ async function addContentPage(
     pdf.setTextColor(255, 102, 102)
   }
   
-  // 页眉标题使用 XuandongKaishu
   setFont(pdf, fonts, 'XuandongKaishu')
   pdf.setFontSize(Math.round(24 * SCALE))
   pdf.text(appName || '礼金簿', headerNameX, headerY)
 
   const headerDateX = Math.round((633 + 127 / 2) * SCALE)
-  const headerDateY = Math.round((2.5 + 13 + 10) * SCALE)
+  // 页眉日期底部与页眉标题底部对齐
+  const headerDateY = headerY
   pdf.setTextColor(0, 0, 0)
   
-  // 页眉日期使用 SongTi（实际使用 ChunfengKai 替代）
-  setFont(pdf, fonts, 'SongTi')
+  setFont(pdf, fonts, 'ZhiSong')
   pdf.setFontSize(Math.round(13 * SCALE))
-  pdf.text(exportDate, headerDateX, headerDateY, { align: 'center' })
+  pdf.text(exportDate, headerDateX, headerDateY, { align: 'center', baseline: 'bottom' })
 
   const listStartX = Math.round(41 * SCALE)
   const listStartY = Math.round(98 * SCALE)
@@ -327,7 +338,6 @@ async function addContentPage(
     const nameFontSize = getAdaptiveFontSize(record.guestName, true)
     const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
 
-    // 名字使用 XuandongKaishu（竖排）
     setFont(pdf, fonts, 'XuandongKaishu')
     pdf.setFontSize(nameFontSize)
     pdf.setTextColor(0, 0, 0)
@@ -339,58 +349,70 @@ async function addContentPage(
       pdf.text(char, x, nameStartY + charIndex * nameCharHeight, { align: 'center' })
     })
 
-    // 备注使用 ChunfengKai（楷体）
     if (record.remark) {
       const remarkY = listStartY + Math.round(139 * SCALE) + positionOffset
-      setFont(pdf, fonts, 'ChunfengKai')
+      setFont(pdf, fonts, 'KaiTi')
       pdf.setFontSize(32)
       pdf.setTextColor(102, 102, 102)
       pdf.text(record.remark, x, remarkY, { align: 'center' })
     }
 
-    // 金额中文使用 XuandongKaishu（竖排）
+    // 金额中文和物品描述并排显示
     const amountY = listStartY + Math.round(218 * SCALE) + positionOffset + amountFontSize
-    setFont(pdf, fonts, 'XuandongKaishu')
-    pdf.setFontSize(amountFontSize)
-    pdf.setTextColor(0, 0, 0)
-    const amountCharHeight = amountFontSize * 1
+    const itemStartY = listStartY + Math.round(218 * SCALE) + positionOffset + Math.round(40 * SCALE)
     
-    const amountChars = amountChinese.split('')
-    amountChars.forEach((char, charIndex) => {
-      pdf.text(char, x, amountY + charIndex * amountCharHeight, { align: 'center' })
-    })
-
-    // 物品描述使用 ChunfengKai（楷体）
     if (record.itemDescription) {
-      setFont(pdf, fonts, 'ChunfengKai')
+      // 如果有物品描述，金额和物品并排显示
+      const colWidth = columnWidth / 2 - Math.round(5 * SCALE)
+      
+      // 左侧：金额中文（竖排）
+      setFont(pdf, fonts, 'XuandongKaishu')
+      pdf.setFontSize(amountFontSize)
+      pdf.setTextColor(0, 0, 0)
+      const amountCharHeight = amountFontSize * 1
+      const amountChars = amountChinese.split('')
+      const amountX = x - colWidth / 2
+      amountChars.forEach((char, charIndex) => {
+        pdf.text(char, amountX, amountY + charIndex * amountCharHeight, { align: 'center' })
+      })
+      
+      // 右侧：物品描述（竖排）
+      setFont(pdf, fonts, 'KaiTi')
       pdf.setFontSize(40)
       pdf.setTextColor(102, 102, 102)
-      const itemY = amountY + amountChars.length * amountCharHeight + Math.round(15 * SCALE)
       const itemCharHeight = 40 * 1
       const itemChars = record.itemDescription.split('')
+      const itemX = x + colWidth / 2
       itemChars.forEach((char, charIndex) => {
-        pdf.text(char, x, itemY + charIndex * itemCharHeight, { align: 'center' })
+        pdf.text(char, itemX, itemStartY + charIndex * itemCharHeight, { align: 'center' })
+      })
+    } else {
+      // 如果没有物品描述，金额居中显示
+      setFont(pdf, fonts, 'XuandongKaishu')
+      pdf.setFontSize(amountFontSize)
+      pdf.setTextColor(0, 0, 0)
+      const amountCharHeight = amountFontSize * 1
+      const amountChars = amountChinese.split('')
+      amountChars.forEach((char, charIndex) => {
+        pdf.text(char, x, amountY + charIndex * amountCharHeight, { align: 'center' })
       })
     }
 
-    // 支付类型使用 SongTi（实际使用 ChunfengKai 替代）
     const paymentY = listStartY + Math.round(371 * SCALE) + positionOffset
-    setFont(pdf, fonts, 'SongTi')
+    setFont(pdf, fonts, 'ZhiSong')
     pdf.setFontSize(28)
     pdf.setTextColor(196, 74, 61)
     pdf.text(getPaymentTypeText(record.paymentType), x, paymentY, { align: 'center' })
 
-    // 金额小写使用 SongTi（实际使用 ChunfengKai 替代）
     const amountNumY = paymentY + Math.round(15 * SCALE)
     pdf.setTextColor(102, 102, 102)
-    setFont(pdf, fonts, 'SongTi')
+    setFont(pdf, fonts, 'ZhiSong')
     pdf.setFontSize(28)
     pdf.text('¥' + formatAmount(record.amount), x, amountNumY, { align: 'center' })
   })
 
-  // 页脚使用 SongTi（实际使用 ChunfengKai 替代）
   const footerY = Math.round(518 * SCALE) + Math.round(20 * SCALE)
-  setFont(pdf, fonts, 'SongTi')
+  setFont(pdf, fonts, 'ZhiSong')
   pdf.setFontSize(52)
   pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
 
@@ -417,48 +439,97 @@ async function addStatisticsPage(
 
   const titleX = Math.round((361 + 120 / 2) * SCALE)
   const titleY = Math.round((137 + 18) * SCALE)
-  
+
   if (isGrayTheme) {
     pdf.setTextColor(0, 0, 0)
   } else {
     pdf.setTextColor(255, 102, 102)
   }
-  
-  // 统计页标题使用 SongTi（实际使用 ChunfengKai 替代）
-  setFont(pdf, fonts, 'SongTi')
+
+  setFont(pdf, fonts, 'ZhiSong')
   pdf.setFontSize(Math.round(18 * SCALE))
   pdf.text('礼金簿统计', titleX, titleY, { align: 'center' })
 
-  const contentX = PAGE_WIDTH_PT / 2
-  let currentY = Math.round((193 + 40) * SCALE)
-  const fontSize = 48
-  const lineSpacing = Math.round(10 * SCALE)
-  const lineHeight = fontSize + lineSpacing
-  
-  pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
-  // 统计内容使用 XuandongKaishu
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(fontSize)
-
-  pdf.text('总人数：' + records.length + ' 人', contentX, currentY, { align: 'center' })
-  currentY += lineHeight
-
+  // 准备统计数据
   const paymentTypes = [
     { type: 0, name: '现金' },
     { type: 1, name: '微信' },
     { type: 2, name: '内收' }
   ]
 
-  paymentTypes.forEach(({ type, name }) => {
+  const paymentStats = paymentTypes.map(({ type, name }) => {
     const typeRecords = records.filter(r => r.paymentType === type)
     const typeAmount = typeRecords.reduce((sum, r) => sum + r.amount, 0)
-    pdf.text(name + '：' + typeRecords.length + ' 人  ¥' + formatAmount(typeAmount), contentX, currentY, { align: 'center' })
-    currentY += lineHeight
+    return {
+      name,
+      count: typeRecords.length,
+      amount: typeAmount
+    }
   })
 
-  pdf.text('总金额：¥' + formatAmount(totalAmount), contentX, currentY, { align: 'center' })
-  currentY += lineHeight
-  pdf.text('大写金额：' + numberToChinese(totalAmount), contentX, currentY, { align: 'center' })
+  // 准备所有文本行
+  const labelFontSize = 48
+  const valueFontSize = 48
+  const lineSpacing = Math.round(15 * SCALE)
+  const labelValueSpacing = Math.round(20 * SCALE)
+
+  const lines = [
+    { label: '总人数：', value: `${records.length}人` },
+    ...paymentStats.map(stat => ({
+      label: `${stat.name}：`,
+      value: `${formatAmount(stat.amount)}元（${stat.count}人）`
+    })),
+    { label: '总金额：', value: `${formatAmount(totalAmount)}元` },
+    { label: '', value: numberToChinese(totalAmount) }
+  ]
+
+  // 计算最大标签宽度和最大数值宽度
+  setFont(pdf, fonts, 'ZhiSong')
+  pdf.setFontSize(labelFontSize)
+  let maxLabelWidth = 0
+  lines.forEach(line => {
+    if (line.label) {
+      const width = pdf.getTextWidth(line.label)
+      maxLabelWidth = Math.max(maxLabelWidth, width)
+    }
+  })
+
+  setFont(pdf, fonts, 'XuandongKaishu')
+  pdf.setFontSize(valueFontSize)
+  let maxValueWidth = 0
+  lines.forEach(line => {
+    const width = pdf.getTextWidth(line.value)
+    maxValueWidth = Math.max(maxValueWidth, width)
+  })
+
+  // 计算居中起始位置
+  const totalWidth = maxLabelWidth + labelValueSpacing + maxValueWidth
+  const startX = (PAGE_WIDTH_PT - totalWidth) / 2
+  const labelX = startX
+  const valueX = startX + maxLabelWidth + labelValueSpacing
+
+  // 绘制统计内容
+  pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
+
+  // 计算起始Y位置（垂直居中）
+  const totalHeight = lines.length * (labelFontSize + lineSpacing) - lineSpacing
+  let currentY = (PAGE_HEIGHT_PT - totalHeight) / 2 + labelFontSize
+
+  lines.forEach((line) => {
+    if (line.label) {
+      // 绘制标签（智宋）
+      setFont(pdf, fonts, 'ZhiSong')
+      pdf.setFontSize(labelFontSize)
+      pdf.text(line.label, labelX, currentY)
+    }
+
+    // 绘制数值（楷体）
+    setFont(pdf, fonts, 'KaiTi')
+    pdf.setFontSize(valueFontSize)
+    pdf.text(line.value, valueX, currentY)
+
+    currentY += labelFontSize + lineSpacing
+  })
 }
 
 async function addBackCoverPage(
@@ -481,18 +552,17 @@ async function addBackCoverPage(
     pdf.setTextColor(255, 211, 145)
   }
 
-  // 封底文字使用 XuandongKaishu
-  const text1X = Math.round((307 + 228 / 2) * SCALE)
+  // 封底文字使用页面中心对齐
+  const centerX = PAGE_WIDTH_PT / 2
   const text1Y = Math.round((263 + 24) * SCALE)
   setFont(pdf, fonts, 'XuandongKaishu')
   pdf.setFontSize(Math.round(24 * SCALE))
-  pdf.text('做一款好用的电子礼金簿', text1X, text1Y, { align: 'center' })
+  pdf.text('做一款好用的电子礼金簿', centerX, text1Y, { align: 'center' })
 
-  const text2X = Math.round((364 + 200 / 2) * SCALE)
   const text2Y = Math.round((310 + 20) * SCALE)
   setFont(pdf, fonts, 'XuandongKaishu')
   pdf.setFontSize(Math.round(20 * SCALE))
-  pdf.text('微信公众号：说自', text2X, text2Y, { align: 'center' })
+  pdf.text('微信公众号：说自', centerX, text2Y, { align: 'center' })
 }
 
 export async function generatePDFWithJsPDF(

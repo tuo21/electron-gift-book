@@ -31,13 +31,17 @@
                   </div>
                 </template>
                 <template v-else>
-                  <div class="change-row">
+                  <div v-if="hasFieldChanges(history)" class="field-changes">
+                    <div v-for="(change, idx) in getFieldChanges(history)" :key="idx" class="field-change-item">
+                      <span class="field-label">{{ change.label }}：</span>
+                      <span class="field-old">{{ change.oldValue || '(空)' }}</span>
+                      <span class="field-arrow">→</span>
+                      <span class="field-new">{{ change.newValue || '(空)' }}</span>
+                    </div>
+                  </div>
+                  <div v-else class="change-row">
                     <span class="change-label">修改前：</span>
                     <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
-                  </div>
-                  <div class="change-row">
-                    <span class="change-label">修改后：</span>
-                    <span class="change-value new-value">{{ history.newGuestName }} - {{ formatMoney(history.newAmount || 0) }}{{ history.newItemDescription ? ' - ' + history.newItemDescription : '' }}</span>
                   </div>
                 </template>
               </div>
@@ -96,6 +100,68 @@ const selectedHistory = ref<RecordHistory | null>(null)
 
 const formatMoney = (amount: number) => {
   return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+const getPaymentTypeLabel = (type?: number) => {
+  if (type === undefined) return ''
+  const labels = ['现金', '微信', '内收']
+  return labels[type] || ''
+}
+
+interface FieldChange {
+  label: string
+  oldValue: string
+  newValue: string
+}
+
+const getFieldChanges = (history: RecordHistory): FieldChange[] => {
+  const changes: FieldChange[] = []
+  
+  if (history.newGuestName && history.guestName !== history.newGuestName) {
+    changes.push({
+      label: '姓名',
+      oldValue: history.guestName,
+      newValue: history.newGuestName
+    })
+  }
+  
+  if (history.newAmount !== undefined && history.amount !== history.newAmount) {
+    changes.push({
+      label: '金额',
+      oldValue: formatMoney(history.amount || 0),
+      newValue: formatMoney(history.newAmount)
+    })
+  }
+  
+  if (history.newRemark !== undefined && history.remark !== history.newRemark) {
+    changes.push({
+      label: '备注',
+      oldValue: history.remark || '',
+      newValue: history.newRemark || ''
+    })
+  }
+  
+  if (history.newItemDescription !== undefined && history.itemDescription !== history.newItemDescription) {
+    changes.push({
+      label: '物品',
+      oldValue: history.itemDescription || '',
+      newValue: history.newItemDescription || ''
+    })
+  }
+  
+  if (history.newPaymentType !== undefined && history.paymentType !== history.newPaymentType) {
+    changes.push({
+      label: '支付方式',
+      oldValue: getPaymentTypeLabel(history.paymentType),
+      newValue: getPaymentTypeLabel(history.newPaymentType)
+    })
+  }
+  
+  return changes
+}
+
+const hasFieldChanges = (history: RecordHistory): boolean => {
+  return getFieldChanges(history).length > 0
 }
 
 // 显示右键菜单
@@ -268,6 +334,44 @@ const handleRevert = () => {
   display: flex;
   flex-direction: column;
   gap: var(--theme-spacing-xs);
+}
+
+.field-changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--theme-spacing-xs);
+}
+
+.field-change-item {
+  display: flex;
+  align-items: center;
+  gap: var(--theme-spacing-sm);
+  font-size: var(--theme-font-size-sm);
+  padding: var(--theme-spacing-xs) 0;
+}
+
+.field-label {
+  color: var(--theme-text-secondary);
+  font-weight: 500;
+  min-width: 70px;
+  flex-shrink: 0;
+}
+
+.field-old {
+  color: var(--theme-text-secondary);
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+
+.field-arrow {
+  color: var(--theme-text-secondary);
+  opacity: 0.5;
+  margin: 0 var(--theme-spacing-xs);
+}
+
+.field-new {
+  color: var(--theme-primary);
+  font-weight: bold;
 }
 
 .change-row {

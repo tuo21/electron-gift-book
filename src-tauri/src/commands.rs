@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
+use base64::Engine;
 
 use crate::database::*;
 use crate::models::*;
@@ -553,13 +554,72 @@ pub async fn open_import_file(app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn parse_import_file(file_path: String) -> Result<ImportResult, String> {
+    use calamine::{Reader, Xlsx, open_workbook, Data};
+    
     let path = PathBuf::from(&file_path);
 
     if !path.exists() {
         return Err("文件不存在".to_string());
     }
 
-    Err("Excel 解析功能需要在 Rust 中实现或通过前端处理".to_string())
+    let mut workbook: Xlsx<_> = open_workbook(&path)
+        .map_err(|e| format!("无法打开Excel文件: {}", e))?;
+
+    let sheet_name = workbook.sheet_names().get(0)
+        .ok_or("Excel文件中没有工作表")?
+        .to_string();
+
+    let range = workbook.worksheet_range(&sheet_name)
+        .map_err(|e| format!("无法读取工作表: {}", e))?;
+
+    let mut headers = Vec::new();
+    let mut data = Vec::new();
+    let mut total_rows = 0;
+
+    let rows: Vec<_> = range.rows().collect();
+    
+    if rows.is_empty() {
+        return Err("Excel文件为空".to_string());
+    }
+
+    for (row_idx, row) in rows.iter().enumerate() {
+        if row_idx == 0 {
+            for cell in row.iter() {
+                let header = match cell {
+                    Data::String(s) => s.to_string(),
+                    Data::Float(f) => f.to_string(),
+                    Data::Int(i) => i.to_string(),
+                    _ => String::new(),
+                };
+                headers.push(header);
+            }
+        } else {
+            let mut row_data = Vec::new();
+            for cell in row.iter() {
+                let value = match cell {
+                    Data::String(s) => serde_json::Value::String(s.to_string()),
+                    Data::Float(f) => serde_json::Value::Number(
+                        serde_json::Number::from_f64(*f).unwrap_or_else(|| serde_json::Number::from(0))
+                    ),
+                    Data::Int(i) => serde_json::Value::Number(serde_json::Number::from(*i)),
+                    Data::Bool(b) => serde_json::Value::Bool(*b),
+                    Data::DateTime(dt) => serde_json::Value::String(dt.to_string()),
+                    _ => serde_json::Value::Null,
+                };
+                row_data.push(value);
+            }
+            if !row_data.is_empty() {
+                data.push(row_data);
+                total_rows += 1;
+            }
+        }
+    }
+
+    Ok(ImportResult {
+        headers,
+        data,
+        total_rows,
+    })
 }
 
 #[tauri::command]
@@ -615,7 +675,7 @@ pub async fn get_system_font(font_name: String) -> Result<String, String> {
             match std::fs::read(&font_path) {
                 Ok(font_data) => {
                     // 将字体数据转为 Base64
-                    let base64_data = base64::encode(font_data);
+                    let base64_data = base64::prelude::BASE64_STANDARD.encode(font_data);
                     log::info!("成功加载系统字体: {}", font_file);
                     return Ok(base64_data);
                 }

@@ -82,6 +82,7 @@ pub struct PaginationResult<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub struct ApiResponse<T> {
     pub success: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -91,6 +92,7 @@ pub struct ApiResponse<T> {
 }
 
 impl<T> ApiResponse<T> {
+    #[allow(dead_code)]
     pub fn success(data: T) -> Self {
         Self {
             success: true,
@@ -99,6 +101,7 @@ impl<T> ApiResponse<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn error(message: &str) -> Self {
         Self {
             success: false,
