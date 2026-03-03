@@ -2,7 +2,21 @@
  * 礼金簿打印样式
  * 用于 PDF 导出和打印
  * 使用 CSS 变量支持主题换肤
+ * 
+ * 字体规范：
+ * - 姓名文本和大写金额：演示春风楷
+ * - 固定文字内容：宋体
+ * - 其他变量文字：楷体
  */
+
+/* ==================== 字体定义 ==================== */
+@font-face {
+  font-family: '演示春风楷';
+  src: url('./fonts/XuandongKaishu.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* ==================== CSS 变量定义 ==================== */
 :root {
@@ -16,21 +30,23 @@
   --theme-text-light: #ffffff;
   --theme-border: #d4a574;
   
-  /* 尺寸 - 调整为一页刚好15列，间距为0 */
+  /* 尺寸 - 297mm x 150mm 页面 */
   --page-width: 297mm;
-  --page-height: 210mm;
+  --page-height: 150mm;
   --column-width: 18.5mm;  /* 297mm / 15 = 19.8mm，考虑边距后调整为18.5mm */
-  --column-height: 160mm;
+  --column-height: 110mm;
   --column-gap: 0mm;  /* 间距为0，与电脑显示一致 */
   
   /* 字体 */
-  --font-family: 'Noto Serif SC', 'SimSun', 'STSong', 'Source Han Serif SC', serif;
+  --font-name-amount: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+  --font-family-fixed: 'SimSun', 'STSong', 'Noto Serif SC', serif;
+  --font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
 }
 
 /* ==================== 页面设置 ==================== */
 @page {
-  size: A4 landscape;
-  margin: 10mm;
+  size: 297mm 150mm;
+  margin: 0;
 }
 
 * {
@@ -73,7 +89,7 @@ body {
   font-weight: bold;
   color: var(--theme-text-light);
   margin: 0;
-  font-family: var(--font-family);
+  font-family: var(--font-name-amount);
 }
 
 .print-meta {
@@ -92,9 +108,9 @@ body {
   gap: var(--column-gap);
   background: rgba(255, 255, 255, 0.1);
   padding: 0;  /* 内边距为0 */
-  border-radius: 3mm;
   align-content: flex-start;
-  justify-content: space-between;  /* 均匀分布 */
+  justify-content: flex-start;
+  position: relative;  /* 用于汇总信息绝对定位 */
 }
 
 /* ==================== 记录列 ==================== */
@@ -103,19 +119,15 @@ body {
   height: var(--column-height);
   background: rgba(255, 255, 255, 0.95);
   border: 0.5mm solid var(--theme-border);
-  border-radius: 2mm;
   display: flex;
   flex-direction: column;
   padding: 2mm;
-  box-shadow: 0 1mm 3mm rgba(0, 0, 0, 0.15);
   page-break-inside: avoid;
   break-inside: avoid;
   flex-shrink: 0;  /* 防止压缩 */
 }
 
 .empty-column {
-  opacity: 0.5;
-  background: rgba(255, 255, 255, 0.7);
 }
 
 /* ==================== 单元格 ==================== */
@@ -141,24 +153,25 @@ body {
   font-size: 8pt;
   color: var(--theme-primary);
   font-weight: bold;
+  font-family: var(--font-family-fixed);
 }
 
 /* 姓名单元格 */
 .name-cell {
   flex: 0 0 auto;
-  height: 45mm;
-  min-height: 40mm;
+  height: 38mm;
+  min-height: 35mm;
   justify-content: center;
 }
 
 .name-text {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2mm;
   font-size: 20pt;
   line-height: 1.2;
+  font-family: var(--font-name-amount);
 }
 
 /* 备注单元格 */
@@ -177,13 +190,14 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-family);
 }
 
 /* 礼金单元格 */
 .amount-cell {
   flex: 0 0 auto;
-  height: 55mm;
-  min-height: 50mm;
+  height: 40mm;
+  min-height: 35mm;
   justify-content: center;
 }
 
@@ -197,13 +211,13 @@ body {
 }
 
 .amount-chinese {
-  font-weight: bold;
   color: var(--theme-text-primary);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 1mm;
   line-height: 1.4;
   font-size: 14pt;
+  font-family: var(--font-name-amount);
 }
 
 .item-description {
@@ -214,34 +228,54 @@ body {
   letter-spacing: 0.5mm;
   max-height: 100%;
   overflow: hidden;
+  font-family: var(--font-family);
 }
 
 /* 支付方式单元格 */
 .payment-cell {
   flex: 0 0 auto;
-  gap: 1mm;
-  padding: 2mm 0;
+  gap: 0.5mm;
+  padding: 1mm 0;
 }
 
 .payment-type {
   font-size: 7pt;
   color: var(--theme-primary);
   font-weight: bold;
+  font-family: var(--font-family-fixed);
 }
 
 .amount-number {
   font-size: 7pt;
   color: var(--theme-text-secondary);
+  font-family: var(--font-family-fixed);
 }
 
 /* ==================== 页脚 ==================== */
 .print-footer {
-  margin-top: 2mm;  /* 减小顶部间距 */
-  padding-top: 2mm;  /* 减小顶部内边距 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2mm;
+  padding-top: 2mm;
   border-top: 1px solid rgba(255, 255, 255, 0.3);
-  text-align: center;
   color: rgba(255, 255, 255, 0.9);
   font-size: 9pt;
+}
+
+.footer-left {
+  flex: 1;
+  text-align: left;
+}
+
+.footer-center {
+  flex: 1;
+  text-align: center;
+}
+
+.footer-right {
+  flex: 1;
+  text-align: right;
 }
 
 /* ==================== 打印优化 ==================== */
@@ -250,14 +284,59 @@ body {
     background: var(--theme-primary);
   }
   
-  .print-container {
-    page-break-after: always;
-  }
-  
   .record-column {
     page-break-inside: avoid;
     break-inside: avoid;
   }
+}
+
+/* ==================== 汇总列样式 ==================== */
+.summary-column {
+  background: rgba(255, 255, 255, 0.95);
+  border: 0.5mm solid var(--theme-primary);
+}
+
+.summary-column .label-text {
+  color: var(--theme-primary);
+  font-size: 10pt;
+  font-family: var(--font-family-fixed);
+}
+
+.summary-name-cell {
+  flex: 0 0 auto;
+  height: 38mm;
+  min-height: 35mm;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+}
+
+.summary-text-vertical {
+  font-weight: bold;
+  color: var(--theme-primary);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 1mm;
+  font-size: 14pt;
+  line-height: 1.4;
+  font-family: var(--font-name-amount);
+}
+
+.summary-amount-cell {
+  flex: 0 0 auto;
+  height: 40mm;
+  min-height: 35mm;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+}
+
+.summary-number-vertical {
+  font-weight: bold;
+  color: var(--theme-primary);
+  font-size: 12pt;
+  transform: rotate(90deg);
+  white-space: nowrap;
 }
 
 /* ==================== 隐藏滚动条 ==================== */

@@ -1,8 +1,13 @@
-import { app, BrowserWindow, ipcMain, dialog } from "electron";
-import path from "node:path";
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+import { BrowserWindow, dialog, app, ipcMain } from "electron";
+import path$1 from "node:path";
 import { fileURLToPath } from "node:url";
-import fs from "node:fs";
+import fs$1 from "node:fs";
 import Database from "better-sqlite3";
+import * as fs from "fs";
+import * as path from "path";
 /*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
 var current_ansi = 1252;
 var VALID_ANSI = [874, 932, 936, 949, 950, 1250, 1251, 1252, 1253, 1254, 1255, 1256, 1257, 1258, 1e4];
@@ -26039,11 +26044,11 @@ var utils = {
 let db = null;
 let currentDbPath = "";
 function getDefaultDbPath() {
-  const dbDir = path.join(process.cwd(), "data");
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  const dbDir = path$1.join(process.cwd(), "data");
+  if (!fs$1.existsSync(dbDir)) {
+    fs$1.mkdirSync(dbDir, { recursive: true });
   }
-  return path.join(dbDir, "gift-book.db");
+  return path$1.join(dbDir, "gift-book.db");
 }
 function initDatabase(dbPath) {
   if (db && currentDbPath === (dbPath || getDefaultDbPath())) {
@@ -26055,9 +26060,9 @@ function initDatabase(dbPath) {
   }
   currentDbPath = dbPath || getDefaultDbPath();
   console.log("Database path:", currentDbPath);
-  const dbDir = path.dirname(currentDbPath);
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true });
+  const dbDir = path$1.dirname(currentDbPath);
+  if (!fs$1.existsSync(dbDir)) {
+    fs$1.mkdirSync(dbDir, { recursive: true });
   }
   db = new Database(currentDbPath);
   db.pragma("foreign_keys = ON");
@@ -26187,14 +26192,74 @@ function softDeleteRecord(id) {
 function getAllRecords() {
   const db2 = getDatabase();
   const stmt = db2.prepare(`
-    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime DESC
+    SELECT * FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC
   `);
   return stmt.all();
+}
+function getRecordsPaginated(page, pageSize) {
+  const db2 = getDatabase();
+  const validPage = Math.max(1, page);
+  const validPageSize = Math.max(1, pageSize);
+  const offset = (validPage - 1) * validPageSize;
+  const countStmt = db2.prepare(`
+    SELECT COUNT(*) as total FROM Records WHERE IsDeleted = 0
+  `);
+  const countResult = countStmt.get();
+  const total = countResult.total;
+  const totalPages = Math.ceil(total / validPageSize);
+  if (validPage > totalPages) {
+    return {
+      records: [],
+      total,
+      page: validPage,
+      pageSize: validPageSize,
+      totalPages
+    };
+  }
+  const stmt = db2.prepare(`
+    SELECT * FROM Records 
+    WHERE IsDeleted = 0 
+    ORDER BY CreateTime DESC, Id DESC
+    LIMIT ? OFFSET ?
+  `);
+  const records = stmt.all(validPageSize, offset);
+  return {
+    records,
+    total,
+    page: validPage,
+    pageSize: validPageSize,
+    totalPages
+  };
+}
+function getRecordPage(recordId, pageSize) {
+  const db2 = getDatabase();
+  const recordStmt = db2.prepare(`
+    SELECT CreateTime, IsDeleted FROM Records WHERE Id = ?
+  `);
+  const record = recordStmt.get(recordId);
+  if (!record) {
+    return null;
+  }
+  if (record.IsDeleted === 1) {
+    return null;
+  }
+  const positionStmt = db2.prepare(`
+    SELECT COUNT(*) as position
+    FROM Records 
+    WHERE IsDeleted = 0 
+    AND (
+      CreateTime < ?
+      OR (CreateTime = ? AND Id < ?)
+    )
+  `);
+  const result = positionStmt.get(record.CreateTime, record.CreateTime, recordId);
+  const position = result.position;
+  return Math.floor(position / pageSize) + 1;
 }
 function getRecordById(id) {
   const db2 = getDatabase();
   const stmt = db2.prepare(`
-    SELECT * FROM Records WHERE Id = ? AND IsDeleted = 0
+    SELECT * FROM Records WHERE Id = ?
   `);
   return stmt.get(id);
 }
@@ -26203,7 +26268,7 @@ function searchRecords(keyword) {
   const stmt = db2.prepare(`
     SELECT * FROM Records 
     WHERE IsDeleted = 0 AND (GuestName LIKE ? OR Remark LIKE ? OR ItemDescription LIKE ?)
-    ORDER BY CreateTime DESC
+    ORDER BY CreateTime DESC, Id DESC
   `);
   const likeKeyword = `%${keyword}%`;
   return stmt.all(likeKeyword, likeKeyword, likeKeyword);
@@ -26259,62 +26324,768 @@ function getAllRecordHistory() {
 }
 function getStatistics() {
   const db2 = getDatabase();
-  const totalStmt = db2.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(Amount), 0) as total 
+  const stmt = db2.prepare(`
+    SELECT 
+      COUNT(*) as count,
+      COALESCE(SUM(Amount), 0) as total,
+      COALESCE(SUM(CASE WHEN PaymentType = 0 THEN Amount ELSE 0 END), 0) as cash,
+      COALESCE(SUM(CASE WHEN PaymentType = 1 THEN Amount ELSE 0 END), 0) as wechat,
+      COALESCE(SUM(CASE WHEN PaymentType = 2 THEN Amount ELSE 0 END), 0) as internal
     FROM Records 
     WHERE IsDeleted = 0
   `);
-  const totalResult = totalStmt.get();
-  const cashStmt = db2.prepare(`
-    SELECT COALESCE(SUM(Amount), 0) as total 
-    FROM Records 
-    WHERE IsDeleted = 0 AND PaymentType = 0
-  `);
-  const cashResult = cashStmt.get();
-  const wechatStmt = db2.prepare(`
-    SELECT COALESCE(SUM(Amount), 0) as total 
-    FROM Records 
-    WHERE IsDeleted = 0 AND PaymentType = 1
-  `);
-  const wechatResult = wechatStmt.get();
-  const internalStmt = db2.prepare(`
-    SELECT COALESCE(SUM(Amount), 0) as total 
-    FROM Records 
-    WHERE IsDeleted = 0 AND PaymentType = 2
-  `);
-  const internalResult = internalStmt.get();
+  const result = stmt.get();
   return {
-    totalCount: totalResult.count,
-    totalAmount: totalResult.total,
-    cashAmount: cashResult.total,
-    wechatAmount: wechatResult.total,
-    internalAmount: internalResult.total
+    totalCount: result.count,
+    totalAmount: result.total,
+    cashAmount: result.cash,
+    wechatAmount: result.wechat,
+    internalAmount: result.internal
   };
 }
-const dataDir = path.join(process.cwd(), "data");
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+const SCALE = 4.167;
+const PDF_TEMPLATE_CONFIG = {
+  pageSize: {
+    width: 3508,
+    height: 2479
+  },
+  cover: {
+    textArea: {
+      left: Math.round(251 * SCALE),
+      top: Math.round(461 * SCALE),
+      width: Math.round(341 * SCALE),
+      height: Math.round(77 * SCALE)
+    },
+    titleStyle: {
+      fontSize: Math.round(24 * SCALE),
+      fontWeight: 900,
+      letterSpacing: 0,
+      lineHeight: 34.49 * SCALE,
+      color: "rgba(255, 102, 102, 1)",
+      textAlign: "center",
+      verticalAlign: "top"
+    },
+    dateStyle: {
+      fontSize: Math.round(14 * SCALE),
+      fontWeight: 400,
+      letterSpacing: 0,
+      lineHeight: 20 * SCALE,
+      color: "rgba(255, 102, 102, 1)",
+      textAlign: "center",
+      verticalAlign: "top"
+    }
+  },
+  content: {
+    header: {
+      left: Math.round(41 * SCALE),
+      top: Math.round(21 * SCALE),
+      width: Math.round(760 * SCALE),
+      height: Math.round(35 * SCALE),
+      nameStyle: {
+        fontSize: Math.round(24 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 34.49 * SCALE,
+        color: "rgba(255, 102, 102, 1)",
+        textAlign: "left",
+        verticalAlign: "top"
+      },
+      dateStyle: {
+        fontSize: Math.round(13 * SCALE),
+        fontWeight: 300,
+        letterSpacing: 0,
+        lineHeight: 30 * SCALE,
+        color: "rgba(0, 0, 0, 1)",
+        textAlign: "right",
+        verticalAlign: "top"
+      },
+      nameOffset: { left: 0, top: 0 },
+      dateOffset: { left: Math.round(633 * SCALE), top: Math.round(2.5 * SCALE) }
+    },
+    list: {
+      left: Math.round(41 * SCALE),
+      top: Math.round(98 * SCALE),
+      width: Math.round(760 * SCALE),
+      height: Math.round(401 * SCALE),
+      columnWidth: Math.round(46 * SCALE),
+      columnGap: Math.round(5 * SCALE),
+      columnsPerPage: 15,
+      column: {
+        name: {
+          left: 0,
+          top: 0,
+          width: Math.round(46 * SCALE),
+          height: Math.round(139 * SCALE)
+        },
+        remark: {
+          left: 0,
+          top: Math.round(139 * SCALE),
+          width: Math.round(46 * SCALE),
+          height: Math.round(19 * SCALE)
+        },
+        amount: {
+          left: 0,
+          top: Math.round(218 * SCALE),
+          width: Math.round(46 * SCALE),
+          height: Math.round(153 * SCALE)
+        },
+        payment: {
+          left: 0,
+          top: Math.round(371 * SCALE),
+          width: Math.round(46 * SCALE),
+          height: Math.round(30 * SCALE)
+        }
+      }
+    },
+    footer: {
+      left: Math.round(41 * SCALE),
+      top: Math.round(518 * SCALE),
+      width: Math.round(760 * SCALE),
+      height: Math.round(30 * SCALE),
+      recordCount: {
+        left: 0,
+        top: 0,
+        width: Math.round(80 * SCALE),
+        height: Math.round(30 * SCALE)
+      },
+      pageInfo: {
+        left: Math.round(306.5 * SCALE),
+        top: 0,
+        width: Math.round(97 * SCALE),
+        height: Math.round(30 * SCALE)
+      },
+      pageSubtotal: {
+        left: Math.round(630 * SCALE),
+        top: 0,
+        width: Math.round(130 * SCALE),
+        height: Math.round(30 * SCALE)
+      }
+    }
+  },
+  statistics: {
+    header: {
+      left: Math.round(37 * SCALE),
+      top: Math.round(21 * SCALE),
+      width: Math.round(760 * SCALE),
+      height: Math.round(35 * SCALE)
+    },
+    title: {
+      left: Math.round(361 * SCALE),
+      top: Math.round(137 * SCALE),
+      width: Math.round(120 * SCALE),
+      height: Math.round(35 * SCALE),
+      textStyle: {
+        fontSize: Math.round(18 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 35 * SCALE,
+        color: "rgba(255, 102, 102, 1)",
+        textAlign: "center",
+        verticalAlign: "middle"
+      }
+    },
+    content: {
+      left: Math.round(270 * SCALE),
+      top: Math.round(193 * SCALE),
+      width: Math.round(302 * SCALE),
+      height: Math.round(230 * SCALE)
+    },
+    firstTable: {
+      left: Math.round(270 * SCALE),
+      top: Math.round(239 * SCALE),
+      width: Math.round(46 * SCALE),
+      height: Math.round(302 * SCALE)
+    },
+    footer: {
+      left: Math.round(37 * SCALE),
+      top: Math.round(518 * SCALE),
+      width: Math.round(760 * SCALE),
+      height: Math.round(30 * SCALE)
+    }
+  },
+  backCover: {
+    text1: {
+      left: Math.round(307 * SCALE),
+      top: Math.round(263 * SCALE),
+      width: Math.round(228 * SCALE),
+      height: Math.round(35 * SCALE),
+      textStyle: {
+        fontSize: Math.round(24 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 34.49 * SCALE,
+        color: "rgba(255, 211, 145, 1)",
+        textAlign: "center",
+        verticalAlign: "top"
+      },
+      content: "做一款好用的电子礼金簿"
+    },
+    text2: {
+      left: Math.round(364 * SCALE),
+      top: Math.round(310 * SCALE),
+      width: Math.round(200 * SCALE),
+      height: Math.round(29 * SCALE),
+      textStyle: {
+        fontSize: Math.round(20 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 28.74 * SCALE,
+        color: "rgba(255, 211, 145, 1)",
+        textAlign: "center",
+        verticalAlign: "top"
+      },
+      content: "微信公众号：说自"
+    }
+  }
+};
+const CN_NUMBERS = ["零", "壹", "贰", "叁", "肆", "伍", "陆", "柒", "捌", "玖"];
+const CN_UNITS = ["", "拾", "佰", "仟"];
+const CN_BIG_UNITS = ["", "万", "亿", "万亿"];
+function numberToChinese(amount) {
+  if (isNaN(amount) || amount < 0) return "";
+  if (amount >= 1e16) return "金额过大";
+  const integerPart = Math.floor(amount);
+  const decimalPart = Math.round((amount - integerPart) * 100);
+  let result = integerToChinese(integerPart);
+  if (result === "") result = "零元";
+  else result += "元";
+  if (decimalPart > 0) {
+    const jiao = Math.floor(decimalPart / 10);
+    const fen = decimalPart % 10;
+    if (jiao > 0) result += CN_NUMBERS[jiao] + "角";
+    else if (integerPart > 0) result += "零";
+    if (fen > 0) result += CN_NUMBERS[fen] + "分";
+  }
+  return result;
+}
+function integerToChinese(num) {
+  if (num === 0) return "";
+  let result = "";
+  let bigUnitIndex = 0;
+  while (num > 0) {
+    const segment = num % 1e4;
+    if (segment !== 0) {
+      const segmentStr = segmentToChinese(segment);
+      result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result;
+    } else if (result !== "" && !result.startsWith("零")) {
+      result = "零" + result;
+    }
+    num = Math.floor(num / 1e4);
+    bigUnitIndex++;
+  }
+  result = result.replace(/零+/g, "零").replace(/零$/, "");
+  return result;
+}
+function segmentToChinese(num) {
+  if (num === 0) return "";
+  let result = "";
+  let zeroFlag = false;
+  for (let i = 3; i >= 0; i--) {
+    const divisor = Math.pow(10, i);
+    const digit = Math.floor(num / divisor);
+    if (digit > 0) {
+      if (zeroFlag) {
+        result += "零";
+        zeroFlag = false;
+      }
+      result += CN_NUMBERS[digit] + CN_UNITS[i];
+    } else if (result !== "") {
+      zeroFlag = true;
+    }
+    num %= divisor;
+  }
+  return result;
+}
+function formatAmount(amount) {
+  if (isNaN(amount)) return "0.00";
+  return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+function getPaymentTypeText(type) {
+  const map = { 0: "现金", 1: "微信", 2: "内收" };
+  return map[type] || "未知";
+}
+function getAdaptiveFontSize(text, isName = false, hasItem = false) {
+  const maxSize = 110;
+  const minSize = 55;
+  const maxLength = isName ? 3 : hasItem ? 2 : 3;
+  if (!text || text.length <= maxLength) {
+    return maxSize;
+  }
+  const reduceSize = (text.length - maxLength) * 25;
+  return Math.max(minSize, maxSize - reduceSize);
+}
+class PDFGeneratorService {
+  constructor(assetsPath) {
+    __publicField(this, "config", PDF_TEMPLATE_CONFIG);
+    __publicField(this, "assetsPath");
+    this.assetsPath = assetsPath;
+  }
+  async generatePDF(options, dataDir2) {
+    const { records, appName, exportDate, theme, filename } = options;
+    try {
+      const totalAmount = records.reduce((sum, r) => sum + r.amount, 0);
+      const columnsPerPage = this.config.content.list.columnsPerPage;
+      const pages = [];
+      pages.push(this.generateCoverPage(appName, exportDate, theme));
+      const totalContentPages = Math.ceil(records.length / columnsPerPage);
+      for (let i = 0; i < totalContentPages; i++) {
+        const startIdx = i * columnsPerPage;
+        const endIdx = Math.min(startIdx + columnsPerPage, records.length);
+        const pageRecords = records.slice(startIdx, endIdx);
+        const pageAmount = pageRecords.reduce((sum, r) => sum + r.amount, 0);
+        pages.push(this.generateContentPage(
+          pageRecords,
+          appName,
+          exportDate,
+          i + 1,
+          totalContentPages,
+          records.length,
+          pageAmount,
+          theme
+        ));
+      }
+      pages.push(this.generateStatisticsPage(records.length, totalAmount, theme));
+      pages.push(this.generateBackCoverPage(theme));
+      const htmlContent = this.generateFullHTML(pages, theme);
+      const tempHtmlPath = path.join(dataDir2, `temp_print_${Date.now()}.html`);
+      fs.writeFileSync(tempHtmlPath, htmlContent, "utf-8");
+      const printWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        show: false,
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+          webSecurity: false
+        }
+      });
+      let pdfBuffer = null;
+      try {
+        await printWindow.loadFile(tempHtmlPath);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        pdfBuffer = await printWindow.webContents.printToPDF({
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
+          printBackground: true,
+          preferCSSPageSize: true
+        });
+        printWindow.close();
+        const { filePath } = await dialog.showSaveDialog({
+          title: "保存 PDF",
+          defaultPath: `${filename}.pdf`,
+          filters: [{ name: "PDF 文件", extensions: ["pdf"] }]
+        });
+        if (filePath && pdfBuffer) {
+          fs.writeFileSync(filePath, pdfBuffer);
+          return { success: true, filePath };
+        } else if (!filePath) {
+          return { success: false, error: "用户取消保存" };
+        } else {
+          return { success: false, error: "PDF生成失败" };
+        }
+      } finally {
+        try {
+          if (fs.existsSync(tempHtmlPath)) {
+            fs.unlinkSync(tempHtmlPath);
+          }
+        } catch (e) {
+          console.error("删除临时文件失败:", e);
+        }
+      }
+    } catch (error) {
+      console.error("PDF生成失败:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "未知错误"
+      };
+    }
+  }
+  getTemplateImagePath(type, theme) {
+    const fileName = type === "backCover" ? "backcover" : type;
+    const jpgPath = path.join(this.assetsPath, "templates", theme, `${fileName}.jpg`);
+    const pngPath = path.join(this.assetsPath, "templates", theme, `${fileName}.png`);
+    if (fs.existsSync(jpgPath)) {
+      return jpgPath.replace(/\\/g, "/");
+    } else if (fs.existsSync(pngPath)) {
+      return pngPath.replace(/\\/g, "/");
+    }
+    return "";
+  }
+  generateCoverPage(appName, exportDate, theme) {
+    const config = this.config.cover;
+    const bgImage = this.getTemplateImagePath("cover", theme);
+    const isGrayTheme = theme === "gray";
+    const titleColor = isGrayTheme ? "#FFFFFF" : config.titleStyle.color;
+    const dateColor = isGrayTheme ? "#FFFFFF" : config.dateStyle.color;
+    return `
+      <div class="page cover-page" ${bgImage ? `style="background-image: url('file:///${bgImage}');"` : ""}>
+        <div class="cover-content" style="left: ${config.textArea.left}px; top: ${config.textArea.top}px; width: ${config.textArea.width}px; height: ${config.textArea.height}px;">
+          <div class="cover-title" style="font-size: ${config.titleStyle.fontSize}px; color: ${titleColor};">${appName || "礼金簿"}</div>
+          <div class="cover-date" style="font-size: ${config.dateStyle.fontSize}px; color: ${dateColor};">${exportDate}</div>
+        </div>
+      </div>
+    `;
+  }
+  generateContentPage(records, appName, exportDate, pageNum, totalPages, totalRecords, pageAmount, theme) {
+    const config = this.config.content;
+    const bgImage = this.getTemplateImagePath("content", theme);
+    const listConfig = config.list;
+    const positionOffset = 13;
+    const isGrayTheme = theme === "gray";
+    const headerColor = isGrayTheme ? "rgba(0, 0, 0, 0.6)" : config.header.nameStyle.color;
+    const dateColor = isGrayTheme ? "rgba(0, 0, 0, 0.6)" : config.header.dateStyle.color;
+    let columnsHtml = "";
+    records.forEach((record, index) => {
+      const columnX = listConfig.left + index * (listConfig.columnWidth + listConfig.columnGap);
+      const amountChinese = record.amountChinese || numberToChinese(record.amount);
+      const nameFontSize = getAdaptiveFontSize(record.guestName, true);
+      const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription);
+      columnsHtml += `
+        <div class="record-column" style="left: ${columnX}px; top: ${listConfig.top}px; width: ${listConfig.columnWidth}px; height: ${listConfig.height}px;">
+          <div class="column-name" style="height: ${listConfig.column.name.height}px;">
+            <span class="vertical-text name-text" style="font-size: ${nameFontSize}px;">${record.guestName}</span>
+          </div>
+          <div class="column-remark" style="top: ${listConfig.column.remark.top + positionOffset}px;">
+            <span>${record.remark || ""}</span>
+          </div>
+          <div class="column-amount" style="top: ${listConfig.column.amount.top + positionOffset}px; height: ${listConfig.column.amount.height}px;">
+            <div class="amount-content">
+              <span class="vertical-text amount-text" style="font-size: ${amountFontSize}px;">${amountChinese}</span>
+              ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ""}
+            </div>
+          </div>
+          <div class="column-payment" style="top: ${listConfig.column.payment.top + positionOffset}px;">
+            <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
+            <span class="amount-number">¥${formatAmount(record.amount)}</span>
+          </div>
+        </div>
+      `;
+    });
+    return `
+      <div class="page content-page" ${bgImage ? `style="background-image: url('file:///${bgImage}');"` : ""}>
+        <div class="page-header" style="left: ${config.header.left}px; top: ${config.header.top}px; width: ${config.header.width}px; height: ${config.header.height}px;">
+          <span class="header-name" style="font-size: ${config.header.nameStyle.fontSize}px; color: ${headerColor};">${appName || "礼金簿"}</span>
+          <span class="header-date" style="left: ${config.header.dateOffset.left}px; font-size: ${config.header.dateStyle.fontSize}px; color: ${dateColor};">${exportDate}</span>
+        </div>
+        <div class="page-list">
+          ${columnsHtml}
+        </div>
+        <div class="page-footer" style="left: ${config.footer.left}px; top: ${config.footer.top}px; width: ${config.footer.width}px; height: ${config.footer.height}px; color: ${isGrayTheme ? "rgba(0, 0, 0, 0.6)" : "#333"};">
+          <span class="footer-records" style="left: ${config.footer.recordCount.left}px;">共 ${totalRecords} 条记录</span>
+          <span class="footer-page" style="left: ${config.footer.pageInfo.left}px;">第 ${pageNum} 页 / 共 ${totalPages} 页</span>
+          <span class="footer-subtotal" style="left: ${config.footer.pageSubtotal.left}px;">本页小计：¥${formatAmount(pageAmount)}</span>
+        </div>
+      </div>
+    `;
+  }
+  generateStatisticsPage(totalRecords, totalAmount, theme) {
+    const config = this.config.statistics;
+    const bgImage = this.getTemplateImagePath("statistics", theme);
+    const isGrayTheme = theme === "gray";
+    const titleColor = isGrayTheme ? "#000000" : config.title.textStyle.color;
+    const textColor = isGrayTheme ? "#000000" : "#333";
+    return `
+      <div class="page statistics-page" ${bgImage ? `style="background-image: url('file:///${bgImage}');"` : ""}>
+        <div class="stats-title" style="left: ${config.title.left}px; top: ${config.title.top}px; font-size: ${config.title.textStyle.fontSize}px; color: ${titleColor};">
+          礼金簿统计
+        </div>
+        <div class="stats-content" style="left: ${config.content.left}px; top: ${config.content.top}px; width: ${config.content.width}px; height: ${config.content.height}px; color: ${textColor};">
+          <div class="stat-item" style="color: ${textColor};">总人数：${totalRecords} 人</div>
+          <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount)}</div>
+          <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount)}</div>
+        </div>
+      </div>
+    `;
+  }
+  generateBackCoverPage(theme) {
+    const config = this.config.backCover;
+    const bgImage = this.getTemplateImagePath("backCover", theme);
+    const isGrayTheme = theme === "gray";
+    const textColor = isGrayTheme ? "#FFFFFF" : config.text1.textStyle.color;
+    return `
+      <div class="page backcover-page" ${bgImage ? `style="background-image: url('file:///${bgImage}');"` : ""}>
+        <div class="backcover-text1" style="left: ${config.text1.left}px; top: ${config.text1.top}px; font-size: ${config.text1.textStyle.fontSize}px; color: ${textColor};">
+          ${config.text1.content}
+        </div>
+        <div class="backcover-text2" style="left: ${config.text2.left}px; top: ${config.text2.top}px; font-size: ${config.text2.textStyle.fontSize}px; color: ${textColor};">
+          ${config.text2.content}
+        </div>
+      </div>
+    `;
+  }
+  generateFullHTML(pages, _theme) {
+    const { width, height } = this.config.pageSize;
+    return `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>礼金簿打印</title>
+  <style>
+    @font-face {
+      font-family: '演示春风楷';
+      src: url('file:///${this.assetsPath.replace(/\\/g, "/")}/fonts/XuandongKaishu.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    @page {
+      size: ${width}px ${height}px;
+      margin: 0;
+    }
+
+    body {
+      font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+
+    .page {
+      width: ${width}px;
+      height: ${height}px;
+      position: relative;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      page-break-after: always;
+    }
+
+    .page:last-child {
+      page-break-after: auto;
+    }
+
+    .cover-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .cover-title {
+      margin-bottom: 40px;
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+    }
+
+    .cover-date {
+      font-weight: normal;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .page-header {
+      position: absolute;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .header-name {
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+    }
+
+    .header-date {
+      position: absolute;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .record-column {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 8px;
+    }
+
+    .column-name {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      margin-top: 40px;
+    }
+
+    .column-remark {
+      position: absolute;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: #666;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      font-family: 'KaiTi', 'STKaiti', serif;
+    }
+
+    .column-amount {
+      position: absolute;
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      margin-top: 40px;
+    }
+
+    .amount-content {
+      display: flex;
+      flex-direction: row;
+      justify-content: center;
+      align-items: flex-start;
+      gap: 2px;
+      height: 100%;
+    }
+
+    .item-description {
+      font-size: 40px;
+      color: #666;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      letter-spacing: 2px;
+      max-height: 100%;
+      overflow: hidden;
+      font-family: 'KaiTi', 'STKaiti', serif;
+    }
+
+    .column-payment {
+      position: absolute;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .payment-type {
+      color: #c44a3d;
+      font-weight: bold;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .amount-number {
+      color: #666;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .vertical-text {
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      letter-spacing: 14px;
+    }
+
+    .name-text {
+      font-size: 110px;
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+      letter-spacing: 10px;
+    }
+
+    .amount-text {
+      font-size: 110px;
+      letter-spacing: 8px;
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+    }
+
+    .page-footer {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      font-size: 52px;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .footer-records {
+      position: absolute;
+      left: 0;
+    }
+
+    .footer-page {
+      position: absolute;
+      text-align: center;
+    }
+
+    .footer-subtotal {
+      position: absolute;
+      right: 0;
+      text-align: right;
+    }
+
+    .stats-title {
+      position: absolute;
+      font-weight: bold;
+      text-align: center;
+      font-family: 'SimSun', 'STSong', serif;
+    }
+
+    .stats-content {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      gap: 80px;
+    }
+
+    .stat-item {
+      font-size: 56px;
+      font-family: 'KaiTi', 'STKaiti', serif;
+    }
+
+    .stat-amount {
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+    }
+
+    .backcover-text1,
+    .backcover-text2 {
+      position: absolute;
+      text-align: center;
+      font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+    }
+  </style>
+</head>
+<body>
+${pages.join("\n")}
+</body>
+</html>
+    `;
+  }
+}
+function createPDFGeneratorService(assetsPath) {
+  return new PDFGeneratorService(assetsPath);
 }
 const __filename$1 = fileURLToPath(import.meta.url);
-const __dirname$1 = path.dirname(__filename$1);
-process.env.APP_ROOT = path.join(__dirname$1, "..");
+const __dirname$1 = path$1.dirname(__filename$1);
+process.env.APP_ROOT = path$1.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
-const MAIN_DIST = path.join(process.env.APP_ROOT, "dist-electron");
-const RENDERER_DIST = path.join(process.env.APP_ROOT, "dist");
-process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+const MAIN_DIST = path$1.join(process.env.APP_ROOT, "dist-electron");
+const RENDERER_DIST = path$1.join(process.env.APP_ROOT, "dist");
+process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path$1.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
 let win;
 function createWindow() {
   win = new BrowserWindow({
-    icon: path.join(process.env.VITE_PUBLIC, "images", "logo.png"),
-    width: 1445,
-    height: 950,
+    icon: path$1.join(process.env.VITE_PUBLIC, "images", "logo.png"),
+    width: 1550,
+    height: 960,
     webPreferences: {
-      preload: path.join(__dirname$1, "preload.mjs"),
+      preload: path$1.join(__dirname$1, "preload.mjs"),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      devTools: true
     }
   });
   win.removeMenu();
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.key === "I" && input.control && input.shift) {
+      event.preventDefault();
+      win == null ? void 0 : win.webContents.toggleDevTools();
+    }
+  });
   win.webContents.on("did-finish-load", () => {
     win == null ? void 0 : win.webContents.send("main-process-message", (/* @__PURE__ */ new Date()).toLocaleString());
   });
@@ -26323,7 +27094,7 @@ function createWindow() {
       console.error("Failed to load URL:", error);
     });
   } else {
-    win.loadFile(path.join(RENDERER_DIST, "index.html")).catch((error) => {
+    win.loadFile(path$1.join(RENDERER_DIST, "index.html")).catch((error) => {
       console.error("Failed to load file:", error);
     });
   }
@@ -26332,6 +27103,20 @@ function setupIpcHandlers() {
   ipcMain.handle("db:getAllRecords", () => {
     try {
       return { success: true, data: getAllRecords() };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("db:getRecordsPaginated", (_, page, pageSize) => {
+    try {
+      return { success: true, data: getRecordsPaginated(page, pageSize) };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  });
+  ipcMain.handle("db:getRecordPage", (_, recordId, pageSize) => {
+    try {
+      return { success: true, data: getRecordPage(recordId, pageSize) };
     } catch (error) {
       return { success: false, error: error.message };
     }
@@ -26443,74 +27228,26 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("app:generatePDF", async (_, data) => {
     try {
-      const serializableData = {
-        ...data,
-        records: data.records.map((record) => ({
-          guestName: record.guestName,
-          amount: record.amount,
-          amountChinese: record.amountChinese,
-          itemDescription: record.itemDescription,
-          paymentType: record.paymentType,
-          remark: record.remark
-        }))
-      };
-      const printWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        show: false,
-        webPreferences: {
-          nodeIntegration: true,
-          contextIsolation: false
-        }
-      });
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("打印页面加载超时"));
-        }, 1e4);
-        ipcMain.once("print-window-loaded", () => {
-          try {
-            printWindow.webContents.send("render-giftbook", serializableData);
-          } catch (error) {
-            console.error("发送数据到打印窗口失败:", error);
-            reject(new Error("发送数据到打印窗口失败: " + error.message));
-          }
-        });
-        ipcMain.once("print-ready", () => {
-          clearTimeout(timeout);
-          resolve();
-        });
-        const printPagePath = path.join(process.env.VITE_PUBLIC, "print.html");
-        printWindow.loadFile(printPagePath).catch(reject);
-      });
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const pdfBuffer = await printWindow.webContents.printToPDF({
-        margins: {
-          top: 0,
-          bottom: 0,
-          left: 0,
-          right: 0
-        },
-        printBackground: true,
-        landscape: true,
-        pageSize: "A4"
-      });
-      printWindow.close();
-      const { filePath } = await dialog.showSaveDialog({
-        title: "保存 PDF",
-        defaultPath: `${serializableData.filename}.pdf`,
-        filters: [
-          { name: "PDF 文件", extensions: ["pdf"] }
-        ]
-      });
-      if (filePath) {
-        fs.writeFileSync(filePath, pdfBuffer);
-        return { success: true, data: { filePath } };
-      } else {
-        return { success: false, error: "用户取消保存" };
-      }
+      const { records, appName, exportDate, filename, theme } = data;
+      const assetsPath = VITE_DEV_SERVER_URL ? path$1.join(process.env.APP_ROOT, "public") : RENDERER_DIST;
+      const pdfService = createPDFGeneratorService(assetsPath);
+      const result = await pdfService.generatePDF({
+        records,
+        appName,
+        exportDate,
+        theme: theme || "red",
+        filename
+      }, dataDir);
+      return result;
     } catch (error) {
       console.error("生成 PDF 失败:", error);
-      return { success: false, error: error.message };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        success: false,
+        error: `导出 PDF 失败，请重试。
+
+技术细节: ${errorMessage}`
+      };
     }
   });
   ipcMain.handle("electron:openDatabaseFile", async () => {
@@ -26536,13 +27273,13 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:createNewDatabase", async (_, fileName) => {
     try {
-      const newDbPath = path.join(dataDir, fileName);
+      const newDbPath = path$1.join(dataDir, fileName);
       let finalPath = newDbPath;
       let counter = 1;
-      while (fs.existsSync(finalPath)) {
-        const ext = path.extname(fileName);
-        const base = path.basename(fileName, ext);
-        finalPath = path.join(dataDir, `${base}_${counter}${ext}`);
+      while (fs$1.existsSync(finalPath)) {
+        const ext = path$1.extname(fileName);
+        const base = path$1.basename(fileName, ext);
+        finalPath = path$1.join(dataDir, `${base}_${counter}${ext}`);
         counter++;
       }
       initDatabase(finalPath);
@@ -26554,7 +27291,7 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:switchDatabase", async (_, filePath) => {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!fs$1.existsSync(filePath)) {
         return { success: false, error: "数据库文件不存在" };
       }
       initDatabase(filePath);
@@ -26567,21 +27304,21 @@ function setupIpcHandlers() {
   ipcMain.handle("electron:saveCurrentDatabase", async (_, fileName) => {
     try {
       const dbPath = getCurrentDbPath();
-      if (!dbPath || !fs.existsSync(dbPath)) {
+      if (!dbPath || !fs$1.existsSync(dbPath)) {
         return { success: false, error: "当前没有可保存的数据" };
       }
-      const newPath = path.join(dataDir, fileName);
+      const newPath = path$1.join(dataDir, fileName);
       if (newPath !== dbPath) {
         let finalPath = newPath;
         let counter = 1;
-        while (fs.existsSync(finalPath)) {
-          const ext = path.extname(fileName);
-          const base = path.basename(fileName, ext);
-          finalPath = path.join(dataDir, `${base}_${counter}${ext}`);
+        while (fs$1.existsSync(finalPath)) {
+          const ext = path$1.extname(fileName);
+          const base = path$1.basename(fileName, ext);
+          finalPath = path$1.join(dataDir, `${base}_${counter}${ext}`);
           counter++;
         }
         closeDatabase();
-        fs.renameSync(dbPath, finalPath);
+        fs$1.renameSync(dbPath, finalPath);
         initDatabase(finalPath);
         return { success: true, data: { filePath: finalPath } };
       }
@@ -26593,12 +27330,12 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:getRecentDatabases", async () => {
     try {
-      const files = fs.readdirSync(dataDir);
+      const files = fs$1.readdirSync(dataDir);
       const dbFiles = files.filter((file) => file.endsWith(".db")).map((file) => {
-        const filePath = path.join(dataDir, file);
-        const stats = fs.statSync(filePath);
+        const filePath = path$1.join(dataDir, file);
+        const stats = fs$1.statSync(filePath);
         return {
-          name: path.basename(file, ".db"),
+          name: path$1.basename(file, ".db"),
           path: filePath,
           lastOpened: stats.mtime.toISOString()
         };
@@ -26611,14 +27348,14 @@ function setupIpcHandlers() {
   });
   ipcMain.handle("electron:deleteDatabase", async (_, filePath) => {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!fs$1.existsSync(filePath)) {
         return { success: false, error: "数据库文件不存在" };
       }
       const currentDbPath2 = getCurrentDbPath();
       if (currentDbPath2 === filePath) {
         closeDatabase();
       }
-      fs.unlinkSync(filePath);
+      fs$1.unlinkSync(filePath);
       return { success: true };
     } catch (error) {
       console.error("删除数据库失败:", error);
@@ -26649,15 +27386,15 @@ function setupIpcHandlers() {
   ipcMain.handle("electron:parseImportFile", async (_, filePath) => {
     try {
       console.log("尝试解析文件:", filePath);
-      if (!fs.existsSync(filePath)) {
+      if (!fs$1.existsSync(filePath)) {
         console.error("文件不存在:", filePath);
         return { success: false, error: "文件不存在: " + filePath };
       }
-      const stats = fs.statSync(filePath);
+      const stats = fs$1.statSync(filePath);
       console.log("文件大小:", stats.size, "字节");
       let binaryString;
       try {
-        const buffer = fs.readFileSync(filePath);
+        const buffer = fs$1.readFileSync(filePath);
         const bytes = new Uint8Array(buffer);
         const len = bytes.length;
         const arr = new Array(len);
@@ -26689,9 +27426,11 @@ function setupIpcHandlers() {
       console.log("数据行数:", data.length);
       return {
         success: true,
-        headers,
-        data,
-        totalRows: data.length
+        data: {
+          headers,
+          data,
+          totalRows: data.length
+        }
       };
     } catch (error) {
       console.error("解析导入文件失败:", error);
@@ -26732,12 +27471,23 @@ app.on("activate", () => {
     createWindow();
   }
 });
+let dataDir = VITE_DEV_SERVER_URL ? path$1.join(process.cwd(), "data") : "";
 app.whenReady().then(() => {
   try {
+    if (!VITE_DEV_SERVER_URL) {
+      dataDir = path$1.join(app.getPath("userData"), "data");
+    }
+    console.log("数据目录:", dataDir);
+    if (!fs$1.existsSync(dataDir)) {
+      fs$1.mkdirSync(dataDir, { recursive: true });
+      console.log("创建数据目录成功");
+    }
     initDatabase();
     console.log("Database initialized successfully");
   } catch (error) {
     console.error("Failed to initialize database:", error);
+    dialog.showErrorBox("初始化失败", `无法初始化应用数据目录或数据库：
+${error}`);
   }
   setupIpcHandlers();
   createWindow();

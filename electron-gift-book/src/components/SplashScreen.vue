@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
 import ImportDialog from './ImportDialog.vue';
+import IconSvg from './IconSvg.vue';
 import type { ImportPreview, ParsedRecord } from '../utils/import';
 import { matchFields } from '../utils/import';
 
@@ -185,6 +186,13 @@ const handleCreateNew = async () => {
 const handleOpenRecentFile = async (file: RecentFile) => {
   if (isAnimating.value) return;
   
+  // 检查文件路径是否有效
+  if (!file.path) {
+    alert('文件路径无效');
+    isAnimating.value = false;
+    return;
+  }
+  
   isAnimating.value = true;
   emit('start', {
     eventName: '',
@@ -336,11 +344,10 @@ onMounted(() => {
             }"
             @click="selectTheme('wedding')"
           >
-            <div class="theme-icon wedding-icon">🎊</div>
-            <div class="theme-name">红事</div>
-            <div class="theme-desc">喜庆婚礼、满月酒等</div>
+            <div class="theme-name wedding-text">喜庆红</div>
+            <div class="theme-desc">婚礼、满月酒等</div>
             <div v-if="isWeddingTheme" class="selected-indicator" style="background: #EB564A;">
-              <span>✓</span>
+              <IconSvg name="check" :size="14" color="#FFFFFF" />
             </div>
           </div>
 
@@ -354,11 +361,10 @@ onMounted(() => {
             }"
             @click="selectTheme('funeral')"
           >
-            <div class="theme-icon funeral-icon">🕯️</div>
-            <div class="theme-name">白事</div>
-            <div class="theme-desc">肃穆庄重</div>
+            <div class="theme-name funeral-text">肃穆灰</div>
+            <div class="theme-desc">庄重肃穆</div>
             <div v-if="isFuneralTheme" class="selected-indicator" style="background: #4A4A4A;">
-              <span>✓</span>
+              <IconSvg name="check" :size="14" color="#FFFFFF" />
             </div>
           </div>
         </div>
@@ -375,7 +381,7 @@ onMounted(() => {
           @click="handleCreateNew"
           :disabled="isAnimating"
         >
-          <span class="btn-icon">📖</span>
+          <IconSvg name="book-plus" :size="18" color="#FFFFFF" />
           <span class="btn-text">新建礼金簿</span>
         </button>
 
@@ -389,7 +395,7 @@ onMounted(() => {
           @click="handleImport"
           :disabled="isAnimating || isImporting"
         >
-          <span class="btn-icon">📥</span>
+          <IconSvg name="download" :size="18" :color="themeStyles.primaryColor" />
           <span class="btn-text">{{ isImporting ? '导入中...' : '导入数据' }}</span>
         </button>
       </div>
@@ -399,7 +405,8 @@ onMounted(() => {
         <label class="input-label">历史礼金簿</label>
         <div class="recent-files-list">
           <div v-if="recentFiles.length === 0" class="empty-files">
-            暂无历史礼金簿
+            <IconSvg name="folder" :size="32" color="#CCCCCC" />
+            <span class="empty-text">暂无历史礼金簿</span>
           </div>
           <div
             v-for="file in recentFiles"
@@ -408,12 +415,12 @@ onMounted(() => {
             @click="handleOpenRecentFile(file)"
             @contextmenu.prevent="handleContextMenu(file, $event)"
           >
-            <span class="file-icon">📁</span>
+            <IconSvg name="folder" :size="18" :color="themeStyles.primaryColor" />
             <div class="file-info">
               <span class="file-name">{{ file.name }}</span>
               <span class="file-date">{{ formatDate(file.lastOpened) }}</span>
             </div>
-            <span class="file-arrow">›</span>
+            <IconSvg name="chevron-right" :size="16" color="#CCCCCC" />
           </div>
         </div>
       </div>
@@ -432,7 +439,7 @@ onMounted(() => {
       @click.stop
     >
       <div class="context-menu-item delete-item" @click="showDeleteDialog">
-        <span class="menu-icon">🗑️</span>
+        <IconSvg name="trash" :size="16" color="#EF4444" />
         <span class="menu-text">删除</span>
       </div>
     </div>
@@ -611,24 +618,18 @@ onMounted(() => {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-.theme-icon {
-  font-size: 28px;
-  margin-bottom: 6px;
-}
-
-.wedding-icon {
-  filter: drop-shadow(0 2px 4px rgba(235, 86, 74, 0.3));
-}
-
-.funeral-icon {
-  filter: drop-shadow(0 2px 4px rgba(74, 74, 74, 0.3));
-}
-
 .theme-name {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: bold;
-  color: #333333;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
+}
+
+.wedding-text {
+  color: #EB564A;
+}
+
+.funeral-text {
+  color: #4A4A4A;
 }
 
 .theme-desc {
@@ -678,8 +679,15 @@ onMounted(() => {
 }
 
 .empty-files {
-  padding: 20px;
+  padding: 24px;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-files .empty-text {
   color: #999999;
   font-size: 13px;
 }
@@ -703,8 +711,10 @@ onMounted(() => {
 }
 
 .file-icon {
-  font-size: 18px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .file-info {
@@ -729,13 +739,14 @@ onMounted(() => {
 }
 
 .file-arrow {
-  font-size: 18px;
-  color: #cccccc;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.recent-file-item:hover .file-arrow {
-  color: #EB564A;
+.recent-file-item:hover .file-arrow svg {
+  stroke: #EB564A;
 }
 
 /* ==================== 操作按钮区域 ==================== */
@@ -877,7 +888,9 @@ onMounted(() => {
 }
 
 .menu-icon {
-  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .menu-text {

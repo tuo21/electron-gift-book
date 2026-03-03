@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, shallowRef } from 'vue';
+import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import SplashScreen from './components/SplashScreen.vue';
@@ -9,17 +9,27 @@ import { getLunarDisplay } from './utils/lunarCalendar';
 import { exportToExcel, exportToPDF } from './utils/export';
 import { useTheme } from './composables/useTheme';
 import { useAppConfig } from './composables/useAppConfig';
+import { useFullscreenScale } from './composables/useFullscreenScale';
+import Toast from './components/Toast.vue';
+import EditHistoryModal from './components/business/EditHistoryModal.vue';
+import AboutDialog from './components/AboutDialog.vue';
+import IconSvg from './components/IconSvg.vue';
 
 // ==================== 启动页和配置 ====================
-const { setTheme, applyThemeToDocument } = useTheme();
+const { setTheme, applyThemeToDocument, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig } = useAppConfig();
+const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
+
+// Toast 组件引用
+const toastRef = ref<InstanceType<typeof Toast> | null>(null);
 
 // 启动页状态
 const showSplashScreen = ref(true);
 const isAppReady = ref(false);
 
 // ==================== 数据状态 ====================
-const records = ref<Record[]>([]);
+// 使用 shallowRef 优化性能，避免深层响应式导致的过度渲染
+const records = shallowRef<Record[]>([]);
 const statistics = ref<Statistics>({
   totalCount: 0,
   totalAmount: 0,
@@ -38,6 +48,9 @@ const showStatisticsModal = ref(false);
 const showEditHistoryModal = ref(false);
 const editHistoryList = ref<RecordHistory[]>([]);
 
+// 分页状态
+const currentPage = ref(1);
+
 // 搜索弹窗状态
 const showSearchModal = ref(false);
 const searchKeyword = ref('');
@@ -48,24 +61,61 @@ const isSearching = ref(false);
 const showExportModal = ref(false);
 const isExporting = ref(false);
 
+// 关于弹窗状态
+const showAboutDialog = ref(false);
+
 // ==================== 方法函数 ====================
-const loadRecords = async () => {
+const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: number) => {
   try {
     const response = await window.db.getAllRecords();
     if (response.success && response.data) {
-      // 将数据反转，使最新数据在前
-      records.value = response.data.map((record: any) => ({
-        id: record.Id,
-        guestName: record.GuestName,
-        amount: record.Amount,
-        amountChinese: record.AmountChinese,
-        itemDescription: record.ItemDescription,
-        paymentType: record.PaymentType,
-        remark: record.Remark,
-        createTime: record.CreateTime,
-        updateTime: record.UpdateTime,
-        isDeleted: record.IsDeleted,
-      })).reverse(); // 反转数组，最新数据在前
+      const newRecords = response.data.map((record: any) => ({
+        id: record.id,
+        guestName: record.guestName,
+        amount: record.amount,
+        amountChinese: record.amountChinese,
+        itemDescription: record.itemDescription,
+        paymentType: record.paymentType,
+        remark: record.remark,
+        createTime: record.createTime,
+        updateTime: record.updateTime,
+        isDeleted: record.isDeleted,
+      }));
+      
+      const currentRecords = records.value;
+      
+      // 如果是添加新记录后的加载，尝试增量更新
+      if (newRecordId && currentRecords.length > 0) {
+        const existingIds = new Set(currentRecords.map(r => r.id));
+        const addedRecords = newRecords.filter((r: Record) => !existingIds.has(r.id));
+        
+        if (addedRecords.length > 0) {
+          // 只添加新记录，保留现有记录引用
+          records.value = [...currentRecords, ...addedRecords];
+        } else if (newRecords.length !== currentRecords.length) {
+          // 如果记录数量变化但没有找到新记录，可能是删除或批量操作
+          records.value = newRecords;
+        } else {
+          // 记录数量相同，可能是更新操作，强制刷新
+          records.value = newRecords;
+        }
+      } else {
+        // 首次加载或强制刷新
+        records.value = newRecords;
+      }
+      
+      // 加载记录后，默认跳转到最后一页（显示最新的数据）
+      // 如果 keepCurrentPage 为 true，则保持当前页码（用于添加记录后）
+      if (!keepCurrentPage) {
+        const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+        currentPage.value = totalPages;
+      } else {
+        // 保持当前页码，但确保不超过总页数
+        const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+        if (currentPage.value > totalPages) {
+          currentPage.value = totalPages;
+        }
+      }
     } else if (!response.success) {
       alert('加载记录失败: ' + (response.error || '未知错误'));
     }
@@ -88,24 +138,125 @@ const loadStatistics = async () => {
   }
 };
 
+// ==================== 增量更新函数 ====================
+
+/**
+ * 新增记录增量更新
+ * 只添加新记录到数组末尾，保持当前页码和显示位置
+ */
+const addRecordIncrementally = async (newRecordId: number) => {
+  try {
+    const response = await window.db.getRecordById(newRecordId);
+    if (response.success && response.data) {
+      const dbRecord = response.data as any;
+      const newRecord = {
+        id: dbRecord.id,
+        guestName: dbRecord.guestName,
+        amount: dbRecord.amount,
+        amountChinese: dbRecord.amountChinese,
+        itemDescription: dbRecord.itemDescription,
+        paymentType: dbRecord.paymentType,
+        remark: dbRecord.remark,
+        createTime: dbRecord.createTime,
+        updateTime: dbRecord.updateTime,
+        isDeleted: dbRecord.isDeleted,
+      };
+      
+      records.value = [...records.value, newRecord];
+      
+      await loadStatistics();
+      
+      await nextTick();
+      recordListRef.value?.markNewRecord(newRecordId);
+    }
+  } catch (error) {
+    console.error('增量添加记录失败:', error);
+    await loadRecords(true);
+  }
+};
+
+/**
+ * 修改记录增量更新
+ * 只更新对应记录，保持当前页码和显示位置
+ */
+const updateRecordIncrementally = async (updatedRecordId: number) => {
+  try {
+    const response = await window.db.getRecordById(updatedRecordId);
+    if (response.success && response.data) {
+      const dbRecord = response.data as any;
+      const updatedRecord = {
+        id: dbRecord.id,
+        guestName: dbRecord.guestName,
+        amount: dbRecord.amount,
+        amountChinese: dbRecord.amountChinese,
+        itemDescription: dbRecord.itemDescription,
+        paymentType: dbRecord.paymentType,
+        remark: dbRecord.remark,
+        createTime: dbRecord.createTime,
+        updateTime: dbRecord.updateTime,
+        isDeleted: dbRecord.isDeleted,
+      };
+      
+      const index = records.value.findIndex(r => r.id === updatedRecordId);
+      
+      if (index !== -1) {
+        const newRecords = [...records.value];
+        newRecords[index] = updatedRecord;
+        records.value = newRecords;
+      } else {
+        await loadRecords(true);
+      }
+      
+      await loadStatistics();
+    } else {
+      await loadRecords(true);
+    }
+  } catch (error) {
+    console.error('增量更新记录失败:', error);
+    await loadRecords(true);
+  }
+};
+
+/**
+ * 删除记录增量更新
+ * 标记记录为已删除，保持当前页码和显示位置
+ */
+const deleteRecordIncrementally = async (deletedRecordId: number) => {
+  try {
+    // 找到并标记记录为已删除
+    const index = records.value.findIndex(r => r.id === deletedRecordId);
+    if (index !== -1) {
+      // 创建新数组，只更新对应记录
+      const newRecords = [...records.value];
+      newRecords[index] = { ...newRecords[index], isDeleted: 1 };
+      records.value = newRecords;
+    }
+    
+    // 更新统计信息
+    await loadStatistics();
+  } catch (error) {
+    console.error('增量删除记录失败:', error);
+    // 失败时回退到全量刷新
+    await loadRecords(true);
+  }
+};
+
 const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
   try {
     const dbRecord = {
-      GuestName: record.guestName.trim(),
-      Amount: record.amount,
-      AmountChinese: record.amountChinese || null,
-      ItemDescription: record.itemDescription?.trim() || null,
-      PaymentType: record.paymentType,
-      Remark: record.remark?.trim() || null,
-      IsDeleted: 0,
+      guestName: record.guestName.trim(),
+      amount: record.amount,
+      amountChinese: record.amountChinese || null,
+      itemDescription: record.itemDescription?.trim() || null,
+      paymentType: record.paymentType,
+      remark: record.remark?.trim() || null,
+      isDeleted: 0,
     };
     const response = await window.db.insertRecord(dbRecord as any);
-    if (response.success) {
-      await loadRecords();
-      await loadStatistics();
-      setTimeout(() => {
-        recordListRef.value?.goToLastPage();
-      }, 100);
+    if (response.success && response.data) {
+      const newRecordId = response.data.id;
+      // 使用增量更新，只添加新记录，保持当前显示位置
+      await addRecordIncrementally(newRecordId);
     } else {
       alert('保存失败: ' + (response.error || '未知错误'));
     }
@@ -125,20 +276,26 @@ const handleEdit = (record: Record) => {
 const handleUpdate = async (record: Record) => {
   try {
     const dbRecord = {
-      Id: record.id,
-      GuestName: record.guestName.trim(),
-      Amount: record.amount,
-      AmountChinese: record.amountChinese || null,
-      ItemDescription: record.itemDescription?.trim() || null,
-      PaymentType: record.paymentType,
-      Remark: record.remark?.trim() || null,
-      IsDeleted: record.isDeleted,
+      id: record.id,
+      guestName: record.guestName.trim(),
+      amount: record.amount,
+      amountChinese: record.amountChinese || null,
+      itemDescription: record.itemDescription?.trim() || null,
+      paymentType: record.paymentType,
+      remark: record.remark?.trim() || null,
+      isDeleted: record.isDeleted,
     };
 
     const response = await window.db.updateRecord(dbRecord as any);
     if (response.success) {
-      await loadRecords();
-      await loadStatistics();
+      // 使用增量更新，只更新修改的记录，保持当前显示位置
+      // record.id 可能为 0，需要使用 !== null 和 !== undefined 判断
+      if (record.id !== null && record.id !== undefined) {
+        await updateRecordIncrementally(record.id);
+      } else {
+        // 如果record.id不存在，回退到全量刷新
+        await loadRecords(true);
+      }
     } else {
       alert('更新失败: ' + (response.error || '未知错误'));
     }
@@ -153,8 +310,8 @@ const handleDelete = async (id: number) => {
   try {
     const response = await window.db.softDeleteRecord(id);
     if (response.success) {
-      await loadRecords();
-      await loadStatistics();
+      // 使用增量更新，只标记删除的记录，保持当前显示位置
+      await deleteRecordIncrementally(id);
     } else {
       alert('删除失败: ' + (response.error || '未知错误'));
     }
@@ -206,6 +363,85 @@ const closeEditHistoryModal = () => {
   showEditHistoryModal.value = false;
 };
 
+// 定位到指定记录
+const handleLocateRecord = async (recordId: number) => {
+  // 关闭修改记录弹窗
+  closeEditHistoryModal();
+
+  try {
+    // 查找记录所在页码
+    const response = await window.db.getRecordPage(recordId, 15);
+    if (response.success && response.data) {
+      // 设置当前页码
+      currentPage.value = response.data;
+
+      // 等待页面渲染完成后高亮记录
+      setTimeout(() => {
+        recordListRef.value?.highlightRecord(recordId);
+      }, 300);
+    } else {
+      // 记录可能已被删除或不存在
+      toastRef.value?.error('无法定位到该记录，可能已被删除');
+    }
+  } catch (error) {
+    console.error('定位记录失败:', error);
+    toastRef.value?.error('定位记录失败');
+  }
+};
+
+// 还原修改
+const handleRevertRecord = async (history: RecordHistory) => {
+  // 关闭修改记录弹窗
+  closeEditHistoryModal();
+
+  try {
+    // 先获取当前记录数据（包含已删除的）
+    const currentRecordResponse = await window.db.getRecordById(history.recordId);
+    if (!currentRecordResponse.success) {
+      throw new Error('无法获取当前记录');
+    }
+
+    // 构建还原后的记录数据
+    const revertedRecord = {
+      id: history.recordId,
+      guestName: history.guestName || '',
+      amount: history.amount || 0,
+      amountChinese: currentRecordResponse.data?.amountChinese || null,
+      itemDescription: history.itemDescription || null,
+      paymentType: history.paymentType || 1,
+      remark: history.remark || null,
+      isDeleted: 0, // 还原时恢复为未删除状态
+    };
+
+    // 更新记录
+    const response = await window.db.updateRecord(revertedRecord as any);
+    if (response.success) {
+      // 重新加载记录
+      await loadRecords();
+      await loadStatistics();
+
+      // 显示成功提示
+      toastRef.value?.success('还原成功！', 3000);
+
+      // 查找记录所在页码并跳转
+      const pageResponse = await window.db.getRecordPage(history.recordId, 15);
+      if (pageResponse.success && pageResponse.data) {
+        currentPage.value = pageResponse.data;
+
+        // 等待页面渲染完成后高亮记录
+        setTimeout(() => {
+          recordListRef.value?.highlightRecord(history.recordId);
+        }, 300);
+      }
+    } else {
+      throw new Error(response.error || '还原失败');
+    }
+  } catch (error) {
+    console.error('还原修改失败:', error);
+    toastRef.value?.error('还原修改失败，请重试');
+  }
+};
+
 // 功能处理函数
 const handleSave = () => { alert('数据已自动保存'); };
 
@@ -232,17 +468,23 @@ const handleExportExcel = async () => {
   isExporting.value = true;
   try {
     // 使用事务名称作为文件名
-    exportToExcel(records.value, appName.value);
+    await exportToExcel(records.value, appName.value);
     closeExportModal();
+    toastRef.value?.success('Excel 导出成功！', 3000);
   } catch (error) {
     console.error('导出 Excel 失败:', error);
-    alert('导出 Excel 失败，请重试');
+    if ((error as Error).message !== '用户取消保存') {
+      toastRef.value?.error('导出 Excel 失败，请重试');
+    }
   } finally {
     isExporting.value = false;
   }
 };
 
-// 导出为 PDF
+// 导出进度
+const exportProgress = ref(0);
+
+// 导出为 PDF（使用 iframe 打印方案，与 Electron 版本一致）
 const handleExportPDF = async () => {
   if (records.value.length === 0) {
     alert('没有可导出的记录');
@@ -250,22 +492,21 @@ const handleExportPDF = async () => {
   }
 
   isExporting.value = true;
+  
   try {
-    // 获取当前主题色（从 CSS 变量）
-    const rootStyles = getComputedStyle(document.documentElement);
-    const theme = {
-      primary: rootStyles.getPropertyValue('--theme-primary').trim() || '#c44a3d',
-      paper: rootStyles.getPropertyValue('--theme-paper').trim() || '#f5f0e8',
-      textPrimary: rootStyles.getPropertyValue('--theme-text-primary').trim() || '#333333',
-      accent: rootStyles.getPropertyValue('--theme-accent').trim() || '#eb564a',
-    };
+    // 获取当前主题类型（wedding/funeral）
+    const themeType = currentTheme.value === 'funeral' ? 'gray' : 'red';
     
-    // 使用事务名称作为文件名
-    await exportToPDF(records.value, appName.value, theme);
+    // 使用 iframe 打印方案导出 PDF
+    await exportToPDF(records.value, appName.value, themeType);
+    
     closeExportModal();
+    toastRef.value?.success('PDF 导出成功！请使用浏览器打印功能保存为 PDF。', 5000);
   } catch (error) {
     console.error('导出 PDF 失败:', error);
-    alert('导出 PDF 失败，请重试');
+    if ((error as Error).message !== '用户取消保存') {
+      toastRef.value?.error('导出 PDF 失败，请重试');
+    }
   } finally {
     isExporting.value = false;
   }
@@ -337,30 +578,41 @@ const handleSearchResultClick = (record: Record) => {
 
 // 处理启动页开始事件
 const handleSplashStart = async (data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }) => {
-  // 设置主题
-  setTheme(data.theme, true);
-  
-  // 设置事务名称
-  appName.value = data.eventName;
-  setEventName(data.eventName);
-  
-  if (data.action === 'new') {
-    // 新建礼金簿
-    await handleCreateNewBook(data.eventName);
-  } else if (data.action === 'open' && data.filePath) {
-    // 打开已有数据
-    await handleOpenExistingBook(data.filePath, data.eventName);
-  // 移除 import 分支，因为 handleSplashStart 函数不支持 import 动作
-
+  try {
+    // 设置主题
+    setTheme(data.theme, true);
+    
+    // 设置事务名称
+    appName.value = data.eventName;
+    setEventName(data.eventName);
+    
+    if (data.action === 'new') {
+      // 新建礼金簿
+      await handleCreateNewBook(data.eventName);
+    } else if (data.action === 'open' && data.filePath) {
+      // 打开已有数据
+      await handleOpenExistingBook(data.filePath, data.eventName);
+    } else {
+      // 不支持的操作
+      console.error('不支持的操作:', data.action);
+      alert('不支持的操作');
+      return;
+    }
+    
+    // 隐藏启动页，显示主应用
+    showSplashScreen.value = false;
+    isAppReady.value = true;
+    
+    // 加载数据
+    await loadRecords();
+    await loadStatistics();
+  } catch (error) {
+    console.error('启动失败:', error);
+    alert('启动失败，请重试');
+    // 即使出错也要隐藏启动页
+    showSplashScreen.value = false;
+    isAppReady.value = true;
   }
-  
-  // 隐藏启动页，显示主应用
-  showSplashScreen.value = false;
-  isAppReady.value = true;
-  
-  // 加载数据
-  await loadRecords();
-  await loadStatistics();
 };
 
 // 新建礼金簿
@@ -391,11 +643,15 @@ const handleCreateNewBook = async (eventName: string) => {
         internalAmount: 0,
       };
     } else {
-      alert('创建新数据库失败: ' + (response.error || '未知错误'));
+      const errorMsg = '创建新数据库失败: ' + (response.error || '未知错误');
+      alert(errorMsg);
+      throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
     console.error('新建礼金簿失败:', error);
-    alert('新建礼金簿失败，请重试');
+    const errorMsg = '新建礼金簿失败，请重试';
+    alert(errorMsg);
+    throw new Error(errorMsg); // 抛出错误，让上级处理
   }
 };
 
@@ -422,11 +678,15 @@ const handleOpenExistingBook = async (filePath: string, eventName: string) => {
       setCurrentDbPath(filePath);
       addToRecentBooks(finalEventName, filePath);
     } else {
-      alert('打开数据库失败: ' + (response.error || '未知错误'));
+      const errorMsg = '打开数据库失败：' + (response.error || '未知错误');
+      alert(errorMsg);
+      throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
     console.error('打开已有数据失败:', error);
-    alert('打开已有数据失败，请重试');
+    const errorMsg = '打开已有数据失败，请重试';
+    alert(errorMsg);
+    throw new Error(errorMsg); // 抛出错误，让上级处理
   }
 };
 
@@ -448,14 +708,14 @@ const handleImportData = async (data: { eventName: string; records: any[] }) => 
 
       // 转换记录格式并批量插入
       const dbRecords = data.records.map(record => ({
-        GuestName: record.guestName,
-        Amount: record.amount,
-        AmountChinese: record.amountChinese || null,
-        ItemDescription: record.itemDescription || null,
-        PaymentType: record.paymentType,
-        Remark: record.remark || null,
-        CreateTime: record.createTime || new Date().toISOString(),
-        IsDeleted: 0
+        guestName: record.guestName,
+        amount: record.amount,
+        amountChinese: record.amountChinese || null,
+        itemDescription: record.itemDescription || null,
+        paymentType: record.paymentType,
+        remark: record.remark || null,
+        createTime: record.createTime || new Date().toISOString(),
+        isDeleted: 0
       }));
 
       // 批量插入记录
@@ -539,22 +799,25 @@ const scanDataDirectory = async () => {
 onMounted(async () => {
   // 初始化配置
   initConfig();
-  
+
   // 应用保存的主题
   if (config.value.theme) {
     applyThemeToDocument(config.value.theme);
   }
-  
+
   // 扫描 data 目录获取文件列表
   await scanDataDirectory();
-  
+
   // 默认显示启动页，让用户选择要打开的礼金簿
   showSplashScreen.value = true;
   isAppReady.value = false;
-  
+
   intervalId.value = window.setInterval(() => {
     lunarDate.value = getLunarDisplay();
   }, 60000);
+
+  // 初始化全屏缩放功能
+  initFullscreenScale();
 });
 
 onUnmounted(() => {
@@ -562,10 +825,15 @@ onUnmounted(() => {
     clearInterval(intervalId.value);
     intervalId.value = null;
   }
+  // 销毁全屏缩放功能
+  destroyFullscreenScale();
 });
 </script>
 
 <template>
+  <!-- Toast 提示组件 -->
+  <Toast ref="toastRef" />
+
   <!-- 启动页 -->
   <SplashScreen
     v-if="showSplashScreen"
@@ -616,28 +884,33 @@ onUnmounted(() => {
 
       <!-- 中间：功能按钮 -->
       <div class="header-center">
-        <!-- TODO: 导入导出功能待实现，暂时隐藏
-        <button class="func-btn" @click="handleImport">
-          <span class="btn-icon">📥</span><span class="btn-text">导入</span>
-        </button>
-        -->
         <button class="func-btn" @click="handleSave">
-          <span class="btn-icon">💾</span><span class="btn-text">保存</span>
+          <IconSvg name="save" :size="20" />
+          <span class="btn-text">保存</span>
         </button>
         <button class="func-btn" @click="handleExport">
-          <span class="btn-icon">📤</span><span class="btn-text">导出</span>
+          <IconSvg name="export" :size="20" />
+          <span class="btn-text">导出</span>
         </button>
         <button class="func-btn" @click="handleEditClick">
-          <span class="btn-icon">✏️</span><span class="btn-text">修改记录</span>
+          <IconSvg name="edit" :size="20" />
+          <span class="btn-text">修改记录</span>
         </button>
         <button class="func-btn" @click="openStatisticsModal">
-          <span class="btn-icon">📊</span><span class="btn-text">统计</span>
+          <IconSvg name="chart" :size="20" />
+          <span class="btn-text">统计</span>
         </button>
         <button class="func-btn" @click="handleSearch">
-          <span class="btn-icon">🔍</span><span class="btn-text">搜索</span>
+          <IconSvg name="search" :size="20" />
+          <span class="btn-text">搜索</span>
         </button>
         <button class="func-btn" @click="handleBackToSplash">
-          <span class="btn-icon">🏠</span><span class="btn-text">返回首页</span>
+          <IconSvg name="home" :size="20" />
+          <span class="btn-text">返回首页</span>
+        </button>
+        <button class="func-btn about-btn" @click="showAboutDialog = true">
+          <IconSvg name="info" :size="20" />
+          <span class="btn-text">关于</span>
         </button>
       </div>
 
@@ -666,7 +939,8 @@ onUnmounted(() => {
     <main class="main-content">
       <!-- 左侧：礼金簿展示 -->
       <section class="giftbook-section">
-        <RecordList ref="recordListRef" :records="records" :page-size="15" 
+        <RecordList ref="recordListRef" :records="records" :page-size="15"
+                    v-model:current-page="currentPage"
                     @edit="handleEdit" @delete="handleDelete" />
       </section>
 
@@ -733,48 +1007,13 @@ onUnmounted(() => {
     </div>
 
     <!-- 修改记录弹窗 -->
-    <div v-if="showEditHistoryModal" class="modal-overlay" @click="closeEditHistoryModal">
-      <div class="modal-content edit-history-modal" @click.stop>
-        <div class="modal-header">
-          <h3 class="modal-title">修改记录</h3>
-          <button class="modal-close" @click="closeEditHistoryModal">×</button>
-        </div>
-        <div class="modal-body">
-          <div v-if="editHistoryList.length === 0" class="empty-history">
-            暂无修改记录
-          </div>
-          <div v-else class="history-list">
-            <div v-for="(history, index) in editHistoryList" :key="index" class="history-item" :class="{ 'deleted-item': history.operationType === 'DELETE' }">
-              <div class="history-header">
-                <span class="history-name">{{ history.guestName }}</span>
-                <span class="history-time">{{ history.updateTime }}</span>
-                <span v-if="history.operationType === 'DELETE'" class="delete-badge">已删除</span>
-              </div>
-              <div class="history-changes">
-                <!-- 删除记录显示删除前数据 -->
-                <template v-if="history.operationType === 'DELETE'">
-                  <div class="change-row">
-                    <span class="change-label">删除前：</span>
-                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}</span>
-                  </div>
-                </template>
-                <!-- 修改记录显示前后对比 -->
-                <template v-else>
-                  <div class="change-row">
-                    <span class="change-label">修改前：</span>
-                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}</span>
-                  </div>
-                  <div class="change-row">
-                    <span class="change-label">修改后：</span>
-                    <span class="change-value new-value">{{ history.newGuestName }} - {{ formatMoney(history.newAmount || 0) }}</span>
-                  </div>
-                </template>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <EditHistoryModal
+      v-if="showEditHistoryModal"
+      :edit-history-list="editHistoryList"
+      @close="closeEditHistoryModal"
+      @locate="handleLocateRecord"
+      @revert="handleRevertRecord"
+    />
 
     <!-- 搜索弹窗 -->
     <div v-if="showSearchModal" class="modal-overlay" @click="closeSearchModal">
@@ -845,7 +1084,7 @@ onUnmounted(() => {
               @click="handleExportExcel"
               :disabled="isExporting || records.length === 0"
             >
-              <span class="export-icon">📊</span>
+              <IconSvg name="table" :size="32" />
               <span class="export-label">导出为 Excel</span>
               <span class="export-desc">表格格式，适合数据分析</span>
             </button>
@@ -854,17 +1093,23 @@ onUnmounted(() => {
               @click="handleExportPDF"
               :disabled="isExporting || records.length === 0"
             >
-              <span class="export-icon">📄</span>
+              <IconSvg name="file-text" :size="32" />
               <span class="export-label">导出为 PDF</span>
               <span class="export-desc">礼金簿样式，适合打印存档</span>
             </button>
           </div>
           <div v-if="isExporting" class="export-loading">
-            <span class="loading-text">正在导出，请稍候...</span>
+            <div class="progress-bar">
+              <div class="progress-fill" :style="{ width: exportProgress + '%' }"></div>
+            </div>
+            <span class="loading-text">正在生成 PDF... {{ exportProgress }}%</span>
           </div>
         </div>
       </div>
     </div>
+
+    <!-- 关于弹窗 -->
+    <AboutDialog v-model="showAboutDialog" />
   </div>
 </template>
 
@@ -892,8 +1137,16 @@ body {
 
 /* ==================== PDF 导出样式 ==================== */
 /* 这些样式用于 PDF 导出时的渲染，不在主界面显示 */
+@font-face {
+  font-family: '演示春风楷';
+  src: url('/fonts/XuandongKaishu.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :global(.pdf-export-container) {
-  font-family: 'Noto Serif SC', 'SimSun', 'STSong', serif;
+  font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
 }
 
 :global(.pdf-giftbook) {
@@ -916,12 +1169,13 @@ body {
   font-size: 28px;
   font-weight: bold;
   margin: 0;
-  font-family: 'Noto Serif SC', 'SimSun', serif;
+  font-family: '演示春风楷', 'KaiTi', 'SimSun', serif;
 }
 
 :global(.pdf-date) {
   color: rgba(255, 255, 255, 0.9);
   font-size: 14px;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-content) {
@@ -972,6 +1226,7 @@ body {
   font-size: 11px;
   color: #c44a3d;
   font-weight: bold;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-name-cell) {
@@ -982,12 +1237,12 @@ body {
 }
 
 :global(.pdf-name) {
-  font-weight: bold;
   color: #333;
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 3px;
   font-size: 28px;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-remark-cell) {
@@ -1002,6 +1257,7 @@ body {
 :global(.pdf-remark) {
   font-size: 10px;
   color: #666;
+  font-family: 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-amount-cell) {
@@ -1021,13 +1277,13 @@ body {
 }
 
 :global(.pdf-amount-chinese) {
-  font-weight: bold;
   color: #333;
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 2px;
   line-height: 1.5;
   font-size: 22px;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-item-desc) {
@@ -1036,6 +1292,7 @@ body {
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 1px;
+  font-family: 'KaiTi', 'STKaiti', serif;
 }
 
 :global(.pdf-payment-cell) {
@@ -1048,11 +1305,13 @@ body {
   font-size: 10px;
   color: #c44a3d;
   font-weight: bold;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-amount-number) {
   font-size: 10px;
   color: #666;
+  font-family: 'SimSun', 'STSong', serif;
 }
 
 :global(.pdf-footer) {
@@ -1066,20 +1325,27 @@ body {
 </style>
 
 <style scoped>
-/* 
+/*
   ========================================
   最外层容器
   ========================================
   - height: 100vh 占满整个视口高度
   - display: flex + flex-direction: column 垂直排列
   - background: 使用主题主色
+  - 缩放逻辑：以左上角为原点缩放，保持原始比例
+  - 缩放后容器尺寸需要反向计算，确保内容完整显示
 */
 .app-container {
-  height: 100vh;
   display: flex;
   flex-direction: column;
   background: var(--theme-primary);
   overflow: hidden;
+  transform: scale(var(--fullscreen-scale));
+  transform-origin: top left;
+  width: calc(100vw / var(--fullscreen-scale));
+  height: calc(100vh / var(--fullscreen-scale));
+  min-width: calc(1522px * 0.7);
+  min-height: calc(930px * 0.7);
 }
 
 /* 
@@ -1134,7 +1400,7 @@ body {
   padding: var(--theme-spacing-xs) var(--theme-spacing-sm);
   border: 1px solid var(--theme-accent);
   border-radius: var(--theme-border-radius);
-  background: var(--theme-text-primary);
+  background: var(--theme-paper);
   color: var(--theme-text-primary);
   width: 200px;   /* 输入框宽度 */
 }
@@ -1164,7 +1430,6 @@ body {
   transform: translateY(-2px);  /* 悬停上浮效果 */
 }
 
-.btn-icon { font-size: 20px; }
 .btn-text { font-size: var(--theme-font-size-xs); }  /* 12px */
 
 /* 【导航栏右侧】农历日期 */
@@ -1186,7 +1451,7 @@ body {
   margin-top: 2px;
 }
 
-/* 
+/*
   ========================================
   【主内容区】
   ========================================
@@ -1195,26 +1460,26 @@ body {
   - display: flex 左右两栏布局
   - gap: 左右栏间距 24px
   - padding: 内边距 24px
-  
+
   调整建议：
   - 修改左右栏间距：调整 gap
   - 修改内边距：调整 padding
 */
 .main-content {
-  flex: 1;        /* 占据剩余空间 */
+  flex: 1;
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: flex-start; /* 垂直顶部对齐 */
-  gap: var(--theme-spacing-lg);          /* 24px */
-  padding: var(--theme-spacing-lg);      /* 24px */
+  justify-content: center;
+  align-items: flex-start;
+  gap: var(--theme-spacing-lg);
+  padding: var(--theme-spacing-lg);
   overflow: hidden;
+  min-width: calc(1522px * 0.7);
 }
 
 /* 【左侧】礼金簿展示区 */
 .giftbook-section {
-  flex: 1;        /* 自适应宽度 */
-  min-width: 0;   /* 防止内容撑开 */
-  max-width: 1163px; /* 最大宽度限制 */
+  width: 1290px;
+  flex-shrink: 0;
   overflow: hidden;
 }
 
@@ -1242,6 +1507,10 @@ body {
   border-radius: var(--theme-border-radius);   /* 8px */
   padding: 11px;            /* 11px */
   box-shadow: var(--theme-shadow);
+  flex: 1;                  /* 占据剩余空间 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;  /* 垂直居中 */
 }
 
 /* 统计垂直布局：上下排列 */
@@ -1666,7 +1935,9 @@ body {
 }
 
 .export-icon {
-  font-size: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .export-label {
@@ -1684,6 +1955,22 @@ body {
   text-align: center;
   padding: var(--theme-spacing-md);
   margin-top: var(--theme-spacing-md);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--theme-spacing-sm);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--theme-primary), var(--theme-accent));
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 
 .loading-text {

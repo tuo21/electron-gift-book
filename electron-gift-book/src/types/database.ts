@@ -48,9 +48,20 @@ export interface ApiResponse<T = unknown> {
   error?: string
 }
 
+// 分页结果类型
+export interface PaginationResult<T> {
+  records: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+
 // 数据库 API 接口
 export interface DatabaseAPI {
   getAllRecords: () => Promise<ApiResponse<Record[]>>
+  getRecordsPaginated: (page: number, pageSize: number) => Promise<ApiResponse<PaginationResult<Record>>>
+  getRecordPage: (recordId: number, pageSize: number) => Promise<ApiResponse<number | null>>
   getRecordById: (id: number) => Promise<ApiResponse<Record>>
   searchRecords: (keyword: string) => Promise<ApiResponse<Record[]>>
   insertRecord: (record: Record) => Promise<ApiResponse<{ id: number }>>
@@ -59,6 +70,7 @@ export interface DatabaseAPI {
   getRecordHistory: (recordId: number) => Promise<ApiResponse<RecordHistory[]>>
   getAllRecordHistory: () => Promise<ApiResponse<RecordHistory[]>>
   getStatistics: () => Promise<ApiResponse<Statistics>>
+  batchInsertRecords: (records: Record[]) => Promise<ApiResponse<{ count: number }>>
 }
 
 // 应用 API 接口
@@ -67,12 +79,8 @@ export interface AppAPI {
     records: Record[]
     appName: string
     exportDate: string
-    theme?: {
-      primary?: string
-      paper?: string
-      textPrimary?: string
-      accent?: string
-    }
+    filename: string
+    theme?: 'red' | 'gray'
   }) => Promise<ApiResponse<{ filePath: string }>>
 }
 
