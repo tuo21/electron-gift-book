@@ -163,11 +163,11 @@
         class="context-menu"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
       >
-        <div class="context-menu-item" @click="handleEditClick">
+        <div class="context-menu-item" @click.stop="handleEditClick">
           <IconSvg name="edit" :size="14" />
           <span class="menu-text">编辑</span>
         </div>
-        <div class="context-menu-item delete" @click="handleDeleteClick">
+        <div class="context-menu-item delete" @click.stop="handleDeleteClick">
           <IconSvg name="trash" :size="14" color="#EF4444" />
           <span class="menu-text">删除</span>
         </div>
@@ -282,14 +282,30 @@ const handleEditClick = () => {
 };
 
 // 点击删除
-const handleDeleteClick = () => {
-  if (contextMenu.value.record) {
-    const confirmed = confirm(`确定要删除 ${contextMenu.value.record.guestName} 的记录吗？`);
-    if (confirmed) {
-      emit('delete', contextMenu.value.record.id || 0);
-    }
+const handleDeleteClick = async () => {
+  console.log('handleDeleteClick 被调用');
+  
+  if (!contextMenu.value.record) {
+    console.log('没有选中记录，隐藏菜单');
+    hideContextMenu();
+    return;
   }
+  
+  const record = contextMenu.value.record;
+  console.log('选中记录:', record);
+  
   hideContextMenu();
+  console.log('菜单已隐藏');
+  
+  const confirmed = await confirm(`确定要删除 ${record.guestName} 的记录吗？`);
+  console.log('用户确认结果:', confirmed);
+  
+  if (confirmed) {
+    console.log('用户确认删除，emit delete 事件');
+    emit('delete', record.id || 0);
+  } else {
+    console.log('用户取消删除');
+  }
 };
 
 // 点击其他地方隐藏菜单

@@ -15,6 +15,7 @@ if (typeof window !== 'undefined' && !window.db) {
     insertRecord: async () => ({ success: true, data: { id: 1 } }),
     updateRecord: async () => ({ success: true } as ApiResponse),
     softDeleteRecord: async () => ({ success: true } as ApiResponse),
+    restoreDeletedRecord: async () => ({ success: true, data: { id: 1 } }),
     searchRecords: async () => ({ success: true, data: [] as Record[] }),
     getRecordHistory: async () => ({ success: true, data: [] as RecordHistory[] }),
     getAllRecordHistory: async () => ({ success: true, data: [] as RecordHistory[] }),

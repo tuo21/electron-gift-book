@@ -15,18 +15,28 @@
               v-for="(history, index) in editHistoryList"
               :key="index"
               class="history-item"
-              :class="{ 'deleted-item': history.operationType === 'DELETE' }"
+              :class="{ 
+                'deleted-item': history.operationType === 'DELETE',
+                'restore-item': history.operationType === 'RESTORE'
+              }"
               @contextmenu.prevent="showContextMenu($event, history)"
             >
               <div class="history-header">
                 <span class="history-name">{{ history.guestName }}</span>
                 <span class="history-time">{{ history.updateTime }}</span>
                 <span v-if="history.operationType === 'DELETE'" class="delete-badge">已删除</span>
+                <span v-if="history.operationType === 'RESTORE'" class="restore-badge">已还原</span>
               </div>
               <div class="history-changes">
                 <template v-if="history.operationType === 'DELETE'">
                   <div class="change-row">
                     <span class="change-label">删除前：</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
+                  </div>
+                </template>
+                <template v-else-if="history.operationType === 'RESTORE'">
+                  <div class="change-row">
+                    <span class="change-label">还原数据：</span>
                     <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
                   </div>
                 </template>
@@ -59,18 +69,24 @@
     :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
     @click.stop
   >
-    <div class="context-menu-item" @click="handleLocate">
-      <IconSvg name="map-pin" :size="14" />
-      <span>定位到该项</span>
-    </div>
-    <div
-      class="context-menu-item"
-      :class="{ 'disabled': selectedHistory?.operationType === 'DELETE' }"
-      @click="handleRevert"
-    >
-      <IconSvg name="undo" :size="14" />
-      <span>还原修改</span>
-    </div>
+    <!-- 非删除记录：显示定位到该项和还原修改 -->
+    <template v-if="selectedHistory?.operationType !== 'DELETE'">
+      <div class="context-menu-item" @click="handleLocate">
+        <IconSvg name="map-pin" :size="14" />
+        <span>定位到该项</span>
+      </div>
+      <div class="context-menu-item" @click="handleRevert">
+        <IconSvg name="undo" :size="14" />
+        <span>还原修改</span>
+      </div>
+    </template>
+    <!-- 已删除记录：显示还原数据 -->
+    <template v-else>
+      <div class="context-menu-item restore" @click="handleRestoreDeleted">
+        <IconSvg name="refresh-cw" :size="14" color="#10B981" />
+        <span>还原数据</span>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -87,6 +103,7 @@ interface Emits {
   (e: 'close'): void
   (e: 'locate', recordId: number): void
   (e: 'revert', history: RecordHistory): void
+  (e: 'restore-deleted', history: RecordHistory): void
 }
 
 defineProps<Props>()
@@ -215,6 +232,44 @@ const handleRevert = () => {
   if (!confirm('确定要还原此修改吗？')) return
 
   emit('revert', historyToRevert)
+}
+
+// 还原已删除的数据
+const handleRestoreDeleted = () => {
+  console.log('[EditHistoryModal] handleRestoreDeleted 被调用')
+  
+  if (!selectedHistory.value || selectedHistory.value.operationType !== 'DELETE') {
+    console.log('[EditHistoryModal] 不是删除记录或没有选中记录，直接关闭菜单')
+    closeContextMenu()
+    return
+  }
+
+  // 先保存选中的历史记录
+  const historyToRestore = selectedHistory.value
+  console.log('[EditHistoryModal] 准备还原的记录:', historyToRestore)
+
+  // 使用 setTimeout 确保菜单先关闭，然后弹出确认对话框
+  setTimeout(async () => {
+    console.log('[EditHistoryModal] setTimeout 回调执行，准备弹出确认对话框')
+    
+    // 弹出确认对话框（注意：confirm 可能是异步的，需要使用 await）
+    const confirmed = await confirm(`确定要还原 ${historyToRestore.guestName} 的数据吗？`)
+    console.log('[EditHistoryModal] 用户确认结果:', confirmed)
+    
+    // 用户取消，不执行操作
+    if (!confirmed) {
+      console.log('[EditHistoryModal] 用户取消还原操作')
+      return
+    }
+
+    // 用户确认后执行还原
+    console.log('[EditHistoryModal] 用户确认，发送 restore-deleted 事件')
+    emit('restore-deleted', historyToRestore)
+  }, 10)
+  
+  // 立即关闭菜单
+  console.log('[EditHistoryModal] 立即关闭菜单')
+  closeContextMenu()
 }
 </script>
 
@@ -405,8 +460,27 @@ const handleRevert = () => {
   border-bottom-color: rgba(239, 68, 68, 0.2);
 }
 
+/* 还原记录样式 */
+.restore-item {
+  background: rgba(16, 185, 129, 0.05);
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.restore-item .history-header {
+  border-bottom-color: rgba(16, 185, 129, 0.2);
+}
+
 .delete-badge {
   background: #ef4444;
+  color: white;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+}
+
+.restore-badge {
+  background: #10B981;
   color: white;
   font-size: 12px;
   padding: 2px 8px;
@@ -448,6 +522,14 @@ const handleRevert = () => {
 
 .context-menu-item.disabled:hover {
   background: transparent;
+}
+
+.context-menu-item.restore {
+  color: #10B981;
+}
+
+.context-menu-item.restore:hover {
+  background: rgba(16, 185, 129, 0.1);
 }
 
 .menu-icon {

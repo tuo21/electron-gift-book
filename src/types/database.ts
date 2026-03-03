@@ -26,7 +26,7 @@ export interface RecordHistory {
   newItemDescription?: string
   newPaymentType?: number
   newRemark?: string
-  operationType?: 'UPDATE' | 'DELETE'
+  operationType?: 'UPDATE' | 'DELETE' | 'RESTORE'
   updateBy?: string
   updateTime?: string
   changeDesc?: string
@@ -67,6 +67,7 @@ export interface DatabaseAPI {
   insertRecord: (record: Record) => Promise<ApiResponse<{ id: number }>>
   updateRecord: (record: Record) => Promise<ApiResponse>
   softDeleteRecord: (id: number) => Promise<ApiResponse>
+  restoreDeletedRecord: (history: RecordHistory) => Promise<ApiResponse<{ id: number }>>
   getRecordHistory: (recordId: number) => Promise<ApiResponse<RecordHistory[]>>
   getAllRecordHistory: () => Promise<ApiResponse<RecordHistory[]>>
   getStatistics: () => Promise<ApiResponse<Statistics>>

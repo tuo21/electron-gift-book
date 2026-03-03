@@ -219,24 +219,23 @@ const updateRecordIncrementally = async (updatedRecordId: number) => {
 
 /**
  * 删除记录增量更新
- * 标记记录为已删除，保持当前页码和显示位置
+ * 从数组中移除已删除的记录，保持当前页码
  */
 const deleteRecordIncrementally = async (deletedRecordId: number) => {
   try {
-    // 找到并标记记录为已删除
-    const index = records.value.findIndex(r => r.id === deletedRecordId);
-    if (index !== -1) {
-      // 创建新数组，只更新对应记录
-      const newRecords = [...records.value];
-      newRecords[index] = { ...newRecords[index], isDeleted: 1 };
-      records.value = newRecords;
+    const oldLength = records.value.length;
+    records.value = records.value.filter(r => r.id !== deletedRecordId);
+    
+    if (records.value.length < oldLength) {
+      const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+      if (currentPage.value > totalPages) {
+        currentPage.value = totalPages;
+      }
     }
     
-    // 更新统计信息
     await loadStatistics();
   } catch (error) {
     console.error('增量删除记录失败:', error);
-    // 失败时回退到全量刷新
     await loadRecords(true);
   }
 };
@@ -306,11 +305,13 @@ const handleUpdate = async (record: Record) => {
 };
 
 const handleDelete = async (id: number) => {
-  if (!confirm('确定要删除这条记录吗？')) return;
+  console.log('App.vue handleDelete 被调用, id:', id);
   try {
+    console.log('开始执行 softDeleteRecord');
     const response = await window.db.softDeleteRecord(id);
+    console.log('softDeleteRecord 返回:', response);
     if (response.success) {
-      // 使用增量更新，只标记删除的记录，保持当前显示位置
+      console.log('softDeleteRecord 成功，开始 deleteRecordIncrementally');
       await deleteRecordIncrementally(id);
     } else {
       alert('删除失败: ' + (response.error || '未知错误'));
@@ -439,6 +440,57 @@ const handleRevertRecord = async (history: RecordHistory) => {
   } catch (error) {
     console.error('还原修改失败:', error);
     toastRef.value?.error('还原修改失败，请重试');
+  }
+};
+
+// 还原已删除的记录（创建新记录）
+const handleRestoreDeletedRecord = async (history: RecordHistory) => {
+  console.log('[App.vue] handleRestoreDeletedRecord 被调用，接收到的历史记录:', history);
+  
+  // 关闭修改记录弹窗
+  console.log('[App.vue] 关闭修改记录弹窗');
+  closeEditHistoryModal();
+
+  try {
+    console.log('[App.vue] 开始调用 restoreDeletedRecord API');
+    // 调用 API 创建新记录
+    const response = await window.db.restoreDeletedRecord(history);
+    console.log('[App.vue] API 返回结果:', response);
+    
+    if (response.success && response.data) {
+      const newRecordId = response.data.id;
+      console.log('[App.vue] 新记录 ID:', newRecordId);
+
+      // 重新加载记录
+      console.log('[App.vue] 重新加载记录和统计数据');
+      await loadRecords();
+      await loadStatistics();
+
+      // 显示成功提示
+      console.log('[App.vue] 显示成功提示');
+      toastRef.value?.success('数据还原成功！', 3000);
+
+      // 跳转到最后一页（新记录在最后）
+      console.log('[App.vue] 获取新记录所在页码');
+      const pageResponse = await window.db.getRecordPage(newRecordId, 15);
+      console.log('[App.vue] 页码查询结果:', pageResponse);
+      
+      if (pageResponse.success && pageResponse.data) {
+        currentPage.value = pageResponse.data;
+        console.log('[App.vue] 跳转到页码:', pageResponse.data);
+
+        // 等待页面渲染完成后高亮记录
+        setTimeout(() => {
+          console.log('[App.vue] 高亮新记录:', newRecordId);
+          recordListRef.value?.highlightRecord(newRecordId);
+        }, 300);
+      }
+    } else {
+      throw new Error(response.error || '还原失败');
+    }
+  } catch (error) {
+    console.error('[App.vue] 还原数据失败:', error);
+    toastRef.value?.error('还原数据失败，请重试');
   }
 };
 
@@ -1013,6 +1065,7 @@ onUnmounted(() => {
       @close="closeEditHistoryModal"
       @locate="handleLocateRecord"
       @revert="handleRevertRecord"
+      @restore-deleted="handleRestoreDeletedRecord"
     />
 
     <!-- 搜索弹窗 -->

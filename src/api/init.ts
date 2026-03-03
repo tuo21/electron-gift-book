@@ -11,6 +11,7 @@ function initAPI() {
     insertRecord: bridge.insertRecord,
     updateRecord: bridge.updateRecord,
     softDeleteRecord: bridge.softDeleteRecord,
+    restoreDeletedRecord: bridge.restoreDeletedRecord,
     getRecordHistory: bridge.getRecordHistory,
     getAllRecordHistory: bridge.getAllRecordHistory,
     getStatistics: bridge.getStatistics,
