@@ -30,9 +30,8 @@
               </div>
 
               <div class="wechat-section">
-                <p class="wechat-title">扫一扫关注微信公众号</p>
                 <div class="qr-code">
-                  <img v-if="qrCodeExists" src="/images/qrcode.png" alt="微信公众号二维码" @error="qrCodeExists = false" />
+                  <img v-if="qrCodeExists" src="/images/引流赞赏码.png" alt="公众号二维码和赞赏码" @error="qrCodeExists = false" />
                   <div v-else class="qr-placeholder">
                     <span class="placeholder-text">二维码</span>
                   </div>
@@ -264,7 +263,7 @@ const closeDialog = () => {
 }
 
 .qr-code {
-  height: 120px;
+  height: 250px;
   margin: 0 auto;
   overflow: hidden;
   display: flex;
