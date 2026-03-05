@@ -59,6 +59,6 @@ export const dateFormatOptions: Intl.DateTimeFormatOptions = {
 // 应用配置
 export const appConfig = {
   name: '电子礼金簿',
-  version: '1.0.0',
+  version: '1.10.2',
   defaultAppName: '电子礼金簿',
 } as const

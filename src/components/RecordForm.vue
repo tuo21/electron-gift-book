@@ -18,6 +18,9 @@
           type="text"
           class="form-input"
           placeholder="请输入姓名"
+          @focus="onInputFocus('guestName')"
+          @input="onInputChange('guestName', formData.guestName)"
+          @blur="onInputBlur"
           @keydown.tab.prevent="focusAmount"
           @keydown.arrow-down.prevent="focusAmount"
           @keydown.enter.prevent="focusAmount"
@@ -30,10 +33,13 @@
         <input
           ref="amountInput"
           v-model="formData.amount"
-          type="number"
+          type="text"
+          inputmode="numeric"
           class="form-input"
           placeholder="请输入金额"
-          @blur="onAmountBlur"
+          @focus="onInputFocus('amount')"
+          @input="onInputChange('amount', String(formData.amount))"
+          @blur="onAmountBlurHandler"
           @keydown.tab.prevent="focusPaymentType"
           @keydown.arrow-down.prevent="focusPaymentType"
           @keydown.arrow-up.prevent="focusName"
@@ -74,6 +80,9 @@
           type="text"
           class="form-input"
           placeholder="可选填"
+          @focus="onInputFocus('remark')"
+          @input="onInputChange('remark', formData.remark)"
+          @blur="onInputBlur"
           @keydown.tab.prevent="focusItem"
           @keydown.arrow-down.prevent="focusItem"
           @keydown.arrow-up.prevent="focusPaymentType"
@@ -90,6 +99,9 @@
           type="text"
           class="form-input"
           placeholder="如: 被子、枕头等"
+          @focus="onInputFocus('itemDescription')"
+          @input="onInputChange('itemDescription', formData.itemDescription)"
+          @blur="onInputBlur"
           @keydown.tab.prevent="onSubmit"
           @keydown.arrow-down.prevent="focusName"
           @keydown.arrow-up.prevent="focusRemark"
@@ -134,6 +146,9 @@ import { PaymentType, paymentTypeMap } from '../constants';
 const emit = defineEmits<{
   (e: 'submit', record: Omit<Record, 'id' | 'createTime' | 'updateTime'>): void;
   (e: 'update', record: Record): void;
+  (e: 'cancel'): void;
+  (e: 'input-preview', field: string, value: string): void;  // 输入预览事件
+  (e: 'clear-preview'): void;  // 清空预览事件
 }>();
 
 // 编辑模式状态
@@ -173,12 +188,70 @@ const isValid = computed(() => {
 });
 
 // 金额失去焦点时转换大写（避免在输入过程中频繁转换）
-const onAmountBlur = () => {
+const onAmountBlurHandler = () => {
+  // 触发清空预览
+  onInputBlur();
+  // 转换大写金额
   if (formData.value.amount && isValidAmount(formData.value.amount)) {
     amountChinese.value = numberToChinese(formData.value.amount);
   } else {
     amountChinese.value = '';
   }
+};
+
+// 当前聚焦的字段
+const currentField = ref('');
+
+// blur 延迟定时器
+let blurTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// 获取字段值
+const getFieldValue = (field: string): string => {
+  switch (field) {
+    case 'guestName': return formData.value.guestName;
+    case 'amount': return formData.value.amount;
+    case 'remark': return formData.value.remark;
+    case 'itemDescription': return formData.value.itemDescription;
+    default: return '';
+  }
+};
+
+// 输入框获得焦点
+const onInputFocus = (field: string) => {
+  console.log('[RecordForm] onInputFocus:', field, 'blurTimeout:', blurTimeout);
+  // 取消之前的延迟清空
+  if (blurTimeout) {
+    console.log('[RecordForm] clearing blurTimeout');
+    clearTimeout(blurTimeout);
+    blurTimeout = null;
+  }
+  currentField.value = field;
+  // 获取当前值并预览
+  const value = getFieldValue(field);
+  console.log('[RecordForm] emit input-preview:', field, value);
+  emit('input-preview', field, value);
+};
+
+// 输入框内容变化
+const onInputChange = (field: string, value: string) => {
+  console.log('[RecordForm] onInputChange:', field, value, 'currentField:', currentField.value);
+  if (currentField.value === field) {
+    console.log('[RecordForm] emit input-preview:', field, value);
+    emit('input-preview', field, value);
+  }
+};
+
+// 输入框失去焦点（延迟清空，避免切换时闪烁）
+const onInputBlur = () => {
+  console.log('[RecordForm] onInputBlur, currentField:', currentField.value);
+  // 使用 setTimeout 延迟清空，给下一个输入框的 focus 事件留出时间
+  blurTimeout = setTimeout(() => {
+    console.log('[RecordForm] blurTimeout callback executed, currentField:', currentField.value);
+    console.log('[RecordForm] emit clear-preview');
+    emit('clear-preview');
+    currentField.value = '';
+    blurTimeout = null;
+  }, 300);  // 增加到 300ms
 };
 
 // 金额输入框回车
@@ -263,6 +336,7 @@ const exitEditMode = () => {
   isEditMode.value = false;
   editingId.value = null;
   clearForm();
+  emit('cancel');
 };
 
 // 清空表单

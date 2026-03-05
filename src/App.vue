@@ -48,6 +48,17 @@ const showStatisticsModal = ref(false);
 const showEditHistoryModal = ref(false);
 const editHistoryList = ref<RecordHistory[]>([]);
 
+// 当前预览状态（单字段模式）
+const currentPreview = ref({
+  field: '',  // 当前字段名
+  value: ''   // 当前值
+});
+
+// 计算预览显示文本
+const previewText = computed(() => {
+  return currentPreview.value.value || '\u00A0';
+});
+
 // 分页状态
 const currentPage = ref(1);
 
@@ -240,6 +251,18 @@ const deleteRecordIncrementally = async (deletedRecordId: number) => {
   }
 };
 
+// 处理输入预览
+const handleInputPreview = (field: string, value: string) => {
+  console.log('[App] handleInputPreview:', field, value);
+  currentPreview.value = { field, value };
+};
+
+// 清空预览
+const clearPreview = () => {
+  console.log('[App] clearPreview');
+  currentPreview.value = { field: '', value: '' };
+};
+
 const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
   try {
     const dbRecord = {
@@ -256,6 +279,8 @@ const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTi
       const newRecordId = response.data.id;
       // 使用增量更新，只添加新记录，保持当前显示位置
       await addRecordIncrementally(newRecordId);
+      // 提交后清空预览
+      clearPreview();
     } else {
       alert('保存失败: ' + (response.error || '未知错误'));
     }
@@ -977,6 +1002,20 @@ onUnmounted(() => {
 
     <!-- 
       ========================================
+      实时预览区域 (name-preview-section)
+      ========================================
+      位置：工具栏下方，主内容区上方
+      高度：80px
+      显示：横排显示当前输入框的内容
+    -->
+    <div class="name-preview-section">
+      <div class="preview-content">
+        <span class="preview-name">{{ previewText }}</span>
+      </div>
+    </div>
+
+    <!-- 
+      ========================================
       主内容区 (main-content)
       ========================================
       布局：左右两栏
@@ -1005,7 +1044,7 @@ onUnmounted(() => {
       <aside class="sidebar-section">
         <!-- 录入表单面板 -->
         <div class="form-panel">
-          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" />
+          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" @input-preview="handleInputPreview" @clear-preview="clearPreview" />
         </div>
 
         <!-- 统计面板 -->
@@ -1502,6 +1541,52 @@ body {
   font-size: var(--theme-font-size-xs);  /* 12px */
   opacity: 0.8;
   margin-top: 2px;
+}
+
+/*
+  ========================================
+  姓名预览区域
+  ========================================
+  - 高度：80px
+  - 背景：使用 SVG 背景图片
+  - 宽度：600px
+  - 文字：横排显示，大号字体
+  - 位置：工具栏和主内容区之间，居中显示
+  - 上下边距：16px
+*/
+.name-preview-section {
+  height: 80px;
+  width: 600px;
+  margin: 16px auto -18px;
+  background: url('/Name preview.svg') no-repeat center center;
+  background-size: 100% 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.preview-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: 100%;
+}
+
+.preview-name {
+  font-size: 48px;
+  color: #000;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  margin-top: -14px;
 }
 
 /*

@@ -15,7 +15,7 @@
             <div class="author-section">
               <div class="app-info">
                 <h3 class="app-name">电子礼金簿</h3>
-                <p class="app-version">版本：v1.10.0</p>
+                <p class="app-version">版本：v1.10.2</p>
               </div>
 
               <div class="author-info">
