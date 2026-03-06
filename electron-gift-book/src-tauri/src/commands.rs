@@ -265,6 +265,52 @@ pub async fn soft_delete_record(id: i64) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn restore_deleted_record(history: RecordHistory) -> Result<i64, String> {
+    let pool = get_pool_connection().await?;
+    
+    // 使用历史记录中的原数据创建新记录
+    // 新记录的创建时间为当前时间，使其显示在列表最后
+    let insert_result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
+        "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark) VALUES (?, ?, ?, ?, ?, ?)"
+    )
+    .bind(&history.guest_name)
+    .bind(history.amount.unwrap_or(0))
+    .bind("") // AmountChinese 会在数据库触发器中自动计算
+    .bind(&history.item_description)
+    .bind(history.payment_type.unwrap_or(0))
+    .bind(&history.remark)
+    .execute(&pool)
+    .await;
+
+    let new_record_id = match insert_result {
+        Ok(result) => result.last_insert_rowid(),
+        Err(e) => return Err(e.to_string()),
+    };
+
+    // 添加历史记录，标记为还原操作
+    let history_result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
+        "INSERT INTO Records_History (RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark, OperationType, UpdateBy, ChangeDesc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .bind(new_record_id)
+    .bind(&history.guest_name)
+    .bind(history.amount)
+    .bind(&history.item_description)
+    .bind(history.payment_type)
+    .bind(&history.remark)
+    .bind("RESTORE")
+    .bind("System")
+    .bind("还原已删除记录")
+    .execute(&pool)
+    .await;
+
+    if let Err(e) = history_result {
+        return Err(e.to_string());
+    }
+
+    Ok(new_record_id)
+}
+
+#[tauri::command]
 pub async fn get_record_history(record_id: i64) -> Result<Vec<RecordHistory>, String> {
     let pool = get_pool_connection().await?;
     let result: Result<Vec<RecordHistory>, sqlx::Error> = sqlx::query_as(
@@ -281,7 +327,7 @@ pub async fn get_record_history(record_id: i64) -> Result<Vec<RecordHistory>, St
 pub async fn get_all_record_history() -> Result<Vec<RecordHistory>, String> {
     let pool = get_pool_connection().await?;
     let result: Result<Vec<RecordHistory>, sqlx::Error> = sqlx::query_as(
-        "SELECT HistoryId, RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark, NewGuestName, NewAmount, NewItemDescription, NewPaymentType, NewRemark, OperationType, UpdateBy, UpdateTime, ChangeDesc FROM Records_History WHERE OperationType IN ('UPDATE', 'DELETE') ORDER BY UpdateTime DESC"
+        "SELECT HistoryId, RecordId, GuestName, Amount, ItemDescription, PaymentType, Remark, NewGuestName, NewAmount, NewItemDescription, NewPaymentType, NewRemark, OperationType, UpdateBy, UpdateTime, ChangeDesc FROM Records_History WHERE OperationType IN ('UPDATE', 'DELETE', 'RESTORE') ORDER BY UpdateTime DESC"
     )
     .fetch_all(&pool)
     .await;

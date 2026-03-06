@@ -85,6 +85,15 @@ export const bridge = {
     }
   },
 
+  async restoreDeletedRecord(history: RecordHistory): Promise<ApiResponse<{ id: number }>> {
+    try {
+      const result = await invoke<number>('restore_deleted_record', { history })
+      return wrapResult({ id: result })
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
   async getRecordHistory(recordId: number): Promise<ApiResponse<RecordHistory[]>> {
     try {
       const result = await invoke<RecordHistory[]>('get_record_history', { recordId })

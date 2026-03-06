@@ -34,6 +34,7 @@ pub fn run() {
             commands::insert_record,
             commands::update_record,
             commands::soft_delete_record,
+            commands::restore_deleted_record,
             commands::get_record_history,
             commands::get_all_record_history,
             commands::get_statistics,

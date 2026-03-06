@@ -48,6 +48,17 @@ const showStatisticsModal = ref(false);
 const showEditHistoryModal = ref(false);
 const editHistoryList = ref<RecordHistory[]>([]);
 
+// 当前预览状态（单字段模式）
+const currentPreview = ref({
+  field: '',  // 当前字段名
+  value: ''   // 当前值
+});
+
+// 计算预览显示文本
+const previewText = computed(() => {
+  return currentPreview.value.value || '\u00A0';
+});
+
 // 分页状态
 const currentPage = ref(1);
 
@@ -219,26 +230,37 @@ const updateRecordIncrementally = async (updatedRecordId: number) => {
 
 /**
  * 删除记录增量更新
- * 标记记录为已删除，保持当前页码和显示位置
+ * 从数组中移除已删除的记录，保持当前页码
  */
 const deleteRecordIncrementally = async (deletedRecordId: number) => {
   try {
-    // 找到并标记记录为已删除
-    const index = records.value.findIndex(r => r.id === deletedRecordId);
-    if (index !== -1) {
-      // 创建新数组，只更新对应记录
-      const newRecords = [...records.value];
-      newRecords[index] = { ...newRecords[index], isDeleted: 1 };
-      records.value = newRecords;
+    const oldLength = records.value.length;
+    records.value = records.value.filter(r => r.id !== deletedRecordId);
+    
+    if (records.value.length < oldLength) {
+      const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+      if (currentPage.value > totalPages) {
+        currentPage.value = totalPages;
+      }
     }
     
-    // 更新统计信息
     await loadStatistics();
   } catch (error) {
     console.error('增量删除记录失败:', error);
-    // 失败时回退到全量刷新
     await loadRecords(true);
   }
+};
+
+// 处理输入预览
+const handleInputPreview = (field: string, value: string) => {
+  console.log('[App] handleInputPreview:', field, value);
+  currentPreview.value = { field, value };
+};
+
+// 清空预览
+const clearPreview = () => {
+  console.log('[App] clearPreview');
+  currentPreview.value = { field: '', value: '' };
 };
 
 const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
@@ -257,6 +279,8 @@ const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTi
       const newRecordId = response.data.id;
       // 使用增量更新，只添加新记录，保持当前显示位置
       await addRecordIncrementally(newRecordId);
+      // 提交后清空预览
+      clearPreview();
     } else {
       alert('保存失败: ' + (response.error || '未知错误'));
     }
@@ -306,11 +330,13 @@ const handleUpdate = async (record: Record) => {
 };
 
 const handleDelete = async (id: number) => {
-  if (!confirm('确定要删除这条记录吗？')) return;
+  console.log('App.vue handleDelete 被调用, id:', id);
   try {
+    console.log('开始执行 softDeleteRecord');
     const response = await window.db.softDeleteRecord(id);
+    console.log('softDeleteRecord 返回:', response);
     if (response.success) {
-      // 使用增量更新，只标记删除的记录，保持当前显示位置
+      console.log('softDeleteRecord 成功，开始 deleteRecordIncrementally');
       await deleteRecordIncrementally(id);
     } else {
       alert('删除失败: ' + (response.error || '未知错误'));
@@ -439,6 +465,57 @@ const handleRevertRecord = async (history: RecordHistory) => {
   } catch (error) {
     console.error('还原修改失败:', error);
     toastRef.value?.error('还原修改失败，请重试');
+  }
+};
+
+// 还原已删除的记录（创建新记录）
+const handleRestoreDeletedRecord = async (history: RecordHistory) => {
+  console.log('[App.vue] handleRestoreDeletedRecord 被调用，接收到的历史记录:', history);
+  
+  // 关闭修改记录弹窗
+  console.log('[App.vue] 关闭修改记录弹窗');
+  closeEditHistoryModal();
+
+  try {
+    console.log('[App.vue] 开始调用 restoreDeletedRecord API');
+    // 调用 API 创建新记录
+    const response = await window.db.restoreDeletedRecord(history);
+    console.log('[App.vue] API 返回结果:', response);
+    
+    if (response.success && response.data) {
+      const newRecordId = response.data.id;
+      console.log('[App.vue] 新记录 ID:', newRecordId);
+
+      // 重新加载记录
+      console.log('[App.vue] 重新加载记录和统计数据');
+      await loadRecords();
+      await loadStatistics();
+
+      // 显示成功提示
+      console.log('[App.vue] 显示成功提示');
+      toastRef.value?.success('数据还原成功！', 3000);
+
+      // 跳转到最后一页（新记录在最后）
+      console.log('[App.vue] 获取新记录所在页码');
+      const pageResponse = await window.db.getRecordPage(newRecordId, 15);
+      console.log('[App.vue] 页码查询结果:', pageResponse);
+      
+      if (pageResponse.success && pageResponse.data) {
+        currentPage.value = pageResponse.data;
+        console.log('[App.vue] 跳转到页码:', pageResponse.data);
+
+        // 等待页面渲染完成后高亮记录
+        setTimeout(() => {
+          console.log('[App.vue] 高亮新记录:', newRecordId);
+          recordListRef.value?.highlightRecord(newRecordId);
+        }, 300);
+      }
+    } else {
+      throw new Error(response.error || '还原失败');
+    }
+  } catch (error) {
+    console.error('[App.vue] 还原数据失败:', error);
+    toastRef.value?.error('还原数据失败，请重试');
   }
 };
 
@@ -925,6 +1002,20 @@ onUnmounted(() => {
 
     <!-- 
       ========================================
+      实时预览区域 (name-preview-section)
+      ========================================
+      位置：工具栏下方，主内容区上方
+      高度：80px
+      显示：横排显示当前输入框的内容
+    -->
+    <div class="name-preview-section">
+      <div class="preview-content">
+        <span class="preview-name">{{ previewText }}</span>
+      </div>
+    </div>
+
+    <!-- 
+      ========================================
       主内容区 (main-content)
       ========================================
       布局：左右两栏
@@ -953,7 +1044,7 @@ onUnmounted(() => {
       <aside class="sidebar-section">
         <!-- 录入表单面板 -->
         <div class="form-panel">
-          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" />
+          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" @input-preview="handleInputPreview" @clear-preview="clearPreview" />
         </div>
 
         <!-- 统计面板 -->
@@ -1013,6 +1104,7 @@ onUnmounted(() => {
       @close="closeEditHistoryModal"
       @locate="handleLocateRecord"
       @revert="handleRevertRecord"
+      @restore-deleted="handleRestoreDeletedRecord"
     />
 
     <!-- 搜索弹窗 -->
@@ -1453,6 +1545,52 @@ body {
 
 /*
   ========================================
+  姓名预览区域
+  ========================================
+  - 高度：80px
+  - 背景：使用 SVG 背景图片
+  - 宽度：600px
+  - 文字：横排显示，大号字体
+  - 位置：工具栏和主内容区之间，居中显示
+  - 上下边距：16px
+*/
+.name-preview-section {
+  height: 80px;
+  width: 600px;
+  margin: 16px auto -18px;
+  background: url('/Name preview.svg') no-repeat center center;
+  background-size: 100% 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.preview-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  height: 100%;
+}
+
+.preview-name {
+  font-size: 48px;
+  color: #000;
+  font-family: '演示春风楷', 'KaiTi', 'STKaiti', serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  margin-top: -14px;
+}
+
+/*
+  ========================================
   【主内容区】
   ========================================
   布局属性：
@@ -1681,68 +1819,68 @@ body {
 
 .empty-history {
   text-align: center;
-  padding: var(--theme-spacing-xl);
-  color: var(--theme-text-secondary);
-  font-size: var(--theme-font-size-md);
+  padding: 40px;
+  color: #666;
+  font-size: 14px;
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-md);
+  gap: 12px;
 }
 
 .history-item {
   background: rgba(235, 86, 74, 0.05);
   border: 1px solid rgba(235, 86, 74, 0.2);
-  border-radius: var(--theme-border-radius);
-  padding: var(--theme-spacing-md);
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--theme-spacing-sm);
-  padding-bottom: var(--theme-spacing-sm);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(235, 86, 74, 0.1);
 }
 
 .history-name {
   font-weight: bold;
-  font-size: var(--theme-font-size-md);
-  color: var(--theme-text-primary);
+  font-size: 14px;
+  color: #333;
 }
 
 .history-time {
-  font-size: var(--theme-font-size-xs);
-  color: var(--theme-text-secondary);
+  font-size: 12px;
+  color: #666;
 }
 
 .history-changes {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-xs);
+  gap: 4px;
 }
 
 .change-row {
   display: flex;
-  gap: var(--theme-spacing-sm);
-  font-size: var(--theme-font-size-sm);
+  gap: 8px;
+  font-size: 13px;
 }
 
 .change-label {
-  color: var(--theme-text-secondary);
+  color: #666;
   flex-shrink: 0;
 }
 
 .change-value {
-  color: var(--theme-text-primary);
+  color: #333;
   word-break: break-all;
 }
 
 .change-value.new-value {
-  color: var(--theme-primary);
+  color: #EB564A;
   font-weight: bold;
 }
 
