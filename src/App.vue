@@ -1819,68 +1819,68 @@ body {
 
 .empty-history {
   text-align: center;
-  padding: var(--theme-spacing-xl);
-  color: var(--theme-text-secondary);
-  font-size: var(--theme-font-size-md);
+  padding: 40px;
+  color: #666;
+  font-size: 14px;
 }
 
 .history-list {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-md);
+  gap: 12px;
 }
 
 .history-item {
   background: rgba(235, 86, 74, 0.05);
   border: 1px solid rgba(235, 86, 74, 0.2);
-  border-radius: var(--theme-border-radius);
-  padding: var(--theme-spacing-md);
+  border-radius: 8px;
+  padding: 12px;
 }
 
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--theme-spacing-sm);
-  padding-bottom: var(--theme-spacing-sm);
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(235, 86, 74, 0.1);
 }
 
 .history-name {
   font-weight: bold;
-  font-size: var(--theme-font-size-md);
-  color: var(--theme-text-primary);
+  font-size: 14px;
+  color: #333;
 }
 
 .history-time {
-  font-size: var(--theme-font-size-xs);
-  color: var(--theme-text-secondary);
+  font-size: 12px;
+  color: #666;
 }
 
 .history-changes {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-xs);
+  gap: 4px;
 }
 
 .change-row {
   display: flex;
-  gap: var(--theme-spacing-sm);
-  font-size: var(--theme-font-size-sm);
+  gap: 8px;
+  font-size: 13px;
 }
 
 .change-label {
-  color: var(--theme-text-secondary);
+  color: #666;
   flex-shrink: 0;
 }
 
 .change-value {
-  color: var(--theme-text-primary);
+  color: #333;
   word-break: break-all;
 }
 
 .change-value.new-value {
-  color: var(--theme-primary);
+  color: #EB564A;
   font-weight: bold;
 }
 

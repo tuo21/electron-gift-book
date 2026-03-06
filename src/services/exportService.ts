@@ -7,6 +7,8 @@ import type { Record } from '../types/database'
 import { exportToExcel, exportToPDF } from '../utils/export'
 import { numberToChinese } from '../utils/amountConverter'
 import { getPaymentTypeText } from '../constants'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 
 /**
  * 从记录列表中获取事务日期（最早的记录创建时间）
@@ -218,10 +220,24 @@ export async function exportStatisticsReport(
 
   // 生成文件名（使用事务日期）
   const eventDate = getEventDate(records)
-  const filename = generateExportFileName(eventName, '统计报告', eventDate)
+  const defaultFileName = generateExportFileName(eventName, '统计报告', eventDate) + '.xlsx'
 
-  // 保存文件
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+  // 生成 Excel 数据
+  const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  
+  // 弹出保存对话框
+  const filePath = await save({
+    defaultPath: defaultFileName,
+    filters: [
+      { name: 'Excel 文件', extensions: ['xlsx'] }
+    ]
+  })
+
+  if (!filePath) {
+    return
+  }
+  
+  await writeFile(filePath, excelData)
 }
 
 /**
@@ -230,7 +246,7 @@ export async function exportStatisticsReport(
  * @param eventName 事务名称
  * @param records 记录列表（用于获取事务日期）
  */
-export function exportEditHistory(
+export async function exportEditHistory(
   historyList: Array<{
     recordId: number
     guestName: string
@@ -242,7 +258,7 @@ export function exportEditHistory(
   }>,
   eventName: string = '电子礼金簿',
   records?: Record[]
-): void {
+): Promise<void> {
   if (historyList.length === 0) {
     throw new Error('没有编辑历史可导出')
   }
@@ -260,7 +276,7 @@ export function exportEditHistory(
   }))
 
   // 创建新的工作簿
-  const XLSX = require('xlsx')
+  const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(data)
 
@@ -281,8 +297,22 @@ export function exportEditHistory(
 
   // 生成文件名（使用事务日期，如果提供了记录列表）
   const eventDate = records && records.length > 0 ? getEventDate(records) : undefined
-  const filename = generateExportFileName(eventName, '编辑历史', eventDate)
+  const defaultFileName = generateExportFileName(eventName, '编辑历史', eventDate) + '.xlsx'
 
-  // 保存文件
-  XLSX.writeFile(wb, `${filename}.xlsx`)
+  // 生成 Excel 数据
+  const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  
+  // 弹出保存对话框
+  const filePath = await save({
+    defaultPath: defaultFileName,
+    filters: [
+      { name: 'Excel 文件', extensions: ['xlsx'] }
+    ]
+  })
+
+  if (!filePath) {
+    return
+  }
+  
+  await writeFile(filePath, excelData)
 }

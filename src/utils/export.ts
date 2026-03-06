@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
 import type { Record } from '../types/database'
 import { exportToPDFWithSave } from './pdfExport'
 
@@ -105,7 +107,7 @@ function generateExportFileName(eventName: string, eventDate?: Date): string {
 
 export async function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): Promise<void> {
   const eventDate = getEventDate(records)
-  const filename = generateExportFileName(eventName, eventDate) + '.xlsx'
+  const defaultFileName = generateExportFileName(eventName, eventDate) + '.xlsx'
 
   const data = records.map((record, index) => ({
     '序号': index + 1,
@@ -134,7 +136,21 @@ export async function exportToExcel(records: Record[], eventName: string = '电�
   ws['!cols'] = colWidths
 
   XLSX.utils.book_append_sheet(wb, ws, '礼金记录')
-  XLSX.writeFile(wb, filename)
+  
+  const excelData = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  
+  const filePath = await save({
+    defaultPath: defaultFileName,
+    filters: [
+      { name: 'Excel 文件', extensions: ['xlsx'] }
+    ]
+  })
+
+  if (!filePath) {
+    return
+  }
+  
+  await writeFile(filePath, excelData)
 }
 
 export async function exportToPDF(
