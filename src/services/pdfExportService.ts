@@ -224,7 +224,7 @@ export class PDFExportService {
     let columnsHtml = ''
     records.forEach((record, index) => {
       const columnX = 41 + index * (46 + 5)
-      const amountChinese = numberToChinese(record.amount / 100)
+      const amountChinese = numberToChinese(record.amount)
       const nameFontSize = getAdaptiveFontSize(record.guestName, true)
       const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
 
@@ -244,7 +244,7 @@ export class PDFExportService {
           </div>
           <div class="column-payment" style="top: 371px;">
             <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
-            <span class="amount-number">¥${formatAmount(record.amount / 100)}</span>
+            <span class="amount-number">¥${formatAmount(record.amount)}</span>
           </div>
         </div>
       `
@@ -262,7 +262,7 @@ export class PDFExportService {
         <div class="page-footer" style="left: 41px; top: 518px; width: 760px; height: 30px; color: ${footerColor};">
           <span class="footer-records" style="left: 0px;">共 ${totalRecords} 条记录</span>
           <span class="footer-page" style="left: 306.5px;">第 ${pageNum} 页 / 共 ${totalPages} 页</span>
-          <span class="footer-subtotal" style="left: 630px;">本页小计：¥${formatAmount(pageAmount / 100)}</span>
+          <span class="footer-subtotal" style="left: 630px;">本页小计：¥${formatAmount(pageAmount)}</span>
         </div>
       </div>
     `
@@ -280,8 +280,8 @@ export class PDFExportService {
         </div>
         <div class="stats-content" style="left: 270px; top: 193px; width: 302px; height: 230px; color: ${textColor};">
           <div class="stat-item" style="color: ${textColor};">总人数：${totalRecords} 人</div>
-          <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount / 100)}</div>
-          <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount / 100)}</div>
+          <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount)}</div>
+          <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount)}</div>
         </div>
         <div class="stats-footer" style="left: 37px; top: 518px; width: 760px; height: 30px;">
           <span class="footer-page" style="left: 306.5px; top: 0px; text-align: center;"></span>

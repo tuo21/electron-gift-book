@@ -12,8 +12,10 @@ node_modules
 
 # Build files
 dist
+dist-electron
 dist-ssr
 release
+build
 *.local
 
 # Database and data files
@@ -39,6 +41,7 @@ coverage/
 .cache/
 
 # Editor directories and files
+.vs/
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -112,3 +115,6 @@ out
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Tauri/Rust build
+target/

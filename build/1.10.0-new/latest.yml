@@ -1,8 +1,0 @@
-version: 1.10.0
-files:
-  - url: electron-gift-book-setup-1.10.0.exe
-    sha512: g8gENOKG08mSH5+xQrODyYc7EC95Gb0Lg5AW2lvbEk6z2Fam+cb9afhzSMucSNfNjg/e4Im4o3cDfPccMBpvUQ==
-    size: 125418308
-path: electron-gift-book-setup-1.10.0.exe
-sha512: g8gENOKG08mSH5+xQrODyYc7EC95Gb0Lg5AW2lvbEk6z2Fam+cb9afhzSMucSNfNjg/e4Im4o3cDfPccMBpvUQ==
-releaseDate: '2026-03-02T02:20:25.090Z'

@@ -153,7 +153,7 @@ const loadStatistics = async () => {
 
 /**
  * 新增记录增量更新
- * 只添加新记录到数组末尾，保持当前页码和显示位置
+ * 添加新记录到数组末尾，并跳转到新记录所在页面
  */
 const addRecordIncrementally = async (newRecordId: number) => {
   try {
@@ -176,6 +176,10 @@ const addRecordIncrementally = async (newRecordId: number) => {
       records.value = [...records.value, newRecord];
       
       await loadStatistics();
+      
+      // 跳转到新记录所在的页面（新记录在数组末尾，即最后一页）
+      const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+      currentPage.value = totalPages;
       
       await nextTick();
       recordListRef.value?.markNewRecord(newRecordId);

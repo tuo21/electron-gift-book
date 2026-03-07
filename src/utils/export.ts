@@ -112,8 +112,8 @@ export async function exportToExcel(records: Record[], eventName: string = '电�
   const data = records.map((record, index) => ({
     '序号': index + 1,
     '姓名': record.guestName,
-    '金额（元）': record.amount / 100,
-    '金额（大写）': record.amountChinese || numberToChinese(record.amount / 100),
+    '金额（元）': record.amount,
+    '金额（大写）': record.amountChinese || numberToChinese(record.amount),
     '物品': record.itemDescription || '',
     '支付方式': getPaymentTypeText(record.paymentType),
     '备注': record.remark || '',
