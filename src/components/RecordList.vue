@@ -56,7 +56,16 @@
           
           <!-- 姓名展示框（竖排文字） -->
           <div class="cell name-cell">
-            <span class="name-text" :style="{ fontSize: getAdaptiveFontSize(record.guestName, true) + 'px' }">{{ record.guestName }}</span>
+            <div class="name-text" :style="{ fontSize: getAdaptiveFontSize(record.guestName, true) + 'px' }">
+              <span 
+                v-for="(char, index) in record.guestName.split('')" 
+                :key="index" 
+                class="name-char"
+                :style="getCharStyle(record.guestName.length, index)"
+              >
+                {{ char }}
+              </span>
+            </div>
           </div>
           
           <!-- 备注（固定显示，无数据留空） -->
@@ -438,6 +447,26 @@ const getAdaptiveFontSize = (text: string, isName: boolean = false, hasItem: boo
   return Math.max(minSize, maxSize - reduceSize);
 };
 
+// 计算每个字符的位置样式，实现两端对齐
+const getCharStyle = (length: number, index: number) => {
+  // 所有字符都水平居中
+  const baseStyle = { position: 'absolute' as const, left: '50%', transform: 'translateX(-50%)' };
+
+  if (length === 1) {
+    // 单字姓名垂直居中
+    return { ...baseStyle, top: '50%', transform: 'translate(-50%, -50%)' };
+  }
+
+  // 计算每个字符的位置，实现两端对齐
+  // 第一个字符在顶部(5%)，最后一个字符在底部(75%)，留出边距
+  const startOffset = 5;  // 顶部边距 5%
+  const endOffset = 75;   // 底部边距 75%
+  const availableSpace = endOffset - startOffset;
+  const step = availableSpace / (length - 1);
+  const top = startOffset + step * index;
+  return { ...baseStyle, top: `${top}%` };
+};
+
 // ==================== 暴露方法 ====================
 defineExpose({
   currentPage,
@@ -690,16 +719,27 @@ defineExpose({
   flex: 0 0 auto;
   height: 170px;  /* 固定姓名框高度170px */
   min-height: 150px;
-  justify-content: center;
+  justify-content: space-between;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .name-text {
   color: var(--theme-text-primary);
+  font-family: var(--font-name-amount);  /* 姓名使用演示春风楷 */
+  height: 100%;
+  width: 100%;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.name-char {
+  display: block;
   writing-mode: vertical-rl;
   text-orientation: upright;
-  letter-spacing: 4px;
-  transition: font-size 0.2s ease;
-  font-family: var(--font-name-amount);  /* 姓名使用演示春风楷 */
 }
 
 /* 备注单元格 */

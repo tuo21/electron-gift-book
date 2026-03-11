@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick, watch } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import SplashScreen from './components/SplashScreen.vue';
@@ -42,7 +42,6 @@ const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>();
 const appName = ref('电子礼金簿');
 const isEditingName = ref(false);
 const lunarDate = ref(getLunarDisplay());
-const hideAmount = ref(true);
 const intervalId = ref<number | null>(null);
 const showStatisticsModal = ref(false);
 const showEditHistoryModal = ref(false);
@@ -67,6 +66,7 @@ const showSearchModal = ref(false);
 const searchKeyword = ref('');
 const searchResults = ref<Record[]>([]);
 const isSearching = ref(false);
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // 导出弹窗状态
 const showExportModal = ref(false);
@@ -74,6 +74,20 @@ const isExporting = ref(false);
 
 // 关于弹窗状态
 const showAboutDialog = ref(false);
+
+// 搜索关键词自动搜索（防抖）
+watch(searchKeyword, (newKeyword) => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+  }
+  searchTimeout = setTimeout(() => {
+    if (newKeyword.trim()) {
+      performSearch();
+    } else {
+      searchResults.value = [];
+    }
+  }, 300);
+});
 
 // ==================== 方法函数 ====================
 const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: number) => {
@@ -351,20 +365,21 @@ const handleDelete = async (id: number) => {
   }
 };
 
-const formatMoney = (amount: number) => {
+const formatMoney = (amount: number | undefined) => {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return '0.00';
+  }
   return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
-const displayAmount = computed(() => {
-  if (hideAmount.value) {
-    return '****';
-  }
-  return formatMoney(statistics.value.totalAmount);
+// 计算当前页面的金额小计
+const currentPageAmount = computed(() => {
+  const start = (currentPage.value - 1) * 15;
+  const end = start + 15;
+  const pageRecords = records.value.slice(start, end);
+  const total = pageRecords.reduce((sum, record) => sum + (record.amount || 0), 0);
+  return formatMoney(total);
 });
-
-const toggleAmountDisplay = () => {
-  hideAmount.value = !hideAmount.value;
-};
 
 const openStatisticsModal = () => {
   showStatisticsModal.value = true;
@@ -621,16 +636,16 @@ const performSearch = async () => {
     const response = await window.db.searchRecords(searchKeyword.value.trim());
     if (response.success && response.data) {
       searchResults.value = response.data.map((record: any) => ({
-        id: record.Id,
-        guestName: record.GuestName,
-        amount: record.Amount,
-        amountChinese: record.AmountChinese,
-        itemDescription: record.ItemDescription,
-        paymentType: record.PaymentType,
-        remark: record.Remark,
-        createTime: record.CreateTime,
-        updateTime: record.UpdateTime,
-        isDeleted: record.IsDeleted,
+        id: record.id,
+        guestName: record.guestName,
+        amount: record.amount,
+        amountChinese: record.amountChinese,
+        itemDescription: record.itemDescription,
+        paymentType: record.paymentType,
+        remark: record.remark,
+        createTime: record.createTime,
+        updateTime: record.updateTime,
+        isDeleted: record.isDeleted,
       }));
     } else {
       alert('搜索失败: ' + (response.error || '未知错误'));
@@ -1051,15 +1066,15 @@ onUnmounted(() => {
           <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" @input-preview="handleInputPreview" @clear-preview="clearPreview" />
         </div>
 
-        <!-- 统计面板 -->
+        <!-- 统计面板 - 本页小计 -->
         <div class="statistics-panel">
           <div class="stat-vertical">
             <div class="stat-row">
-              <span class="stat-value">{{ statistics.totalCount }}</span>
+              <span class="stat-label">本页小计</span>
             </div>
             <div class="stat-row">
-              <span class="stat-value amount-total" @click="toggleAmountDisplay" style="cursor: pointer;">
-                {{ displayAmount }}
+              <span class="stat-value amount-total">
+                {{ currentPageAmount }}
               </span>
             </div>
           </div>
@@ -1126,16 +1141,15 @@ onUnmounted(() => {
               type="text"
               class="search-input"
               placeholder="请输入姓名、备注或物品进行搜索..."
-              @keyup.enter="performSearch"
             />
-            <button class="search-btn" @click="performSearch" :disabled="isSearching">
-              {{ isSearching ? '搜索中...' : '搜索' }}
-            </button>
           </div>
 
           <!-- 搜索结果区 -->
           <div class="search-results">
-            <div v-if="searchResults.length === 0 && searchKeyword && !isSearching" class="empty-results">
+            <div v-if="isSearching" class="searching-hint">
+              搜索中...
+            </div>
+            <div v-else-if="searchResults.length === 0 && searchKeyword.trim()" class="empty-results">
               未找到匹配的记录
             </div>
             <div v-else-if="searchResults.length > 0" class="results-list">
@@ -1156,7 +1170,7 @@ onUnmounted(() => {
               </div>
             </div>
             <div v-else class="search-hint">
-              输入关键词后点击搜索，支持模糊匹配姓名、备注和物品
+              输入关键词自动搜索，支持模糊匹配姓名、备注和物品
             </div>
           </div>
         </div>
@@ -1680,9 +1694,16 @@ body {
   color: var(--theme-text-primary);
 }
 
+.stat-label {
+  font-size: var(--theme-font-size-sm);   /* 14px */
+  color: var(--theme-text-secondary);
+  font-weight: 500;
+}
+
 .amount-total {
-  font-size: var(--theme-font-size-md);   /* 16px */
+  font-size: var(--theme-font-size-xl);   /* 20px */
   color: var(--theme-primary);
+  font-weight: bold;
 }
 
 .toggle-btn {
@@ -1915,18 +1936,22 @@ body {
 .search-modal {
   min-width: 500px;
   max-width: 90vw;
-  max-height: 80vh;
+  width: 500px;
+  height: 450px;
 }
 
 .search-modal .modal-body {
-  max-height: calc(80vh - 60px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 60px);
+  overflow: hidden;
 }
 
 .search-input-area {
   display: flex;
   gap: var(--theme-spacing-sm);
   margin-bottom: var(--theme-spacing-lg);
+  flex-shrink: 0;
 }
 
 .search-input {
@@ -1943,34 +1968,15 @@ body {
   border-color: var(--theme-accent);
 }
 
-.search-btn {
-  padding: var(--theme-spacing-sm) var(--theme-spacing-lg);
-  border: none;
-  border-radius: var(--theme-border-radius);
-  background: var(--theme-primary);
-  color: var(--theme-text-light);
-  font-size: var(--theme-font-size-md);
-  font-family: var(--theme-font-family);
-  cursor: pointer;
-  transition: all 0.3s;
-  white-space: nowrap;
-}
-
-.search-btn:hover:not(:disabled) {
-  background: var(--theme-primary-dark);
-}
-
-.search-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .search-results {
-  min-height: 200px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .empty-results,
-.search-hint {
+.search-hint,
+.searching-hint {
   text-align: center;
   padding: var(--theme-spacing-xl);
   color: var(--theme-text-secondary);

@@ -15,7 +15,7 @@
             <div class="author-section">
               <div class="app-info">
                 <h3 class="app-name">电子礼金簿</h3>
-                <p class="app-version">版本：v1.10.2</p>
+                <p class="app-version">版本：{{ appVersion }}</p>
               </div>
 
               <div class="author-info">
@@ -86,8 +86,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import IconSvg from './IconSvg.vue'
+import { app } from '@tauri-apps/api'
 
 defineProps<{
   modelValue: boolean
@@ -99,6 +100,16 @@ const emit = defineEmits<{
 
 const qrCodeExists = ref(true)
 const activeIndex = ref<number | null>(0)
+const appVersion = ref('v1.10.3')
+
+onMounted(async () => {
+  try {
+    const version = await app.getVersion()
+    appVersion.value = `v${version}`
+  } catch (error) {
+    console.error('获取版本号失败:', error)
+  }
+})
 
 const tipItems = [
   {

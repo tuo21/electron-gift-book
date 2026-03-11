@@ -15,13 +15,13 @@
               placeholder="请输入姓名、备注或物品进行搜索..."
               @keyup.enter="handleSearch"
             />
-            <button class="search-btn" @click="handleSearch" :disabled="isSearching">
-              {{ isSearching ? '搜索中...' : '搜索' }}
-            </button>
           </div>
 
           <div class="search-results">
-            <div v-if="searchResults.length === 0 && localKeyword && !isSearching" class="empty-results">
+            <div v-if="isSearching" class="searching-hint">
+              搜索中...
+            </div>
+            <div v-else-if="searchResults.length === 0 && localKeyword.trim()" class="empty-results">
               未找到匹配的记录
             </div>
             <div v-else-if="searchResults.length > 0" class="results-list">
@@ -42,7 +42,7 @@
               </div>
             </div>
             <div v-else class="search-hint">
-              输入关键词后点击搜索，支持模糊匹配姓名、备注和物品
+              输入关键词自动搜索，支持模糊匹配姓名、备注和物品
             </div>
           </div>
         </div>
@@ -71,12 +71,27 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const localKeyword = ref(props.searchKeyword)
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 watch(() => props.searchKeyword, (newKeyword) => {
   localKeyword.value = newKeyword
 })
 
-const formatMoney = (amount: number) => {
+watch(localKeyword, (newKeyword) => {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout)
+  }
+  searchTimeout = setTimeout(() => {
+    if (newKeyword.trim()) {
+      emit('search', newKeyword.trim())
+    }
+  }, 300)
+})
+
+const formatMoney = (amount: number | undefined) => {
+  if (amount === undefined || amount === null || isNaN(amount)) {
+    return '0.00'
+  }
   return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 }
 
@@ -162,34 +177,13 @@ const handleSearch = () => {
   border-color: var(--theme-accent);
 }
 
-.search-btn {
-  padding: var(--theme-spacing-sm) var(--theme-spacing-lg);
-  border: none;
-  border-radius: var(--theme-border-radius);
-  background: var(--theme-primary);
-  color: var(--theme-text-light);
-  font-size: var(--theme-font-size-md);
-  font-family: var(--theme-font-family);
-  cursor: pointer;
-  transition: all 0.3s;
-  white-space: nowrap;
-}
-
-.search-btn:hover:not(:disabled) {
-  background: var(--theme-primary-dark);
-}
-
-.search-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
 .search-results {
   min-height: 200px;
 }
 
 .empty-results,
-.search-hint {
+.search-hint,
+.searching-hint {
   text-align: center;
   padding: var(--theme-spacing-xl);
   color: var(--theme-text-secondary);
