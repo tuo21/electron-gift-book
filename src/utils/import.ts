@@ -319,6 +319,10 @@ export function parseRecords(data: any[][], mappings: FieldMapping[]): ParsedRec
     
     // 只添加有姓名的记录
     if (record.guestName) {
+      // 确保 paymentType 有默认值
+      if (record.paymentType === undefined) {
+        record.paymentType = 0
+      }
       records.push(record as ParsedRecord)
     }
   }
