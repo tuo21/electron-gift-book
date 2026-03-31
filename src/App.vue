@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick, watch } fr
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import SplashScreen from './components/SplashScreen.vue';
+import SyncQRDialog from './components/SyncQRDialog.vue';
 import type { Record, Statistics, RecordHistory } from './types/database';
 import type { ThemeType } from './composables/useTheme';
 import { getLunarDisplay } from './utils/lunarCalendar';
@@ -74,6 +75,9 @@ const isExporting = ref(false);
 
 // 关于弹窗状态
 const showAboutDialog = ref(false);
+
+// 同步到小程序弹窗状态
+const syncDialogVisible = ref(false);
 
 // 搜索关键词自动搜索（防抖）
 watch(searchKeyword, (newKeyword) => {
@@ -670,6 +674,37 @@ const handleSearchResultClick = (record: Record) => {
   }, 100);
 };
 
+// ==================== 同步到小程序功能 ====================
+
+// 计算当前礼金簿信息
+const currentBookInfo = computed(() => ({
+  name: appName.value,
+  theme: (currentTheme.value === 'funeral' ? 'gray' : 'red') as 'gray' | 'red',
+  coverColor: '#8B0000',
+}));
+
+// 获取当前所有记录
+const currentRecords = computed(() => {
+  return records.value.map(record => ({
+    name: record.guestName,
+    amount: Math.round(record.amount * 100), // 转换为分
+    paymentMethod: record.paymentType,
+    remark: record.remark || '',
+    giftItem: record.itemDescription || '',
+  }));
+});
+
+// 处理同步到小程序
+const handleSyncToMiniApp = () => {
+  syncDialogVisible.value = true;
+};
+
+// 处理同步成功
+const handleSyncSuccess = (count: number) => {
+  console.log(`同步成功，导入 ${count} 条记录`);
+  toastRef.value?.success(`同步成功！已导入 ${count} 条记录`, 3000);
+};
+
 // ==================== 启动页处理函数 ====================
 
 // 处理启动页开始事件
@@ -1008,6 +1043,10 @@ onUnmounted(() => {
           <IconSvg name="info" :size="20" />
           <span class="btn-text">关于</span>
         </button>
+        <button class="func-btn" @click="handleSyncToMiniApp" title="小程序">
+          <IconSvg name="wechat" :size="20" />
+          <span class="btn-text">微信小程序</span>
+        </button>
       </div>
 
       <!-- 右侧：农历日期 -->
@@ -1220,6 +1259,12 @@ onUnmounted(() => {
 
     <!-- 关于弹窗 -->
     <AboutDialog v-model="showAboutDialog" />
+
+    <!-- 同步到小程序弹窗 -->
+    <SyncQRDialog
+      :visible="syncDialogVisible"
+      @close="syncDialogVisible = false"
+    />
   </div>
 </template>
 

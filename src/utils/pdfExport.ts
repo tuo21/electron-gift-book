@@ -342,11 +342,14 @@ async function addContentPage(
     pdf.setFontSize(nameFontSize)
     pdf.setTextColor(0, 0, 0)
     const nameStartY = listStartY + Math.round(40 * SCALE)
-    const nameCharHeight = nameFontSize * 1
-    
+    const nameEndY = listStartY + Math.round(130 * SCALE)
     const nameChars = record.guestName.split('')
+    const nameAvailableHeight = nameEndY - nameStartY
+    
     nameChars.forEach((char, charIndex) => {
-      pdf.text(char, x, nameStartY + charIndex * nameCharHeight, { align: 'center' })
+      const topRatio = nameChars.length === 1 ? 0.5 : (5 + (70 / (nameChars.length - 1)) * charIndex) / 100
+      const charY = nameStartY + nameAvailableHeight * topRatio
+      pdf.text(char, x, charY, { align: 'center' })
     })
 
     if (record.remark) {
@@ -358,14 +361,14 @@ async function addContentPage(
     }
 
     // 金额中文和物品描述并排显示
-    const amountY = listStartY + Math.round(218 * SCALE) + positionOffset + amountFontSize
-    const itemStartY = listStartY + Math.round(218 * SCALE) + positionOffset + Math.round(40 * SCALE)
+    const amountBaseY = listStartY + Math.round(218 * SCALE) + positionOffset
     
     if (record.itemDescription) {
       // 如果有物品描述，金额和物品并排显示
       const colWidth = columnWidth / 2 - Math.round(5 * SCALE)
       
-      // 左侧：金额中文（竖排）
+      // 左侧：金额中文（竖排）- 与无物品时保持相同起始位置
+      const amountY = amountBaseY + amountFontSize
       setFont(pdf, fonts, 'XuandongKaishu')
       pdf.setFontSize(amountFontSize)
       pdf.setTextColor(0, 0, 0)
@@ -376,7 +379,7 @@ async function addContentPage(
         pdf.text(char, amountX, amountY + charIndex * amountCharHeight, { align: 'center' })
       })
       
-      // 右侧：物品描述（竖排）
+      // 右侧：物品描述（竖排）- 与金额顶部对齐
       setFont(pdf, fonts, 'KaiTi')
       pdf.setFontSize(40)
       pdf.setTextColor(102, 102, 102)
@@ -384,10 +387,11 @@ async function addContentPage(
       const itemChars = record.itemDescription.split('')
       const itemX = x + colWidth / 2
       itemChars.forEach((char, charIndex) => {
-        pdf.text(char, itemX, itemStartY + charIndex * itemCharHeight, { align: 'center' })
+        pdf.text(char, itemX, amountY + charIndex * itemCharHeight, { align: 'center' })
       })
     } else {
       // 如果没有物品描述，金额居中显示
+      const amountY = amountBaseY + amountFontSize
       setFont(pdf, fonts, 'XuandongKaishu')
       pdf.setFontSize(amountFontSize)
       pdf.setTextColor(0, 0, 0)
