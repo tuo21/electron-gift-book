@@ -5,28 +5,30 @@
   "identifier": "com.giftbook.app",
   "build": {
     "frontendDist": "../dist",
-    "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "vue-tsc && vite build"
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev"
   },
   "app": {
     "withGlobalTauri": true,
     "windows": [
       {
         "title": "电子礼金簿",
-        "width": 1550,
-        "height": 960,
+        "width": 1650,
+        "height": 1170,
+        "minWidth": 1650,
+        "minHeight": 1080,
         "resizable": true,
         "fullscreen": false,
         "center": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src *"
     }
   },
   "bundle": {
     "active": true,
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
