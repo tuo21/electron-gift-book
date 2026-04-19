@@ -6,7 +6,9 @@
           <!-- 标题栏 -->
           <div class="dialog-header">
             <h3 class="dialog-title">关于电子礼金簿</h3>
-            <button class="close-btn" @click="closeDialog">×</button>
+            <button class="close-btn" @click="closeDialog">
+              <IconSvg name="close" :size="18" />
+            </button>
           </div>
 
           <!-- 内容区域 -->
@@ -73,11 +75,6 @@
                 </div>
               </div>
             </div>
-          </div>
-
-          <!-- 底部按钮 -->
-          <div class="dialog-footer">
-            <button class="btn-primary" @click="closeDialog">关闭</button>
           </div>
         </div>
       </div>
@@ -149,27 +146,39 @@ const closeDialog = () => {
 /* 遮罩层 */
 .about-dialog-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 2000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 对话框 */
 .about-dialog {
-  background: #fff;
-  border-radius: 8px;
+  background: var(--theme-paper);
+  border-radius: var(--theme-border-radius-lg);
   width: 500px;
   max-width: 90vw;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--theme-shadow-lg), 0 20px 60px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--theme-border);
+  animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* 标题栏 */
@@ -177,43 +186,60 @@ const closeDialog = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #e4e7ed;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--theme-border);
+  flex-shrink: 0;
 }
 
 .dialog-title {
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: var(--theme-text-primary);
   margin: 0;
+  letter-spacing: 0.5px;
 }
 
 .close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #909399;
-  cursor: pointer;
-  padding: 0;
   width: 32px;
   height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  color: var(--theme-text-muted);
   transition: all 0.2s;
+  font-size: 24px;
+  padding: 0;
 }
 
 .close-btn:hover {
-  background: #f5f7fa;
-  color: #606266;
+  background: rgba(var(--theme-primary-rgb), 0.08);
+  color: var(--theme-accent);
 }
 
 /* 内容区域 */
 .dialog-body {
-  padding: 20px;
+  padding: 24px 28px;
   overflow-y: auto;
   flex: 1;
+}
+
+/* 滚动条 */
+.dialog-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dialog-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialog-body::-webkit-scrollbar-thumb {
+  background: var(--theme-border-color);
+  border-radius: 3px;
+  opacity: 0.4;
 }
 
 /* 作者信息区域 */
@@ -222,54 +248,56 @@ const closeDialog = () => {
 }
 
 .app-info {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .app-name {
   font-size: 24px;
-  font-weight: bold;
-  color: #303133;
+  font-weight: 600;
+  color: var(--theme-text-primary);
   margin: 0 0 8px 0;
 }
 
 .app-version {
   font-size: 14px;
-  color: #909399;
+  color: var(--theme-text-secondary);
   margin: 0;
 }
 
 .author-info {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   text-align: left;
 }
 
 .info-item {
   margin: 8px 0;
   font-size: 14px;
-  color: #606266;
+  color: var(--theme-text-secondary);
 }
 
 .label {
-  color: #909399;
+  color: var(--theme-text-muted);
 }
 
 .link {
-  color: #409eff;
+  color: var(--theme-primary);
   text-decoration: none;
   word-break: break-all;
+  transition: all 0.2s;
 }
 
 .link:hover {
   text-decoration: underline;
+  color: var(--theme-accent);
 }
 
 .wechat-section {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .wechat-title {
   font-size: 14px;
-  color: #606266;
+  color: var(--theme-text-secondary);
   margin-bottom: 12px;
 }
 
@@ -286,6 +314,8 @@ const closeDialog = () => {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
+  border-radius: var(--theme-border-radius);
+  box-shadow: var(--theme-shadow-sm);
 }
 
 .qr-placeholder {
@@ -294,38 +324,38 @@ const closeDialog = () => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
-  border: 2px dashed #c0c4cc;
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.03) 0%, rgba(0, 0, 0, 0.05) 100%);
+  border: 2px dashed var(--theme-border);
+  border-radius: var(--theme-border-radius);
 }
 
 .placeholder-text {
   font-size: 14px;
-  color: #909399;
+  color: var(--theme-text-muted);
 }
 
 .wechat-name {
   font-size: 14px;
-  color: #606266;
+  color: var(--theme-text-secondary);
   margin-top: 8px;
 }
 
 /* 分隔线 */
 .divider {
   height: 1px;
-  background: #e4e7ed;
-  margin: 20px 0;
+  background: var(--theme-border);
+  margin: 24px 0;
 }
 
 /* 使用小提示区域 */
 .tips-section {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .tips-title {
   font-size: 16px;
-  font-weight: bold;
-  color: #303133;
+  font-weight: 600;
+  color: var(--theme-text-primary);
   margin: 0 0 16px 0;
   display: flex;
   align-items: center;
@@ -333,18 +363,19 @@ const closeDialog = () => {
 }
 
 .info-icon {
-  color: #409eff;
+  color: var(--theme-primary);
 }
 
 /* 折叠面板 */
 .collapse-list {
-  border: 1px solid #e4e7ed;
-  border-radius: 4px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius);
   overflow: hidden;
+  background: white;
 }
 
 .collapse-item {
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .collapse-item:last-child {
@@ -356,39 +387,39 @@ const closeDialog = () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: #f5f7fa;
+  background: rgba(0, 0, 0, 0.02);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
 .collapse-header:hover {
-  background: #e4e7ed;
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .collapse-item.active .collapse-header {
-  background: #ecf5ff;
+  background: rgba(var(--theme-primary-rgb), 0.08);
 }
 
 .collapse-title {
   font-size: 14px;
-  color: #303133;
+  color: var(--theme-text-primary);
   font-weight: 500;
 }
 
 .collapse-arrow {
   font-size: 12px;
-  color: #909399;
+  color: var(--theme-text-muted);
   transition: transform 0.2s;
 }
 
 .collapse-content {
   padding: 12px 16px;
-  background: #fff;
+  background: white;
 }
 
 .tip-text {
   font-size: 14px;
-  color: #606266;
+  color: var(--theme-text-secondary);
   line-height: 1.6;
   margin: 0;
 }
@@ -397,7 +428,7 @@ const closeDialog = () => {
   margin: 0;
   padding-left: 20px;
   font-size: 14px;
-  color: #606266;
+  color: var(--theme-text-secondary);
   line-height: 1.8;
 }
 
@@ -405,27 +436,35 @@ const closeDialog = () => {
   margin: 4px 0;
 }
 
-/* 底部按钮 */
+/* 底部操作栏 */
 .dialog-footer {
-  padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 28px 20px;
+  border-top: 1px solid var(--theme-border);
 }
 
-.btn-primary {
-  padding: 8px 20px;
-  background: #409eff;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
+.footer-btn {
+  padding: 10px 28px;
+  border-radius: var(--theme-border-radius-sm);
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  font-family: inherit;
+  border: none;
 }
 
-.btn-primary:hover {
-  background: #66b1ff;
+.footer-btn.cancel {
+  background: transparent;
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
+}
+
+.footer-btn.cancel:hover {
+  background: rgba(var(--theme-primary-rgb), 0.04);
+  color: var(--theme-text-primary);
 }
 
 /* 动画 */

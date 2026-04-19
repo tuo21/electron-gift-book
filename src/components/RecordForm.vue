@@ -4,7 +4,7 @@
       {{ isEditMode ? '编辑记录' : '礼金录入' }}
     </h2>
     <div v-if="isEditMode" class="edit-hint">
-      正在编辑: {{ formData.guestName }}
+      <span class="edit-name">{{ formData.guestName }}</span>
       <button class="cancel-edit-btn" @click="exitEditMode">取消编辑</button>
     </div>
 
@@ -61,13 +61,14 @@
             type="button"
             class="payment-btn"
             :class="{ active: formData.paymentType === Number(value) }"
+            :data-value="value"
             @click="formData.paymentType = Number(value)"
           >
             {{ label }}
           </button>
         </div>
         <div class="payment-hint">
-          快捷键: F1现金 F2微信 F3内收
+          回车确认，双击回车直接提交
         </div>
       </div>
 
@@ -204,6 +205,12 @@ const currentField = ref('');
 
 // blur 延迟定时器
 let blurTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// Enter 按键计数器（用于区分单击和双击）
+const enterPressCount = ref(0);
+let enterPressTimer: ReturnType<typeof setTimeout> | null = null;
+let lastEnterTime = 0;
+const DOUBLE_CLICK_DELAY = 300; // 双击时间间隔（毫秒）
 
 // 获取字段值
 const getFieldValue = (field: string): string => {
@@ -363,6 +370,70 @@ const focusItem = () => itemInput.value?.focus();
 
 // 键盘快捷键监听
 const handleKeydown = (e: KeyboardEvent) => {
+  // 检查当前焦点是否在支付方式区域
+  const isInPaymentArea = document.activeElement?.closest('.payment-options');
+
+  if (isInPaymentArea) {
+    const buttons = paymentOptions.value?.querySelectorAll('button');
+    if (!buttons || buttons.length === 0) return;
+
+    const currentIndex = Array.from(buttons).findIndex(btn => btn === document.activeElement);
+
+    // 左右方向键切换选择（循环）
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const nextIndex = (currentIndex + 1) % buttons.length;
+      buttons[nextIndex]?.focus();
+    }
+    else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prevIndex = currentIndex <= 0 ? buttons.length - 1 : currentIndex - 1;
+      buttons[prevIndex]?.focus();
+    }
+    // Tab 在支付方式内切换，最后一个切换到备注
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      if (currentIndex < buttons.length - 1) {
+        // 不是最后一个，切换到下一个支付方式
+        buttons[currentIndex + 1]?.focus();
+      } else {
+        // 是最后一个，切换到备注
+        focusRemark();
+      }
+    }
+    // Enter 确认或提交
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      const now = Date.now();
+
+      if (now - lastEnterTime < DOUBLE_CLICK_DELAY) {
+        // 双击 - 直接提交
+        if (enterPressTimer) {
+          clearTimeout(enterPressTimer);
+          enterPressTimer = null;
+        }
+        enterPressCount.value = 0;
+        onSubmit();
+      } else {
+        // 单击 - 确认支付方式
+        enterPressCount.value = 1;
+        lastEnterTime = now;
+
+        // 设置当前聚焦按钮对应的支付方式
+        if (currentIndex >= 0) {
+          const paymentType = Number(buttons[currentIndex].getAttribute('data-value'));
+          formData.value.paymentType = paymentType;
+        }
+
+        enterPressTimer = setTimeout(() => {
+          enterPressCount.value = 0;
+          enterPressTimer = null;
+        }, DOUBLE_CLICK_DELAY);
+      }
+    }
+    return;
+  }
+
   // F1: 现金
   if (e.key === 'F1') {
     e.preventDefault();
@@ -389,6 +460,12 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown);
+  if (enterPressTimer) {
+    clearTimeout(enterPressTimer);
+  }
+  if (blurTimeout) {
+    clearTimeout(blurTimeout);
+  }
 });
 
 // 暴露方法给父组件
@@ -402,206 +479,246 @@ defineExpose({
 </script>
 
 <style scoped>
+/*
+  ========================================
+  礼金录入表单 - 日式极简风格
+  ========================================
+*/
+
 .record-form {
   background: transparent;
+  padding-left: 12px;
 }
 
 .form-title {
-  color: var(--theme-primary);
-  font-size: var(--theme-font-size-xl);
-  font-weight: bold;
+  color: var(--theme-text-primary);
+  font-size: var(--theme-font-size-lg);
+  font-weight: 600;
   text-align: center;
-  margin-bottom: var(--theme-spacing-sm);
-  font-family: var(--theme-font-family);
-  border-bottom: 1px solid var(--theme-primary);
+  margin-bottom: var(--theme-spacing-md);
+  font-family: var(--font-name-amount);
   padding-bottom: var(--theme-spacing-sm);
+  border-bottom: 1px solid var(--theme-border);
+  letter-spacing: 4px;
+  position: relative;
+}
+
+.form-title::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 40px;
+  height: 2px;
+  background: var(--theme-accent);
+  border-radius: 1px;
 }
 
 .form-title.edit-mode {
-  color: #ff6b35;
-  border-bottom-color: #ff6b35;
+  color: var(--theme-accent);
 }
 
 .edit-hint {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--theme-spacing-sm);
-  background: rgba(255, 107, 53, 0.1);
-  border-radius: var(--theme-border-radius);
+  padding: 10px 14px;
+  background: rgba(var(--theme-primary-rgb), 0.04);
+  border-radius: var(--theme-border-radius-sm);
   margin-bottom: var(--theme-spacing-md);
   font-size: var(--theme-font-size-sm);
-  color: #ff6b35;
-  font-family: var(--theme-font-family);
+  color: var(--theme-text-primary);
+  border: 1px solid var(--theme-border);
+}
+
+.edit-name {
+  font-family: var(--font-name-amount);
+  font-weight: 600;
+  color: var(--theme-accent);
 }
 
 .cancel-edit-btn {
-  padding: 2px 8px;
-  border: 1px solid #ff6b35;
-  border-radius: 4px;
-  background: transparent;
-  color: #ff6b35;
-  font-size: var(--theme-font-size-xs);
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--theme-border-radius-sm);
+  background: var(--theme-accent);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.25s ease;
+  font-family: inherit;
 }
 
 .cancel-edit-btn:hover {
-  background: #ff6b35;
-  color: white;
+  background: var(--theme-accent-dark);
+  transform: translateY(-1px);
 }
 
 .form-content {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-xs);
+  gap: 14px;
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: var(--theme-spacing-xs);
+  gap: 6px;
 }
 
 .form-label {
-  color: var(--theme-text-primary);
-  font-size: var(--theme-font-size-sm);
-  font-weight: 600;
-  font-family: var(--theme-font-family);
+  color: var(--theme-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 1px;
 }
 
 .form-input {
-  padding: var(--theme-spacing-xs) var(--theme-spacing-md);
-  border: 1px solid var(--theme-border-color);
-  border-radius: var(--theme-border-radius);
-  background: rgba(255, 255, 255, 0.9);
+  padding: 12px 14px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius-sm);
+  background: white;
   font-size: var(--theme-font-size-md);
-  transition: all 0.3s ease;
-  font-family: var(--theme-font-family);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.25s ease;
+  font-family: inherit;
+  color: var(--theme-text-primary);
 }
 
 .form-input:focus {
   outline: none;
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px rgba(235, 86, 74, 0.2);
-  background: #fff;
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 3px rgba(var(--theme-primary-rgb), 0.08);
+  background: white;
 }
 
 .form-input::placeholder {
-  color: #999;
+  color: var(--theme-text-muted);
 }
 
 .amount-chinese {
-  color: var(--theme-text-secondary);
-  font-size: var(--theme-font-size-xs);  /* 最小字号 */
-  font-weight: normal;
-  padding: var(--theme-spacing-xs) 0;
-  background: transparent;  /* 无填充色 */
-  font-family: var(--font-name-amount);  /* 大写金额使用演示春风楷 */
-  letter-spacing: 1px;
+  color: var(--theme-accent);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 0;
+  font-family: var(--font-name-amount);
+  letter-spacing: 2px;
   text-align: center;
-  min-height: 20px;  /* 保持最小高度避免布局跳动 */
+  min-height: 24px;
+  font-style: italic;
 }
 
 .payment-options {
   display: flex;
-  gap: var(--theme-spacing-sm);
+  gap: 6px;
 }
 
 .payment-btn {
   flex: 1;
-  padding: var(--theme-spacing-xs) var(--theme-spacing-xs);
-  border: 1px solid var(--theme-border-color);
-  border-radius: var(--theme-border-radius);
-  background: rgba(255, 255, 255, 0.8);
-  color: var(--theme-text-primary);
-  font-size: var(--theme-font-size-sm);
+  padding: 10px 4px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius-sm);
+  background: white;
+  color: var(--theme-text-secondary);
+  font-size: 13px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: var(--theme-font-family);
+  transition: all 0.25s ease;
+  font-family: inherit;
+  font-weight: 500;
 }
 
 .payment-btn:hover {
-  background: rgba(235, 86, 74, 0.1);
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
+  background: rgba(var(--theme-primary-rgb), 0.02);
 }
 
 .payment-btn.active {
-  background: var(--theme-primary);
-  color: var(--theme-text-light);
-  font-weight: bold;
-  border-color: var(--theme-primary);
+  background: var(--theme-accent);
+  color: white;
+  font-weight: 600;
+  border-color: var(--theme-accent);
+  box-shadow: 0 2px 8px rgba(var(--theme-primary-rgb), 0.2);
 }
 
 .payment-hint {
-  color: var(--theme-text-secondary);
-  font-size: var(--theme-font-size-xs);
+  color: var(--theme-text-muted);
+  font-size: 11px;
   text-align: center;
-  margin-top: var(--theme-spacing-xs);
-  font-family: var(--theme-font-family);
+  margin-top: 6px;
+  opacity: 0.7;
+  letter-spacing: 0.5px;
 }
 
 .form-actions {
   display: flex;
-  gap: var(--theme-spacing-md);
+  gap: 10px;
   margin-top: var(--theme-spacing-md);
 }
 
 .submit-btn,
 .clear-btn {
   flex: 1;
-  padding: var(--theme-spacing-xs) var(--theme-spacing-xs);
+  padding: 12px 16px;
   border: none;
-  border-radius: var(--theme-border-radius);
+  border-radius: var(--theme-border-radius-sm);
   font-size: var(--theme-font-size-md);
-  font-weight: bold;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  font-family: var(--theme-font-family);
-  box-shadow: var(--theme-shadow);
+  transition: all 0.25s ease;
+  font-family: inherit;
+  letter-spacing: 2px;
 }
 
 .submit-btn {
-  background: var(--theme-primary);
+  background: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-primary) 100%);
   color: var(--theme-text-light);
+  box-shadow: 0 2px 8px rgba(var(--theme-primary-rgb), 0.25);
 }
 
 .submit-btn:hover:not(:disabled) {
-  background: var(--theme-primary-dark);
-  box-shadow: var(--theme-shadow-hover);
   transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(var(--theme-primary-rgb), 0.35);
+}
+
+.submit-btn:active {
+  transform: translateY(0);
 }
 
 .submit-btn:disabled {
-  background: #ccc;
-  color: #999;
+  background: var(--theme-border);
+  color: var(--theme-text-muted);
   cursor: not-allowed;
   box-shadow: none;
 }
 
 .clear-btn {
-  background: rgba(255, 255, 255, 0.8);
-  color: var(--theme-text-primary);
-  border: 1px solid var(--theme-border-color);
+  background: white;
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
 }
 
 .clear-btn:hover {
-  background: rgba(235, 86, 74, 0.1);
+  background: rgba(var(--theme-primary-rgb), 0.02);
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
 }
 
 .success-message {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: #4CAF50;
+  top: 24px;
+  right: 24px;
+  background: linear-gradient(135deg, #34A853 0%, #2E8B47 100%);
   color: white;
-  padding: var(--theme-spacing-md) var(--theme-spacing-lg);
-  border-radius: var(--theme-border-radius);
-  font-weight: bold;
-  box-shadow: var(--theme-shadow);
+  padding: 14px 20px;
+  border-radius: var(--theme-border-radius-sm);
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(52, 168, 83, 0.3);
   animation: slideIn 0.3s ease;
   z-index: 1000;
-  font-family: var(--theme-font-family);
+  font-family: inherit;
+  letter-spacing: 1px;
 }
 
 @keyframes slideIn {

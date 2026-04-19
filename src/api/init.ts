@@ -1,5 +1,5 @@
 import { bridge } from './bridge'
-import type { DatabaseAPI, AppAPI, ElectronAPI } from '../types/database'
+import type { DatabaseAPI, AppAPI, TauriAPI } from '../types/database'
 
 function initAPI() {
   const db: DatabaseAPI = {
@@ -22,15 +22,27 @@ function initAPI() {
     generatePDF: bridge.generatePDF,
   }
 
-  const electronAPI: ElectronAPI = {
+  const electronAPI: TauriAPI = {
     openDatabaseFile: bridge.openDatabaseFile,
     createNewDatabase: bridge.createNewDatabase,
     switchDatabase: bridge.switchDatabase,
     saveCurrentDatabase: bridge.saveCurrentDatabase,
+    renameDatabase: bridge.renameDatabase,
     getRecentDatabases: bridge.getRecentDatabases,
     deleteDatabase: bridge.deleteDatabase,
+    getDatabaseTheme: bridge.getDatabaseTheme,
+    updateDatabaseTheme: bridge.updateDatabaseTheme,
+    updateDatabaseEventDate: bridge.updateDatabaseEventDate,
     openImportFile: bridge.openImportFile,
     parseImportFile: bridge.parseImportFile,
+    openFontFile: bridge.openFontFile,
+    getSystemFontsList: bridge.getSystemFontsList,
+    getDataPath: bridge.getDataPath,
+    getDefaultDataPath: bridge.getDefaultDataPath,
+    selectDataFolder: bridge.selectDataFolder,
+    setCustomDataPath: bridge.setCustomDataPath,
+    openPathInExplorer: bridge.openPathInExplorer,
+    saveFileDialog: bridge.saveFileDialog,
   }
 
   window.db = db

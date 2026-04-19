@@ -40,26 +40,28 @@
         <div
           v-for="record in paginatedRecords"
           :key="record.id"
-          v-memo="[record.id, record.guestName, record.amount, record.itemDescription, record.paymentType, record.remark, record.isDeleted, record.id === highlightedRecordId, record.id ? newRecordIds.has(record.id) : false]"
           class="record-column"
           :class="{ 
             'deleted': record.isDeleted, 
             'highlighted': record.id === highlightedRecordId,
-            'new-record': record.id && newRecordIds.has(record.id)
+            'new-record': record.id && newRecordIds.has(record.id),
+            'compact': displayStyle === 'compact'
           }"
           @contextmenu.prevent="showContextMenu($event, record)"
         >
+        <!-- ==================== 完整大字型模板 ==================== -->
+        <template v-if="displayStyle !== 'compact'">
           <!-- 姓名标签 -->
           <div class="cell label-cell">
             <span class="label-text">姓名</span>
           </div>
-          
+
           <!-- 姓名展示框（竖排文字） -->
           <div class="cell name-cell">
             <div class="name-text" :style="{ fontSize: getAdaptiveFontSize(record.guestName, true) + 'px' }">
-              <span 
-                v-for="(char, index) in record.guestName.split('')" 
-                :key="index" 
+              <span
+                v-for="(char, index) in record.guestName.split('')"
+                :key="index"
                 class="name-char"
                 :style="getCharStyle(record.guestName.length, index)"
               >
@@ -67,60 +69,176 @@
               </span>
             </div>
           </div>
-          
-          <!-- 备注（固定显示，无数据留空） -->
-          <div class="cell remark-cell">
-            <span class="remark-text">{{ record.remark || '\u00A0' }}</span>
-          </div>
-          
+
           <!-- 礼金标签 -->
           <div class="cell label-cell">
             <span class="label-text">礼金</span>
           </div>
-          
-          <!-- 礼金展示框（大写金额和物品，左右并排竖排） -->
+
+          <!-- 礼金展示框（仅大写金额，竖排） -->
           <div class="cell amount-cell">
-            <div class="amount-content-horizontal">
-              <span class="amount-chinese" :style="{ fontSize: getAdaptiveFontSize(numberToChinese(record.amount), false, !!record.itemDescription) + 'px' }">
-                {{ numberToChinese(record.amount) }}
+            <span class="amount-chinese" :style="{ fontSize: getAdaptiveFontSize(numberToChinese(record.amount), false) + 'px' }">
+              {{ numberToChinese(record.amount) }}
+            </span>
+          </div>
+
+          <!-- 小写金额 + 支付方式小字标签 -->
+          <div class="cell payment-cell">
+            <span class="amount-number">¥{{ formatAmount(record.amount) }}</span>
+            <span class="payment-short-label">{{ getPaymentShortLabel(record.paymentType) }}</span>
+          </div>
+
+          <!-- 礼品标签 -->
+          <div class="cell label-cell">
+            <span class="label-text">礼品</span>
+          </div>
+
+          <!-- 礼品展示框（竖排文字） -->
+          <div class="cell gift-cell">
+            <div v-if="record.itemDescription" class="vertical-text" :style="{ fontSize: getAdaptiveFontSize(record.itemDescription, false) + 'px' }">
+              <span
+                v-for="(char, index) in record.itemDescription.split('')"
+                :key="'g'+index"
+                class="vertical-char"
+                :style="getCharStyle(record.itemDescription.length, index)"
+              >
+                {{ char }}
               </span>
-              <span v-if="record.itemDescription" class="item-description">{{ record.itemDescription }}</span>
+            </div>
+            <span v-else class="empty-placeholder">&nbsp;</span>
+          </div>
+
+          <!-- 地址标签 -->
+          <div class="cell label-cell">
+            <span class="label-text">地址</span>
+          </div>
+
+          <!-- 地址展示框（竖排文字） -->
+          <div class="cell address-cell">
+            <div v-if="record.remark" class="vertical-text" :style="{ fontSize: getAdaptiveFontSize(record.remark, false) + 'px' }">
+              <span
+                v-for="(char, index) in record.remark.split('')"
+                :key="'a'+index"
+                class="vertical-char"
+                :style="getCharStyle(record.remark.length, index)"
+              >
+                {{ char }}
+              </span>
+            </div>
+            <span v-else class="empty-placeholder">&nbsp;</span>
+          </div>
+        </template>
+
+        <!-- ==================== 简洁紧凑型模板 ==================== -->
+        <template v-else>
+          <!-- 姓名标签 -->
+          <div class="cell label-cell">
+            <span class="label-text">姓名</span>
+          </div>
+
+          <!-- 姓名展示框（竖排大字，两端对齐） -->
+          <div class="cell name-cell">
+            <div class="name-text" :style="{ fontSize: getAdaptiveFontSize(record.guestName, true) + 'px' }">
+              <span
+                v-for="(char, index) in record.guestName.split('')"
+                :key="index"
+                class="name-char"
+                :style="getCharStyle(record.guestName.length, index)"
+              >
+                {{ char }}
+              </span>
             </div>
           </div>
-          
-          <!-- 支付方式和金额小写 -->
+
+          <!-- 备注展示框（水平显示，在姓名右侧） -->
+          <div class="cell remark-cell">
+            <span v-if="record.remark" class="remark-text">
+              {{ record.remark }}
+            </span>
+            <span v-else class="empty-placeholder">&nbsp;</span>
+          </div>
+
+          <!-- 礼金标签 -->
+          <div class="cell label-cell">
+            <span class="label-text">礼金</span>
+          </div>
+
+          <!-- 礼金展示框（横向布局：大写+物品竖排） -->
+          <div class="cell amount-cell compact-amount-cell">
+            <div class="amount-vertical-row">
+              <!-- 大写金额竖排 -->
+              <div class="amount-chinese-vertical">
+                <span 
+                  class="amount-chinese-char"
+                  :style="{ fontSize: getAdaptiveFontSize(numberToChinese(record.amount), false) + 'px' }"
+                >
+                  {{ numberToChinese(record.amount) }}
+                </span>
+              </div>
+              <!-- 物品竖排（在金额右侧） -->
+              <div v-if="record.itemDescription" class="item-vertical">
+                <span
+                  v-for="(char, index) in record.itemDescription.split('')"
+                  :key="index"
+                  class="item-char"
+                >
+                  {{ char }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 支付方式单元格 -->
           <div class="cell payment-cell">
-            <img 
-              :src="getPaymentIcon(record.paymentType)" 
-              :alt="getPaymentLabel(record.paymentType)"
-              class="payment-icon"
-            />
+            <span class="payment-label-text">{{ getPaymentShortLabel(record.paymentType) }}</span>
             <span class="amount-number">¥{{ formatAmount(record.amount) }}</span>
           </div>
-          
+        </template>
+        
         </div>
         
         <!-- 
           空白列填充
           用于保持每页固定显示15格，不足时显示空白占位
           使用 v-show 控制显示，避免 DOM 频繁创建销毁导致闪烁
+          根据 displayStyle 显示不同的空白列结构
         -->
-        <div 
-          v-for="n in pageSize" 
-          :key="'empty-' + n" 
-          v-show="n <= emptyColumns"
-          class="record-column empty-column"
-        >
-          <div class="cell label-cell"><span class="label-text">姓名</span></div>
-          <div class="cell name-cell"><span class="name-text"></span></div>
-          <div class="cell remark-cell"><span class="remark-text">&nbsp;</span></div>
-          <div class="cell label-cell"><span class="label-text">礼金</span></div>
-          <div class="cell amount-cell"><span class="amount-chinese"></span></div>
-          <div class="cell payment-cell">
-            <div class="payment-placeholder"></div>
-            <span class="amount-number"></span>
+        <template v-for="n in pageSize" :key="'empty-' + n">
+          <!-- 完整大字型空白列 -->
+          <div
+            v-if="displayStyle !== 'compact'"
+            v-show="n <= emptyColumns"
+            class="record-column empty-column"
+          >
+            <div class="cell label-cell"><span class="label-text">姓名</span></div>
+            <div class="cell name-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell label-cell"><span class="label-text">礼金</span></div>
+            <div class="cell amount-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell payment-cell">
+              <span class="amount-number"></span>
+              <span class="payment-short-label"></span>
+            </div>
+            <div class="cell label-cell"><span class="label-text">礼品</span></div>
+            <div class="cell gift-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell label-cell"><span class="label-text">地址</span></div>
+            <div class="cell address-cell"><span class="empty-placeholder">&nbsp;</span></div>
           </div>
-        </div>
+          <!-- 简洁紧凑型空白列 -->
+          <div
+            v-else
+            v-show="n <= emptyColumns"
+            class="record-column empty-column compact"
+          >
+            <div class="cell label-cell"><span class="label-text">姓名</span></div>
+            <div class="cell name-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell remark-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell label-cell"><span class="label-text">礼金</span></div>
+            <div class="cell amount-cell"><span class="empty-placeholder">&nbsp;</span></div>
+            <div class="cell payment-cell">
+              <span class="amount-number"></span>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
 
@@ -188,9 +306,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, shallowRef } from 'vue';
 import IconSvg from './IconSvg.vue';
+import '../types/database';
 import type { Record } from '../types/database';
 import { numberToChinese, formatAmount } from '../utils/amountConverter';
-import { PaymentType, getPaymentTypeText } from '../constants';
+import { getPaymentTypeText } from '../constants';
 
 // ==================== 动画相关 ====================
 // 使用响应式 Set 跟踪新记录动画状态（更高效）
@@ -218,6 +337,7 @@ const props = defineProps<{
   currentPage?: number;
   totalPages?: number;
   pageSize?: number;
+  displayStyle?: 'full' | 'compact';
 }>();
 
 const emit = defineEmits<{
@@ -306,7 +426,7 @@ const handleDeleteClick = async () => {
   hideContextMenu();
   console.log('菜单已隐藏');
   
-  const confirmed = await confirm(`确定要删除 ${record.guestName} 的记录吗？`);
+  const confirmed = await window.confirmDialog(`确定要删除 ${record.guestName} 的记录吗？`);
   console.log('用户确认结果:', confirmed);
   
   if (confirmed) {
@@ -420,30 +540,23 @@ const handlePageInput = (event: Event) => {
 };
 
 // ==================== 辅助函数 ====================
-const getPaymentIcon = (type: number): string => {
-  const icons: { [key: number]: string } = {
-    [PaymentType.CASH]: './images/现金收入icon.png',
-    [PaymentType.WECHAT]: './images/微信收入icon.png',
-    [PaymentType.INTERNAL]: './images/内收收入icon.png',
-  };
-  return icons[type] || icons[PaymentType.CASH];
-};
 
-const getPaymentLabel = (type: number): string => {
+// 支付方式全称标签（用于小字标记）
+const getPaymentShortLabel = (type: number): string => {
   return getPaymentTypeText(type);
 };
 
-// 根据文字长度计算自适应字号（最大40，最小20）
-const getAdaptiveFontSize = (text: string, isName: boolean = false, hasItem: boolean = false): number => {
-  const maxSize = 40;
+// 根据文字长度计算自适应字号（最大28，最小20）
+const getAdaptiveFontSize = (text: string, isName: boolean = false): number => {
+  const maxSize = isName ? 28 : 28;   /* 姓名和金额最大28px */
   const minSize = 20;
-  const maxLength = isName ? 3 : (hasItem ? 2 : 3);
+  const maxLength = isName ? 3 : 4;  /* 姓名3字内最大，金额4字内最大 */
 
   if (!text || text.length <= maxLength) {
     return maxSize;
   }
 
-  const reduceSize = (text.length - maxLength) * 9;
+  const reduceSize = (text.length - maxLength) * 6;  /* 每超1字减6px */
   return Math.max(minSize, maxSize - reduceSize);
 };
 
@@ -495,13 +608,17 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 
+/*
   ========================================
-  礼金簿容器
+  礼金簿展示 - 日式极简风格
   ========================================
-  - height: 100% 占满父容器高度
-  - display: flex + flex-direction: column 垂直排列
+  数据列表布局保持不变
 */
+
+/* 通用样式 */
+/* ======================================== */
+
+/* 礼金簿容器 */
 .giftbook-container {
   height: 100%;
   display: flex;
@@ -510,16 +627,11 @@ defineExpose({
   border-radius: var(--theme-border-radius);
   box-shadow: var(--theme-shadow);
   overflow: hidden;
+  border: 1px solid var(--theme-border);
+  position: relative;
 }
 
-/* 
-  ========================================
-  礼金簿内容区
-  ========================================
-  - flex: 1 占据剩余空间
-  - position: relative 为宣纸背景定位
-  - padding: 内边距
-*/
+/* 礼金簿内容区 */
 .giftbook-content {
   flex: 1;
   position: relative;
@@ -529,18 +641,7 @@ defineExpose({
   max-width: 1290px;
 }
 
-/* 
-  ========================================
-  宣纸背景
-  ========================================
-  - position: absolute 绝对定位覆盖整个区域
-  - opacity: 0.18 透明度18%
-  - pointer-events: none 不拦截鼠标事件
-  
-  调整建议：
-  - 修改透明度：调整 opacity（0-1）
-  - 修改背景图：更换 background-image
-*/
+/* 宣纸背景 - 降低透明度，更加淡雅 */
 .paper-background {
   position: absolute;
   top: 0;
@@ -550,21 +651,11 @@ defineExpose({
   background-image: url('/images/洒金宣纸肌理.png');
   background-size: cover;
   background-position: center;
-  opacity: 0.45;
+  opacity: 0.20;
   pointer-events: none;
 }
 
-/* 
-  ========================================
-  礼金表格网格
-  ========================================
-  - display: flex 弹性布局，横向排列
-  - gap: 列间距（CSS变量控制）
-  - overflow-x: auto 横向滚动
-  
-  调整建议：
-  - 修改列间距：调整 theme.css 中的 --grid-column-gap
-*/
+/* 礼金表格网格 */
 .records-grid {
   position: relative;
   height: 100%;
@@ -578,61 +669,48 @@ defineExpose({
   max-width: 1290px;
 }
 
-/* 
-  ========================================
-  单列样式
-  ========================================
-  - width: 列宽（CSS变量控制，默认72px）
-  - background: 半透明白色背景
-  - border: 边框（只保留左、上、下，右边框由相邻列共享）
-  - writing-mode: vertical-rl 竖排文字
-  
-  调整建议：
-  - 修改列宽：调整 theme.css 中的 --grid-column-width
-  - 修改背景透明度：调整 rgba 的第四个值（0-1）
-  - 修改圆角：调整 border-radius
-*/
+/* 单列基础样式 - 新配色方案 */
 .record-column {
-  width: var(--grid-column-width);    /* 72px */
+  width: var(--grid-column-width);
   min-width: var(--grid-column-width);
-  height: 507px;                      /* 固定高度507px */
-  min-height: 507px;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.185);  /* 白色90%不透明 */
-  border: 1px solid rgba(235, 86, 74, 0.28);
-  border-right: none;  /* 去掉右边框，由相邻列共享 */
-  border-radius: 0;  /* 去掉圆角 */
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(139, 41, 66, 0.15);
+  border-right: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
-  padding: var(--theme-spacing-sm);   /* 8px */
-  box-shadow: none;  /* 去掉阴影 */
+  padding: var(--theme-spacing-sm);
+  box-shadow: none;
   transition: all 0.3s ease;
 }
 
 /* 最后一列补上右边框 */
 .record-column:last-child {
-  border-right: 1px solid rgba(235, 86, 74, 0.15);
+  border-right: 1px solid rgba(139, 41, 66, 0.12);
 }
 
-/* 悬停效果：去掉阴影和上浮 */
+/* 悬停效果 */
 .record-column:hover {
   box-shadow: none;
   transform: none;
+  background: rgba(255, 255, 255, 0.90);
 }
 
 /* 已删除记录样式 */
 .record-column.deleted {
   opacity: 0.5;
-  background: rgba(200, 200, 200, 0.8);
+  background: rgba(230, 230, 230, 0.7);
+  border-color: rgba(90, 90, 90, 0.10);
 }
 
-/* 高亮动画 */
+/* 高亮动画 - 朱砂红 */
 @keyframes highlight-pulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(235, 86, 74, 0.7);
+    box-shadow: 0 0 0 0 rgba(199, 62, 58, 0.6);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(235, 86, 74, 0);
+    box-shadow: 0 0 0 6px rgba(199, 62, 58, 0);
   }
 }
 
@@ -640,9 +718,10 @@ defineExpose({
   animation: highlight-pulse 1s ease-in-out 1;
   border: 2px solid var(--theme-accent);
   z-index: 10;
+  background: rgba(255, 255, 255, 0.95);
 }
 
-/* 新记录入场动画 - 简化动画，提升流畅度 */
+/* 新记录入场动画 */
 @keyframes slide-in-from-top {
   0% {
     opacity: 0;
@@ -659,7 +738,7 @@ defineExpose({
   will-change: transform, opacity;
 }
 
-/* 优化性能：使用 GPU 加速 */
+/* GPU 加速 */
 .record-column {
   transform: translateZ(0);
   backface-visibility: hidden;
@@ -667,67 +746,46 @@ defineExpose({
 
 /* 空白列样式 */
 .empty-column {
-  opacity: 0.4;
-  background: rgba(255, 255, 255, 0.5);
-  border-color: rgba(235, 86, 74, 0.08);  /* 空白列边框更淡 */
+  opacity: 0.35;
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(139, 41, 66, 0.06);
 }
 
-/* 空白列最后一列补上右边框 */
 .empty-column:last-child {
-  border-right: 1px solid rgba(235, 86, 74, 0.08);
+  border-right: 1px solid rgba(139, 41, 66, 0.06);
 }
 
-/* 
-  ========================================
-  单元格通用样式
-  ========================================
-*/
+/* 单元格通用样式 */
 .cell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: var(--theme-spacing-xs) 0;  /* 4px */
-  border-bottom: 1px dotted rgba(235, 86, 74, 0.12);  /* 点线分隔，更细更淡 */
+  padding: var(--theme-spacing-xs) 0;
+  border-bottom: 1px dotted rgba(139, 41, 66, 0.10);
 }
 
-.cell:last-child { border-bottom: none; }
+.cell:last-child {
+  border-bottom: none;
+}
 
 /* 标签单元格 */
-.label-cell { padding: var(--theme-spacing-xs) 0; }
+.label-cell {
+  padding: var(--theme-spacing-xs) 0;
+}
 
 .label-text {
-  font-size: var(--theme-font-size-xs);  /* 12px */
+  font-size: var(--theme-font-size-xs);
   color: var(--theme-primary);
   font-weight: bold;
-  writing-mode: horizontal-tb;  /* 水平文字 */
-  font-family: var(--font-family-fixed);  /* 固定文字使用宋体 */
+  writing-mode: horizontal-tb;
+  font-family: var(--font-family-fixed);
+  letter-spacing: 1px;
 }
 
-/* 
-  ========================================
-  姓名单元格
-  ========================================
-  - writing-mode: vertical-rl 竖排从右到左
-  - text-orientation: upright 文字直立
-  - letter-spacing: 字间距
-  
-  调整建议：
-  - 修改字号：调整 font-size
-  - 修改字间距：调整 letter-spacing
-*/
-.name-cell {
-  flex: 0 0 auto;
-  height: 170px;  /* 固定姓名框高度170px */
-  min-height: 150px;
-  justify-content: space-between;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
+/* 姓名文字样式 */
 .name-text {
   color: var(--theme-text-primary);
-  font-family: var(--font-name-amount);  /* 姓名使用演示春风楷 */
+  font-family: var(--font-name-amount);
   height: 100%;
   width: 100%;
   position: relative;
@@ -742,91 +800,42 @@ defineExpose({
   text-orientation: upright;
 }
 
-/* 备注单元格 */
-.remark-cell {
-  flex: 0 0 auto;
-  height: 21px;                       /* 固定高度21px */
-  min-height: 21px;
-  max-height: 21px;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.remark-text {
-  font-size: var(--theme-font-size-xs);  /* 12px */
-  color: var(--theme-text-secondary);
-  /* 此处文字为横排，故注释掉此处代码 */
-  /* writing-mode: vertical-rl;
-  text-orientation: upright;*/
-}
-
-/* 礼金单元格（大写金额） */
-.amount-cell {
-  flex: 0 0 auto;
-  height: 200px;  /* 固定礼金框高度200px */
-  min-height: 180px;
-  justify-content: center;
-}
-
-.amount-content {
+/* 竖排文字通用容器 */
+.vertical-text {
+  color: var(--theme-text-primary);
+  font-family: var(--font-name-amount);
+  height: 100%;
+  width: 100%;
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-}
-
-/* 金额和物品左右并排 */
-.amount-content-horizontal {
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: flex-start;
-  gap: 0px;
-  height: 100%;
-}
-
-.amount-chinese {
-  color: var(--theme-text-primary);
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  letter-spacing: 2px;
-  line-height: 1.6;
-  transition: font-size 0.2s ease;
-  font-family: var(--font-name-amount);  /* 大写金额使用演示春风楷 */
-}
-
-.item-description {
-  font-size: var(--theme-font-size-xs);  /* 12px */
-  color: var(--theme-text-secondary);
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  letter-spacing: 1px;
-  max-height: 100%;
   overflow: hidden;
 }
 
-/* 支付方式单元格 */
+.vertical-char {
+  display: block;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+}
+
+/* 空白占位符 */
+.empty-placeholder {
+  color: transparent;
+}
+
+/* 支付方式单元格基础样式 */
 .payment-cell {
   flex: 0 0 auto;
-  gap: var(--theme-spacing-xs);
-  padding: var(--theme-spacing-sm) 0;
-}
-
-.payment-icon {
-  width: 24px;    /* 图标宽度 */
-  height: 24px;   /* 图标高度 */
-  object-fit: contain;
-}
-
-.payment-placeholder {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.1);
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2px;
+  padding: var(--theme-spacing-xs) 0;
 }
 
 .amount-number {
-  font-size: var(--theme-font-size-xs);  /* 12px */
+  font-size: var(--theme-font-size-xs);
   color: var(--theme-text-secondary);
 }
 
@@ -837,7 +846,7 @@ defineExpose({
   justify-content: center;
   gap: var(--theme-spacing-xs);
   padding-top: var(--theme-spacing-sm);
-  border-top: 1px solid rgba(235, 86, 74, 0.2);
+  border-top: 1px dashed rgba(139, 41, 66, 0.15);
 }
 
 .action-btn {
@@ -855,44 +864,58 @@ defineExpose({
 }
 
 .action-btn:hover {
-  background: rgba(235, 86, 74, 0.1);
+  background: rgba(199, 62, 58, 0.08);
   transform: scale(1.1);
 }
 
-/* 
-  ========================================
-  分页控制栏
-  ========================================
-*/
+/* 分页控制栏 */
 .pagination-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--theme-spacing-md) var(--theme-spacing-lg);  /* 16px 24px */
-  background: rgba(235, 86, 74, 0.05);
-  border-top: 1px solid rgba(235, 86, 74, 0.2);
+  padding: 14px 24px;
+  background: rgba(var(--theme-primary-rgb), 0.02);
+  border-top: 1px solid var(--theme-border);
+  position: relative;
+}
+
+.pagination-bar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--theme-accent), transparent);
+  opacity: 0.4;
 }
 
 .page-btn {
-  padding: var(--theme-spacing-sm) var(--theme-spacing-lg);  /* 8px 24px */
-  border: 1px solid var(--theme-accent);
-  border-radius: var(--theme-border-radius);
-  background: transparent;
-  color: var(--theme-accent);
-  font-family: var(--theme-font-family);
-  font-size: var(--theme-font-size-sm);  /* 14px */
+  padding: 8px 18px;
+  border: none;
+  border-radius: var(--theme-border-radius-sm);
+  background: var(--theme-accent);
+  color: white;
+  font-size: var(--theme-font-size-sm);
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.25s ease;
+  font-weight: 500;
+  font-family: inherit;
+  box-shadow: 0 2px 6px rgba(var(--theme-primary-rgb), 0.2);
 }
 
 .page-btn:hover:not(:disabled) {
-  background: var(--theme-accent);
-  color: var(--theme-text-light);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(var(--theme-primary-rgb), 0.3);
 }
 
 .page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  background: var(--theme-border);
+  color: var(--theme-text-muted);
+  box-shadow: none;
 }
 
 .page-info {
@@ -903,40 +926,42 @@ defineExpose({
 }
 
 .page-number {
-  font-size: var(--theme-font-size-md);  /* 16px */
-  font-weight: bold;
+  font-size: var(--theme-font-size-md);
+  font-weight: 600;
   color: var(--theme-text-primary);
 }
 
 .record-count {
-  font-size: var(--theme-font-size-xs);  /* 12px */
-  color: var(--theme-text-secondary);
+  font-size: 12px;
+  color: var(--theme-text-muted);
 }
 
 /* 页码输入框样式 */
 .page-input-wrapper {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   font-size: var(--theme-font-size-md);
   color: var(--theme-text-primary);
 }
 
 .page-input {
   width: 50px;
-  padding: 4px 8px;
-  border: 1px solid var(--theme-border-color);
-  border-radius: 4px;
+  padding: 6px 10px;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius-sm);
   text-align: center;
   font-size: 14px;
   background: white;
   color: var(--theme-text-primary);
-  font-family: var(--theme-font-family);
+  font-family: inherit;
+  transition: all 0.25s ease;
 }
 
 .page-input:focus {
   outline: none;
   border-color: var(--theme-accent);
+  box-shadow: 0 0 0 2px rgba(var(--theme-primary-rgb), 0.08);
 }
 
 /* 隐藏数字输入框的上下箭头 */
@@ -947,49 +972,59 @@ defineExpose({
 }
 
 /* 滚动条样式 */
-.records-grid::-webkit-scrollbar { height: 6px; }
-.records-grid::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.05); border-radius: 3px; }
-.records-grid::-webkit-scrollbar-thumb { background: var(--theme-accent); border-radius: 3px; }
-.records-grid::-webkit-scrollbar-thumb:hover { background: var(--theme-accent-dark); }
+.records-grid::-webkit-scrollbar {
+  height: 6px;
+}
 
-/* 
-  ========================================
-  右键菜单
-  ========================================
-  - position: fixed 固定定位，相对于视口
-  - z-index: 9999 确保在最上层
-  - box-shadow: 阴影效果
-*/
+.records-grid::-webkit-scrollbar-track {
+  background: rgba(var(--theme-primary-rgb), 0.04);
+  border-radius: 3px;
+}
+
+.records-grid::-webkit-scrollbar-thumb {
+  background: var(--theme-accent);
+  border-radius: 3px;
+  opacity: 0.7;
+}
+
+.records-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-accent-dark);
+  opacity: 1;
+}
+
+/* 右键菜单 */
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: white;
-  border: 1px solid var(--theme-border-color);
-  border-radius: var(--theme-border-radius);
-  box-shadow: var(--theme-shadow);
+  background: var(--theme-paper);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius-sm);
+  box-shadow: var(--theme-shadow-lg);
   min-width: 120px;
   overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .context-menu-item {
   display: flex;
   align-items: center;
   gap: var(--theme-spacing-sm);
-  padding: var(--theme-spacing-sm) var(--theme-spacing-md);
+  padding: 12px 16px;
   cursor: pointer;
   transition: all 0.2s;
-  font-family: var(--theme-font-family);
   font-size: var(--theme-font-size-sm);
   color: var(--theme-text-primary);
 }
 
 .context-menu-item:hover {
-  background: rgba(235, 86, 74, 0.1);
+  background: rgba(var(--theme-primary-rgb), 0.06);
+  color: var(--theme-accent);
 }
 
 .context-menu-item.delete:hover {
-  background: rgba(255, 0, 0, 0.1);
-  color: #ff4444;
+  background: rgba(239, 68, 68, 0.06);
+  color: #ef4444;
 }
 
 .menu-icon {
@@ -998,5 +1033,222 @@ defineExpose({
 
 .menu-text {
   flex: 1;
+}
+
+/* 空白列透明背景 */
+.empty-column .cell {
+  background: transparent;
+}
+
+/* 支付方式圆点 */
+.payment-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.payment-dot.cash { background: #10B981; }
+.payment-dot.wechat { background: #07C160; }
+.payment-dot.internal { background: #6366F1; }
+.payment-dot.transfer { background: #8B5CF6; }
+
+
+/* 完整型布局样式 */
+/* ======================================== */
+/* 布局类型: 完整型
+   主要设计特点: 包含姓名、礼金、礼品、地址四个主要字段，垂直排列
+   关键尺寸参数: 记录列高度770px，姓名单元格180px，礼金单元格160px，礼品和地址单元格各120px
+   与其他布局的区别: 展示更多信息，布局更宽松，适合详细查看记录 */
+
+/* 完整型布局记录列高度 */
+.record-column {
+  height: 770px;
+  min-height: 770px;
+}
+
+/* 完整型姓名单元格 */
+.record-column:not(.compact) .name-cell {
+  flex: 0 0 auto;
+  height: 180px;
+  min-height: 160px;
+  justify-content: space-between;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 完整型礼品单元格 */
+.record-column:not(.compact) .gift-cell {
+  flex: 0 0 auto;
+  height: 120px;
+  min-height: 100px;
+  justify-content: space-between;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 完整型地址单元格 */
+.record-column:not(.compact) .address-cell {
+  flex: 0 0 auto;
+  height: 120px;
+  min-height: 100px;
+  justify-content: flex-start;
+  padding-top: var(--theme-spacing-xs);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 完整型礼金单元格 */
+.record-column:not(.compact) .amount-cell {
+  flex: 0 0 auto;
+  height: 160px;
+  min-height: 140px;
+  justify-content: center;
+}
+
+/* 完整型礼金金额样式 */
+.record-column:not(.compact) .amount-chinese {
+  color: var(--theme-accent);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 3px;
+  line-height: 1.6;
+  transition: font-size 0.2s ease;
+  font-family: var(--font-name-amount);
+}
+
+/* 完整型支付方式短标签 */
+.record-column:not(.compact) .payment-short-label {
+  font-size: 10px;
+  color: var(--theme-text-secondary);
+  opacity: 0.6;
+  font-family: var(--font-family-fixed);
+}
+
+
+/* 紧凑型布局样式 */
+/* ======================================== */
+/* 布局类型: 紧凑型
+   主要设计特点: 紧凑布局，包含姓名、备注、礼金、支付方式四个字段，优化空间利用
+   关键尺寸参数: 记录列高度650px，姓名单元格250px，礼金单元格250px，备注单元格35px
+   与其他布局的区别: 布局更紧凑，信息密度更高，适合在有限空间内显示更多记录 */
+
+/* 紧凑型布局记录列高度调整 */
+.record-column.compact {
+  height: 650px;
+  min-height: 650px;
+}
+
+/* 紧凑型姓名单元格 - 高度250px */
+.record-column.compact .name-cell {
+  height: 250px;
+  min-height: 230px;
+  justify-content: space-between;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 紧凑型礼金单元格 - 高度250px */
+.record-column.compact .amount-cell {
+  height: 250px;
+  min-height: 230px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--theme-spacing-xs) 0;
+}
+
+/* 礼金横向行容器（大写+物品并排） */
+.record-column.compact .amount-vertical-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+}
+
+/* 紧凑型大写金额竖排容器 */
+.record-column.compact .amount-chinese-vertical {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  height: 100%;
+  font-family: var(--font-name-amount);
+  color: var(--theme-accent);
+}
+
+/* 紧凑型大写金额字符 */
+.record-column.compact .amount-chinese-char {
+  font-family: var(--font-name-amount);
+  color: var(--theme-accent);
+}
+
+/* 紧凑型物品竖排容器 */
+.record-column.compact .item-vertical {
+  display: block;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  height: 100%;
+  font-family: var(--font-name-amount);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+/* 紧凑型物品字符 */
+.record-column.compact .item-char {
+  font-family: var(--font-name-amount);
+  color: var(--theme-text-secondary);
+  font-size: 12px;
+  display: inline-block;
+  margin: 0 2px;
+}
+
+/* 紧凑型备注单元格 */
+.record-column.compact .remark-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--theme-spacing-xs) 0;
+  border-bottom: 1px dotted rgba(139, 41, 66, 0.10);
+  height: 35px;
+  min-height: 35px;
+}
+
+/* 紧凑型备注文字（水平显示） */
+.record-column.compact .remark-text {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  font-family: var(--font-name-amount);
+  text-align: center;
+  word-break: break-all;
+  max-height: 100px;
+  overflow: hidden;
+}
+
+/* 紧凑型支付方式文字标签 */
+.record-column.compact .payment-label-text {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  font-family: var(--font-name-amount);
+  margin-bottom: 4px;
+}
+
+/* 紧凑型支付单元格中的金额 */
+.record-column.compact .payment-cell .amount-number {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  font-family: var(--font-family-fixed);
 }
 </style>

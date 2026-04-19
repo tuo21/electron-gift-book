@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { Record, RecordHistory, Statistics, ApiResponse, PaginationResult } from '../types/database'
+import type { Record, RecordHistory, Statistics, ApiResponse, PaginationResult, FontInfo } from '../types/database'
 
 function wrapResult<T>(result: T): ApiResponse<T> {
   return { success: true, data: result }
@@ -139,9 +139,14 @@ export const bridge = {
     }
   },
 
-  async createNewDatabase(fileName: string): Promise<ApiResponse<{ filePath: string }>> {
+  async createNewDatabase(fileName: string, theme?: string, eventName?: string, eventDate?: string): Promise<ApiResponse<{ filePath: string }>> {
     try {
-      const result = await invoke<string>('create_new_database', { fileName })
+      const result = await invoke<string>('create_new_database', { 
+        fileName, 
+        theme, 
+        eventName, 
+        eventDate 
+      })
       return wrapResult({ filePath: result })
     } catch (e) {
       return wrapError(String(e))
@@ -166,10 +171,46 @@ export const bridge = {
     }
   },
 
-  async getRecentDatabases(): Promise<ApiResponse<{ recentDatabases: { name: string; path: string; lastOpened: string }[] }>> {
+  async renameDatabase(oldPath: string, newFileName: string): Promise<ApiResponse<{ newPath: string }>> {
     try {
-      const result = await invoke<{ name: string; path: string; lastOpened: string }[]>('get_recent_databases')
+      const result = await invoke<string>('rename_database', { oldPath, newFileName })
+      return wrapResult({ newPath: result })
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getRecentDatabases(): Promise<ApiResponse<{ recentDatabases: { name: string; path: string; createdAt: string; lastModified: string; lastOpened: string; theme?: string; eventName?: string; eventDate?: string }[] }>> {
+    try {
+      const result = await invoke<{ name: string; path: string; createdAt: string; lastModified: string; lastOpened: string; theme?: string; eventName?: string; eventDate?: string }[]>('get_recent_databases')
       return wrapResult({ recentDatabases: result })
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getDatabaseTheme(filePath: string): Promise<ApiResponse<string | null>> {
+    try {
+      const result = await invoke<string | null>('get_database_theme', { filePath })
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async updateDatabaseTheme(filePath: string, theme: string): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('update_database_theme', { filePath, theme })
+      return wrapResult(undefined as void)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async updateDatabaseEventDate(filePath: string, eventDate: string): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('update_database_event_date', { filePath, eventDate })
+      return wrapResult(undefined as void)
     } catch (e) {
       return wrapError(String(e))
     }
@@ -197,6 +238,69 @@ export const bridge = {
     try {
       const result = await invoke<{ headers: string[]; data: any[]; totalRows: number }>('parse_import_file', { filePath })
       return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async openFontFile(): Promise<ApiResponse<{ filePath: string }>> {
+    try {
+      const result = await invoke<string>('open_font_file')
+      return wrapResult({ filePath: result })
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getSystemFontsList(): Promise<ApiResponse<FontInfo[]>> {
+    try {
+      const result = await invoke<FontInfo[]>('get_system_fonts_list')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getDataPath(): Promise<ApiResponse<string>> {
+    try {
+      const result = await invoke<string>('get_data_path')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getDefaultDataPath(): Promise<ApiResponse<string>> {
+    try {
+      const result = await invoke<string>('get_default_data_path')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async selectDataFolder(): Promise<ApiResponse<string>> {
+    try {
+      const result = await invoke<string>('select_data_folder')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async setCustomDataPath(path: string, migrate: boolean): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('set_custom_data_path', { path, migrate })
+      return wrapResult(undefined as void)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async openPathInExplorer(path: string): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('open_path_in_explorer', { path })
+      return wrapResult(undefined as void)
     } catch (e) {
       return wrapError(String(e))
     }

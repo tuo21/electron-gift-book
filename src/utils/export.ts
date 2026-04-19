@@ -98,16 +98,21 @@ function getEventDate(records: Record[]): Date {
   return new Date(earliestRecord.createTime)
 }
 
-function generateExportFileName(eventName: string, eventDate?: Date): string {
-  const date = eventDate || new Date()
+function generateExportFileName(eventName: string, eventDate?: string | Date): string {
+  let date: Date
+  if (eventDate) {
+    date = typeof eventDate === 'string' ? new Date(eventDate) : eventDate
+  } else {
+    date = new Date()
+  }
   const dateStr = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`
   const cleanName = eventName.replace(/[\\/:*?"<>|]/g, '_')
   return `${cleanName}_${dateStr}`
 }
 
-export async function exportToExcel(records: Record[], eventName: string = '电子礼金簿'): Promise<void> {
-  const eventDate = getEventDate(records)
-  const defaultFileName = generateExportFileName(eventName, eventDate) + '.xlsx'
+export async function exportToExcel(records: Record[], eventName: string = '电子礼金簿', eventDate?: string): Promise<void> {
+  const exportDate = eventDate || getEventDate(records)
+  const defaultFileName = generateExportFileName(eventName, exportDate) + '.xlsx'
 
   const data = records.map((record, index) => ({
     '序号': index + 1,
@@ -157,9 +162,10 @@ export async function exportToPDF(
   records: Record[],
   eventName: string = '电子礼金簿',
   theme: 'red' | 'gray' = 'red',
+  eventDate?: string,
   onProgress?: (progress: number) => void
 ): Promise<void> {
-  const result = await exportToPDFWithSave(records, eventName, theme, onProgress)
+  const result = await exportToPDFWithSave(records, eventName, theme, eventDate, onProgress)
   
   if (!result.success) {
     if (result.error !== '用户取消保存') {

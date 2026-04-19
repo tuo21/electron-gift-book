@@ -1,26 +1,28 @@
 import { ref } from 'vue'
 
-const BASELINE_WIDTH = 1522
-const BASELINE_HEIGHT = 930
+const BASELINE_WIDTH = 1650
+const BASELINE_HEIGHT = 1170
+const MIN_WINDOW_WIDTH = 1650
+const MIN_WINDOW_HEIGHT = 1080
 const MIN_SCALE = 0.7
-const MAX_SCALE = 3
+const MAX_SCALE = 1.5
 const scale = ref(1)
 
-function calculateScale(): number {
+function updateScale(): void {
   const w = window.innerWidth
   const h = window.innerHeight
 
-  const sx = w / BASELINE_WIDTH
-  const sy = h / BASELINE_HEIGHT
+  // 限制最小宽高
+  const constrainedWidth = Math.max(w, MIN_WINDOW_WIDTH)
+  const constrainedHeight = Math.max(h, MIN_WINDOW_HEIGHT)
+  
+  const scaleX = constrainedWidth / BASELINE_WIDTH
+  const scaleY = constrainedHeight / BASELINE_HEIGHT
 
-  const candidate = Math.min(sx, sy)
+  // 使用较小的缩放比例，确保内容不会超出窗口
+  const finalScale = Math.min(scaleX, scaleY)
 
-  return Math.max(MIN_SCALE, Math.min(MAX_SCALE, candidate))
-}
-
-function updateScale(): void {
-  const newScale = calculateScale()
-  scale.value = newScale
+  scale.value = Math.max(MIN_SCALE, Math.min(MAX_SCALE, finalScale))
   document.documentElement.style.setProperty('--fullscreen-scale', scale.value.toString())
 }
 

@@ -6,10 +6,121 @@ use base64::Engine;
 use crate::database::*;
 use crate::models::*;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 async fn get_pool_connection() -> Result<sqlx::SqlitePool, String> {
     let pool = get_pool();
     let pool_guard = pool.read().await;
     pool_guard.clone().ok_or("数据库未初始化".to_string())
+}
+
+#[tauri::command]
+pub async fn update_database_event_date(
+    file_path: String,
+    event_date: String,
+) -> Result<ApiResponse<()>, String> {
+    let temp_path = PathBuf::from(&file_path);
+    if !temp_path.exists() {
+        return Err("数据库文件不存在".to_string());
+    }
+
+    let db_url = format!("sqlite:{}", temp_path.to_string_lossy());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect(&db_url)
+        .await
+        .map_err(|e| format!("连接数据库失败: {}", e))?;
+
+    sqlx::query("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('event_date', ?)")
+        .bind(&event_date)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("更新事件日期失败: {}", e))?;
+
+    log::info!("更新数据库事件日期: {}, 日期: {}", file_path, event_date);
+    Ok(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn get_database_theme(file_path: String) -> Result<String, String> {
+    let temp_path = PathBuf::from(&file_path);
+    if !temp_path.exists() {
+        return Err("数据库文件不存在".to_string());
+    }
+
+    let db_url = format!("sqlite:{}", temp_path.to_string_lossy());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect(&db_url)
+        .await
+        .map_err(|e| format!("连接数据库失败: {}", e))?;
+
+    let theme: Option<String> = sqlx::query_scalar("SELECT Value FROM Settings WHERE Key = 'theme'")
+        .fetch_optional(&pool)
+        .await
+        .map_err(|e| format!("读取主题失败: {}", e))?;
+
+    Ok(theme.unwrap_or_else(|| "red".to_string()))
+}
+
+#[tauri::command]
+pub async fn update_database_theme(
+    file_path: String,
+    theme: String,
+) -> Result<ApiResponse<()>, String> {
+    let temp_path = PathBuf::from(&file_path);
+    if !temp_path.exists() {
+        return Err("数据库文件不存在".to_string());
+    }
+
+    let db_url = format!("sqlite:{}", temp_path.to_string_lossy());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect(&db_url)
+        .await
+        .map_err(|e| format!("连接数据库失败: {}", e))?;
+
+    sqlx::query("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('theme', ?)")
+        .bind(&theme)
+        .execute(&pool)
+        .await
+        .map_err(|e| format!("更新主题失败: {}", e))?;
+
+    log::info!("更新数据库主题: {}, 主题: {}", file_path, theme);
+    Ok(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+    })
+}
+
+#[tauri::command]
+pub async fn rename_database(
+    file_path: String,
+    new_name: String,
+) -> Result<String, String> {
+    let path = PathBuf::from(&file_path);
+    if !path.exists() {
+        return Err("数据库文件不存在".to_string());
+    }
+
+    let dir = path.parent().ok_or("无法获取父目录")?;
+    let new_path = dir.join(format!("{}.db", new_name));
+
+    if new_path.exists() {
+        return Err("目标文件已存在".to_string());
+    }
+
+    std::fs::rename(&path, &new_path)
+        .map_err(|e| format!("重命名失败: {}", e))?;
+
+    log::info!("重命名数据库: {} -> {}", file_path, new_path.to_string_lossy());
+    Ok(new_path.to_string_lossy().to_string())
 }
 
 #[tauri::command]
@@ -397,8 +508,10 @@ pub async fn open_database_file(app: AppHandle) -> Result<String, String> {
     }
 }
 
+// 允许 Tauri 命令参数使用 camelCase 命名（与前端一致）
+#[allow(non_snake_case)]
 #[tauri::command]
-pub async fn create_new_database(app: AppHandle, file_name: String) -> Result<String, String> {
+pub async fn create_new_database(app: AppHandle, file_name: String, theme: Option<String>, eventName: Option<String>, eventDate: Option<String>) -> Result<String, String> {
     let data_dir = get_data_dir(&app);
 
     if !data_dir.exists() {
@@ -445,10 +558,154 @@ pub async fn create_new_database(app: AppHandle, file_name: String) -> Result<St
             .map_err(|e| format!("创建表失败: {}", e))?;
     }
 
+    // 保存 event_name 和 event_date 到 Settings 表
+    if let Some(name) = eventName {
+        sqlx::query("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('event_name', ?)")
+            .bind(&name)
+            .execute(&pool)
+            .await
+            .map_err(|e| format!("保存 event_name 失败: {}", e))?;
+    }
+    if let Some(date) = eventDate {
+        sqlx::query("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('event_date', ?)")
+            .bind(&date)
+            .execute(&pool)
+            .await
+            .map_err(|e| format!("保存 event_date 失败: {}", e))?;
+    }
+    if let Some(t) = theme {
+        sqlx::query("INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('theme', ?)")
+            .bind(&t)
+            .execute(&pool)
+            .await
+            .map_err(|e| format!("保存 theme 失败: {}", e))?;
+    }
+
     set_db_path(new_path.clone());
     set_pool(pool).await;
 
     Ok(new_path.to_string_lossy().to_string())
+}
+
+// 从数据库文件中读取 event_name, event_date 和 theme
+async fn read_database_event_info(db_path: &str) -> (Option<String>, Option<String>, Option<String>) {
+    let db_url = format!("sqlite:{}?mode=ro", db_path);
+    
+    match sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(&db_url)
+        .await
+    {
+        Ok(pool) => {
+            let event_name = sqlx::query_scalar::<_, String>(
+                "SELECT Value FROM Settings WHERE Key = 'event_name'"
+            )
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten();
+            
+            let event_date = sqlx::query_scalar::<_, String>(
+                "SELECT Value FROM Settings WHERE Key = 'event_date'"
+            )
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten();
+
+            let theme = sqlx::query_scalar::<_, String>(
+                "SELECT Value FROM Settings WHERE Key = 'theme'"
+            )
+            .fetch_optional(&pool)
+            .await
+            .ok()
+            .flatten();
+            
+            pool.close().await;
+            (event_name, event_date, theme)
+        }
+        Err(_) => (None, None, None),
+    }
+}
+
+#[tauri::command]
+pub async fn get_data_path(_app: AppHandle) -> Result<String, String> {
+    let custom_dir = get_custom_data_dir();
+    match custom_dir {
+        Some(dir) => Ok(dir.to_string_lossy().to_string()),
+        None => Ok("default".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn get_default_data_path(app: AppHandle) -> Result<String, String> {
+    let data_dir = get_data_dir(&app);
+    Ok(data_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub async fn select_data_folder(app: AppHandle) -> Result<String, String> {
+    let folder_path = app
+        .dialog()
+        .file()
+        .set_title("选择数据存储文件夹")
+        .blocking_pick_folder();
+
+    match folder_path {
+        Some(path) => Ok(path.to_string()),
+        None => Err("用户取消选择".to_string()),
+    }
+}
+
+#[tauri::command]
+pub async fn set_custom_data_path(_app: AppHandle, path: String, _migrate: bool) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    
+    if !path_buf.exists() {
+        return Err("选择的文件夹不存在".to_string());
+    }
+    
+    if !path_buf.is_dir() {
+        return Err("选择的不是文件夹".to_string());
+    }
+    
+    // 设置自定义数据目录
+    crate::database::set_custom_data_dir(path_buf.clone());
+    
+    // 确保目录存在
+    if !path_buf.exists() {
+        std::fs::create_dir_all(&path_buf)
+            .map_err(|e| format!("创建文件夹失败: {}", e))?;
+    }
+    
+    // 如果有当前数据库，需要移动到新的路径
+    if let Some(current_path) = get_db_path() {
+        if current_path.exists() {
+            let file_name = current_path.file_name().ok_or("无法获取数据库文件名")?;
+            let new_path = path_buf.join(file_name);
+            
+            // 关闭当前数据库连接
+            clear_pool().await;
+            
+            // 移动文件
+            if current_path != new_path {
+                std::fs::copy(&current_path, &new_path)
+                    .map_err(|e| format!("复制数据库文件失败: {}", e))?;
+                
+                // 重新连接到新位置的数据库
+                let db_url = format!("sqlite:{}", new_path.to_string_lossy());
+                let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                    .connect(&db_url)
+                    .await
+                    .map_err(|e| format!("重新连接数据库失败: {}", e))?;
+                
+                set_db_path(new_path.clone());
+                set_pool(pool).await;
+            }
+        }
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -541,17 +798,29 @@ pub async fn get_recent_databases(app: AppHandle) -> Result<Vec<RecentDatabase>,
             let path = entry.path();
             if path.extension().map(|e| e == "db").unwrap_or(false) {
                 if let Ok(metadata) = entry.metadata() {
-                    if let Ok(modified) = metadata.modified() {
-                        let datetime: chrono::DateTime<chrono::Utc> = modified.into();
-                        databases.push(RecentDatabase {
-                            name: path
-                                .file_stem()
-                                .map(|s| s.to_string_lossy().to_string())
-                                .unwrap_or_default(),
-                            path: path.to_string_lossy().to_string(),
-                            last_opened: datetime.to_rfc3339(),
-                        });
-                    }
+                    let created = metadata.created().unwrap_or_else(|_| metadata.modified().unwrap_or(std::time::SystemTime::now()));
+                    let modified = metadata.modified().unwrap_or(std::time::SystemTime::now());
+                    
+                    let created_datetime: chrono::DateTime<chrono::Utc> = created.into();
+                    let modified_datetime: chrono::DateTime<chrono::Utc> = modified.into();
+                    let path_str = path.to_string_lossy().to_string();
+                    
+                    // 从数据库文件中读取 event_name, event_date 和 theme
+                    let (event_name, event_date, theme) = read_database_event_info(&path_str).await;
+                    
+                    databases.push(RecentDatabase {
+                        name: path
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default(),
+                        path: path_str,
+                        created_at: created_datetime.to_rfc3339(),
+                        last_modified: modified_datetime.to_rfc3339(),
+                        last_opened: modified_datetime.to_rfc3339(),
+                        theme,
+                        event_name,
+                        event_date,
+                    });
                 }
             }
         }
@@ -734,4 +1003,51 @@ pub async fn get_system_font(font_name: String) -> Result<String, String> {
     }
 
     Err(format!("未找到系统字体: {}", font_name))
+}
+
+#[tauri::command]
+pub async fn open_path_in_explorer(path: String) -> Result<(), String> {
+    let path_buf = PathBuf::from(&path);
+    
+    if !path_buf.exists() {
+        return Err(format!("路径不存在: {}", path));
+    }
+    
+    #[cfg(target_os = "windows")]
+    {
+        if path_buf.is_dir() {
+            // 打开目录
+            std::process::Command::new("explorer")
+                .arg(&path)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| format!("打开资源管理器失败: {}", e))?;
+        } else {
+            // 打开文件所在目录并选中文件
+            std::process::Command::new("explorer")
+                .arg("/select,")
+                .arg(&path)
+                .creation_flags(CREATE_NO_WINDOW)
+                .spawn()
+                .map_err(|e| format!("打开资源管理器失败: {}", e))?;
+        }
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开 Finder 失败: {}", e))?;
+    }
+    
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("打开文件管理器失败: {}", e))?;
+    }
+    
+    Ok(())
 }

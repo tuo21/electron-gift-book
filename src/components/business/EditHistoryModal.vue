@@ -1,61 +1,64 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click="emit('close')">
-      <div class="modal-container" @click.stop>
-        <div class="modal-content edit-history-modal">
-          <div class="modal-header">
-            <h3 class="modal-title">修改记录</h3>
-            <button class="modal-close" @click="emit('close')">×</button>
+    <div class="history-overlay" @click.self="handleClose">
+      <div class="history-dialog">
+        <!-- 标题栏 -->
+        <div class="dialog-header">
+          <h3 class="dialog-title">修改记录</h3>
+          <button class="close-btn" @click="handleClose">
+            <IconSvg name="close" :size="18" />
+          </button>
+        </div>
+
+        <!-- 内容区 -->
+        <div class="dialog-body">
+          <div v-if="editHistoryList.length === 0" class="empty-history">
+            暂无修改记录
           </div>
-          <div class="modal-body">
-            <div v-if="editHistoryList.length === 0" class="empty-history">
-              暂无修改记录
-            </div>
-            <div v-else class="history-list">
-              <div
-                v-for="(history, index) in editHistoryList"
-                :key="index"
-                class="history-item"
-                :class="{ 
-                  'deleted-item': history.operationType === 'DELETE',
-                  'restore-item': history.operationType === 'RESTORE'
-                }"
-                @contextmenu.prevent="showContextMenu($event, history)"
-              >
-                <div class="history-header">
-                  <span class="history-name">{{ history.guestName }}</span>
-                  <span class="history-time">{{ history.updateTime }}</span>
-                  <span v-if="history.operationType === 'DELETE'" class="delete-badge">已删除</span>
-                  <span v-if="history.operationType === 'RESTORE'" class="restore-badge">已还原</span>
-                </div>
-                <div class="history-changes">
-                  <template v-if="history.operationType === 'DELETE'">
-                    <div class="change-row">
-                      <span class="change-label">删除前：</span>
-                      <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
+          <div v-else class="history-list">
+            <div
+              v-for="(history, index) in editHistoryList"
+              :key="index"
+              class="history-item"
+              :class="{ 
+                'deleted-item': history.operationType === 'DELETE',
+                'restore-item': history.operationType === 'RESTORE'
+              }"
+              @contextmenu.prevent="showContextMenu($event, history)"
+            >
+              <div class="history-header">
+                <span class="history-name">{{ history.guestName }}</span>
+                <span class="history-time">{{ history.updateTime }}</span>
+                <span v-if="history.operationType === 'DELETE'" class="delete-badge">已删除</span>
+                <span v-if="history.operationType === 'RESTORE'" class="restore-badge">已还原</span>
+              </div>
+              <div class="history-changes">
+                <template v-if="history.operationType === 'DELETE'">
+                  <div class="change-row">
+                    <span class="change-label">删除前：</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
+                  </div>
+                </template>
+                <template v-else-if="history.operationType === 'RESTORE'">
+                  <div class="change-row">
+                    <span class="change-label">还原数据：</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
+                  </div>
+                </template>
+                <template v-else>
+                  <div v-if="hasFieldChanges(history)" class="field-changes">
+                    <div v-for="(change, idx) in getFieldChanges(history)" :key="idx" class="field-change-item">
+                      <span class="field-label">{{ change.label }}：</span>
+                      <span class="field-old">{{ change.oldValue || '(空)' }}</span>
+                      <span class="field-arrow">→</span>
+                      <span class="field-new">{{ change.newValue || '(空)' }}</span>
                     </div>
-                  </template>
-                  <template v-else-if="history.operationType === 'RESTORE'">
-                    <div class="change-row">
-                      <span class="change-label">还原数据：</span>
-                      <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
-                    </div>
-                  </template>
-                  <template v-else>
-                    <div v-if="hasFieldChanges(history)" class="field-changes">
-                      <div v-for="(change, idx) in getFieldChanges(history)" :key="idx" class="field-change-item">
-                        <span class="field-label">{{ change.label }}：</span>
-                        <span class="field-old">{{ change.oldValue || '(空)' }}</span>
-                        <span class="field-arrow">→</span>
-                        <span class="field-new">{{ change.newValue || '(空)' }}</span>
-                      </div>
-                    </div>
-                    <div v-else class="change-row">
-                      <span class="change-label">修改前：</span>
-                      <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
-                    </div>
-                  </template>
-                </div>
+                  </div>
+                  <div v-else class="change-row">
+                    <span class="change-label">修改前：</span>
+                    <span class="change-value">{{ history.guestName }} - {{ formatMoney(history.amount || 0) }}{{ history.itemDescription ? ' - ' + history.itemDescription : '' }}</span>
+                  </div>
+                </template>
               </div>
             </div>
           </div>
@@ -69,32 +72,33 @@
       class="context-menu"
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
       @click.stop
-  >
-    <!-- 非删除记录：显示定位到该项和还原修改 -->
-    <template v-if="selectedHistory?.operationType !== 'DELETE'">
-      <div class="context-menu-item" @click="handleLocate">
-        <IconSvg name="map-pin" :size="14" />
-        <span>定位到该项</span>
-      </div>
-      <div class="context-menu-item" @click="handleRevert">
-        <IconSvg name="undo" :size="14" />
-        <span>还原修改</span>
-      </div>
-    </template>
-    <!-- 已删除记录：显示还原数据 -->
-    <template v-else>
-      <div class="context-menu-item restore" @click="handleRestoreDeleted">
-        <IconSvg name="refresh-cw" :size="14" color="#10B981" />
-        <span>还原数据</span>
-      </div>
-    </template>
-  </div>
+    >
+      <!-- 非删除记录：显示定位到该项和还原修改 -->
+      <template v-if="selectedHistory?.operationType !== 'DELETE'">
+        <div class="context-menu-item" @click="handleLocate">
+          <IconSvg name="map-pin" :size="14" />
+          <span>定位到该项</span>
+        </div>
+        <div class="context-menu-item" @click="handleRevert">
+          <IconSvg name="undo" :size="14" />
+          <span>还原修改</span>
+        </div>
+      </template>
+      <!-- 已删除记录：显示还原数据 -->
+      <template v-else>
+        <div class="context-menu-item restore" @click="handleRestoreDeleted">
+          <IconSvg name="refresh-cw" :size="14" color="#10B981" />
+          <span>还原数据</span>
+        </div>
+      </template>
+    </div>
   </Teleport>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import IconSvg from '../IconSvg.vue'
+import '../../types/database'
 import type { RecordHistory } from '../../types/database'
 
 interface Props {
@@ -183,6 +187,10 @@ const hasFieldChanges = (history: RecordHistory): boolean => {
   return getFieldChanges(history).length > 0
 }
 
+const handleClose = () => {
+  emit('close')
+}
+
 // 显示右键菜单
 const showContextMenu = (event: MouseEvent, history: RecordHistory) => {
   event.preventDefault()
@@ -220,7 +228,7 @@ const handleLocate = () => {
 }
 
 // 还原修改
-const handleRevert = () => {
+const handleRevert = async () => {
   if (!selectedHistory.value || selectedHistory.value.operationType === 'DELETE') {
     closeContextMenu()
     return
@@ -231,7 +239,7 @@ const handleRevert = () => {
 
   closeContextMenu()
 
-  if (!confirm('确定要还原此修改吗？')) return
+  if (!await window.confirmDialog('确定要还原此修改吗？')) return
 
   emit('revert', historyToRevert)
 }
@@ -255,7 +263,7 @@ const handleRestoreDeleted = () => {
     console.log('[EditHistoryModal] setTimeout 回调执行，准备弹出确认对话框')
     
     // 弹出确认对话框（注意：confirm 可能是异步的，需要使用 await）
-    const confirmed = await confirm(`确定要还原 ${historyToRestore.guestName} 的数据吗？`)
+    const confirmed = await window.confirmDialog(`确定要还原 ${historyToRestore.guestName} 的数据吗？`)
     console.log('[EditHistoryModal] 用户确认结果:', confirmed)
     
     // 用户取消，不执行操作
@@ -276,80 +284,106 @@ const handleRestoreDeleted = () => {
 </script>
 
 <style scoped>
-.modal-overlay {
+/* 遮罩层 */
+.history-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  animation: fadeIn 0.2s ease;
 }
 
-.modal-container {
-  background: #f5f0e8;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  min-width: 500px;
-  max-width: 90vw;
-  max-height: 80vh;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-.modal-content {
+/* 弹窗主体 */
+.history-dialog {
+  width: 580px;
+  max-height: 85vh;
+  background: var(--theme-paper);
+  border-radius: var(--theme-border-radius-lg);
+  box-shadow: var(--theme-shadow-lg), 0 20px 60px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--theme-border);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.modal-header {
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* 标题栏 */
+.dialog-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
-  border-bottom: 1px solid #d4c8b8;
-  flex-shrink: 0;
+  justify-content: space-between;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid var(--theme-border);
 }
 
-.modal-title {
+.dialog-title {
   font-size: 18px;
-  color: #333;
+  font-weight: 600;
+  color: var(--theme-text-primary);
   margin: 0;
+  letter-spacing: 0.5px;
 }
 
-.modal-close {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #666;
-  cursor: pointer;
-  padding: 0;
+.close-btn {
   width: 32px;
   height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.3s;
+  color: var(--theme-text-muted);
+  transition: all 0.2s;
 }
 
-.modal-close:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #333;
+.close-btn:hover {
+  background: rgba(var(--theme-primary-rgb), 0.08);
+  color: var(--theme-accent);
 }
 
-.modal-body {
-  padding: 20px;
-  max-height: calc(80vh - 60px);
-  overflow-y: auto;
+/* 内容区 */
+.dialog-body {
   flex: 1;
+  overflow-y: auto;
+  padding: 24px 28px;
+}
+
+/* 滚动条 */
+.dialog-body::-webkit-scrollbar {
+  width: 5px;
+}
+
+.dialog-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dialog-body::-webkit-scrollbar-thumb {
+  background: var(--theme-border-color);
+  border-radius: 3px;
+  opacity: 0.4;
 }
 
 .empty-history {
   text-align: center;
   padding: 40px;
-  color: #666;
+  color: var(--theme-text-secondary);
   font-size: 14px;
 }
 
@@ -360,43 +394,55 @@ const handleRestoreDeleted = () => {
 }
 
 .history-item {
-  background: rgba(235, 86, 74, 0.05);
-  border: 1px solid rgba(235, 86, 74, 0.2);
-  border-radius: 8px;
-  padding: 12px;
+  background: linear-gradient(135deg, rgba(var(--theme-primary-rgb), 0.02) 0%, rgba(var(--theme-primary-rgb), 0.05) 100%);
+  border: 1px solid rgba(var(--theme-primary-rgb), 0.12);
+  border-radius: var(--theme-border-radius);
+  padding: 16px;
   cursor: context-menu;
+  transition: all 0.25s ease;
+}
+
+.history-item:hover {
+  border-color: rgba(var(--theme-primary-rgb), 0.25);
+  box-shadow: 0 2px 8px rgba(var(--theme-primary-rgb), 0.08);
+  transform: translateY(-1px);
 }
 
 .history-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid rgba(235, 86, 74, 0.1);
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed rgba(var(--theme-primary-rgb), 0.15);
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .history-name {
-  font-weight: bold;
+  font-weight: 600;
   font-size: 14px;
-  color: #333;
+  color: var(--theme-text-primary);
+  flex: 1;
+  min-width: 120px;
 }
 
 .history-time {
   font-size: 12px;
-  color: #666;
+  color: var(--theme-text-secondary);
+  flex-shrink: 0;
 }
 
 .history-changes {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .field-changes {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .field-change-item {
@@ -405,71 +451,80 @@ const handleRestoreDeleted = () => {
   gap: 8px;
   font-size: 13px;
   padding: 4px 0;
+  flex-wrap: wrap;
 }
 
 .field-label {
-  color: #666;
+  color: var(--theme-text-secondary);
   font-weight: 500;
   min-width: 70px;
   flex-shrink: 0;
 }
 
 .field-old {
-  color: #666;
+  color: var(--theme-text-secondary);
   text-decoration: line-through;
   opacity: 0.7;
+  flex: 1;
+  min-width: 100px;
 }
 
 .field-arrow {
-  color: #666;
+  color: var(--theme-text-secondary);
   opacity: 0.5;
   margin: 0 4px;
+  flex-shrink: 0;
 }
 
 .field-new {
-  color: #EB564A;
-  font-weight: bold;
+  color: var(--theme-accent);
+  font-weight: 600;
+  flex: 1;
+  min-width: 100px;
 }
 
 .change-row {
   display: flex;
   gap: 8px;
   font-size: 13px;
+  flex-wrap: wrap;
 }
 
 .change-label {
-  color: #666;
+  color: var(--theme-text-secondary);
   flex-shrink: 0;
 }
 
 .change-value {
-  color: #333;
+  color: var(--theme-text-primary);
   word-break: break-all;
+  flex: 1;
+  min-width: 200px;
 }
 
 .change-value.new-value {
-  color: #EB564A;
-  font-weight: bold;
+  color: var(--theme-accent);
+  font-weight: 600;
 }
 
 /* 删除记录样式 */
 .deleted-item {
-  background: rgba(239, 68, 68, 0.05);
-  border-color: rgba(239, 68, 68, 0.3);
+  background: rgba(239, 68, 68, 0.03);
+  border-color: rgba(239, 68, 68, 0.15);
 }
 
 .deleted-item .history-header {
-  border-bottom-color: rgba(239, 68, 68, 0.2);
+  border-bottom-color: rgba(239, 68, 68, 0.1);
 }
 
 /* 还原记录样式 */
 .restore-item {
-  background: rgba(16, 185, 129, 0.05);
-  border-color: rgba(16, 185, 129, 0.3);
+  background: rgba(16, 185, 129, 0.03);
+  border-color: rgba(16, 185, 129, 0.2);
 }
 
 .restore-item .history-header {
-  border-bottom-color: rgba(16, 185, 129, 0.2);
+  border-bottom-color: rgba(16, 185, 129, 0.15);
 }
 
 .delete-badge {
@@ -477,8 +532,9 @@ const handleRestoreDeleted = () => {
   color: white;
   font-size: 12px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--theme-border-radius);
   margin-left: 8px;
+  flex-shrink: 0;
 }
 
 .restore-badge {
@@ -486,20 +542,27 @@ const handleRestoreDeleted = () => {
   color: white;
   font-size: 12px;
   padding: 2px 8px;
-  border-radius: 4px;
+  border-radius: var(--theme-border-radius);
   margin-left: 8px;
+  flex-shrink: 0;
 }
 
 /* 右键菜单 */
 .context-menu {
   position: fixed;
-  background: white;
-  border: 1px solid #d4c8b8;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+  background: #FFFFFF;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--theme-border-radius);
+  box-shadow: var(--theme-shadow-lg), 0 4px 20px rgba(0, 0, 0, 0.12);
+  z-index: 10000;
   min-width: 140px;
   padding: 4px 0;
+  animation: menuFadeIn 0.15s ease;
+}
+
+@keyframes menuFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 .context-menu-item {
@@ -508,13 +571,14 @@ const handleRestoreDeleted = () => {
   gap: 8px;
   padding: 8px 16px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
   font-size: 13px;
-  color: #333;
+  color: var(--theme-text-primary);
 }
 
 .context-menu-item:hover {
-  background: rgba(235, 86, 74, 0.1);
+  background: rgba(var(--theme-primary-rgb), 0.05);
+  color: var(--theme-accent);
 }
 
 .context-menu-item.disabled {
@@ -531,12 +595,43 @@ const handleRestoreDeleted = () => {
 }
 
 .context-menu-item.restore:hover {
-  background: rgba(16, 185, 129, 0.1);
+  background: rgba(16, 185, 129, 0.06);
 }
 
 .menu-icon {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 底部操作栏 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 28px 20px;
+  border-top: 1px solid var(--theme-border);
+}
+
+.footer-btn {
+  padding: 10px 28px;
+  border-radius: var(--theme-border-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  border: none;
+}
+
+.footer-btn.cancel {
+  background: transparent;
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
+}
+
+.footer-btn.cancel:hover {
+  background: rgba(var(--theme-primary-rgb), 0.04);
+  color: var(--theme-text-primary);
 }
 </style>

@@ -8,12 +8,21 @@ export interface AppConfig {
   currentDbPath: string | null;
   recentBooks: RecentBook[];
   unnamedIndex: number;
+  // 展示样式：full=完整大字型, compact=简洁紧凑型
+  displayStyle: 'full' | 'compact';
+  // 自定义书法字体（CSS 字体名称，如 SimSun, KaiTi 等）
+  customFontCssName: string | null;
+  // 事务日期 YYYY-MM-DD 格式
+  eventDate: string | null;
 }
 
 export interface RecentBook {
   name: string;
   path: string;
   lastOpened: string;
+  theme?: string;
+  eventName?: string;
+  eventDate?: string;
 }
 
 // ==================== 常量定义 ====================
@@ -23,10 +32,13 @@ const DEFAULT_EVENT_NAME = '';
 // ==================== 响应式状态 ====================
 const config = ref<AppConfig>({
   eventName: DEFAULT_EVENT_NAME,
-  theme: 'wedding',
+  theme: 'red',
   currentDbPath: null,
   recentBooks: [],
   unnamedIndex: 1,
+  displayStyle: 'full',
+  customFontCssName: null,
+  eventDate: null,
 });
 
 // ==================== 计算属性 ====================
@@ -46,10 +58,13 @@ const hasCurrentData = computed(() => {
 function getDefaultConfig(): AppConfig {
   return {
     eventName: DEFAULT_EVENT_NAME,
-    theme: 'wedding',
+    theme: 'red',
     currentDbPath: null,
     recentBooks: [],
     unnamedIndex: 1,
+    displayStyle: 'full',
+    customFontCssName: null,
+    eventDate: null,
   };
 }
 
@@ -99,6 +114,41 @@ function setEventName(name: string): void {
 function setTheme(theme: ThemeType): void {
   config.value.theme = theme;
   saveConfig();
+}
+
+/**
+ * 设置展示样式
+ * @param style 展示样式（full=完整大字型, compact=简洁紧凑型）
+ */
+function setDisplayStyle(style: 'full' | 'compact'): void {
+  config.value.displayStyle = style;
+  saveConfig();
+}
+
+/**
+ * 设置自定义字体（CSS 字体名称）
+ * @param fontCssName CSS 字体名称（如 SimSun, KaiTi 等）
+ */
+function setCustomFont(fontCssName: string | null): void {
+  config.value.customFontCssName = fontCssName;
+  saveConfig();
+}
+
+/**
+ * 设置事务日期
+ * @param date 事务日期 YYYY-MM-DD 格式
+ */
+function setEventDate(date: string): void {
+  config.value.eventDate = date;
+  saveConfig();
+}
+
+/**
+ * 获取事务日期
+ * @returns 事务日期，如果没有设置则返回当前日期
+ */
+function getEventDate(): string {
+  return config.value.eventDate || new Date().toISOString().split('T')[0];
 }
 
 /**
@@ -226,6 +276,10 @@ export function useAppConfig() {
     saveConfig,
     setEventName,
     setTheme,
+    setDisplayStyle,
+    setCustomFont,
+    setEventDate,
+    getEventDate,
     setCurrentDbPath,
     getNextUnnamedIndex,
     generateFileName,

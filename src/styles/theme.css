@@ -1,15 +1,11 @@
 /*
   ========================================
-  电子礼金簿 - 主题系统
+  电子礼金簿 - 日式极简主题系统 v3.0
   ========================================
   
-  本文件定义了应用的所有CSS变量（自定义属性），
-  通过修改这些变量可以快速调整整个应用的样式。
-  
-  使用方式：
-  1. 直接修改下面的变量值
-  2. 在浏览器开发者工具中实时调试
-  3. 通过添加类名切换主题（如 .theme-funeral）
+  设计理念：温润木质 · 匠心雅韵
+  - 灵感来源：日本侘寂美学、北欧简约、木质手工艺
+  - 色彩哲学：自然暖色、留白意境、质感纹理
   
   字体规范：
   - 姓名文本和大写金额：演示春风楷
@@ -26,82 +22,89 @@
   font-display: swap;
 }
 
-/* ==================== 红色喜庆主题（默认） ==================== */
+/* ==================== 红色喜庆主题（默认）==================== */
 :root {
   /* 
     ----------------------------------------
-    主色调
+    主色调 - 温润木红
     ----------------------------------------
-    - primary: 主色（页面背景、按钮背景）
-    - primary-dark: 深色变体（悬停状态）
-    - primary-light: 浅色变体
-    
-    调整建议：
-    - 修改主色：调整 --theme-primary 的值
+    以温暖的木红色为基调，营造亲切典雅的氛围
+    参考日本传统建筑的红木色泽
   */
-  --theme-primary: #EB564A;
-  --theme-primary-dark: #D6453D;
-  --theme-primary-light: #F06B60;
-  
+  --theme-primary: #A0522D;          /* 檀木棕 - 主色，自然温暖 */
+  --theme-primary-dark: #8B4513;      /* 深木 - 悬停状态 */
+  --theme-primary-light: #CD853F;     /* 浅木 - 浅色变体 */
+  --theme-primary-rgb: 160, 82, 45;   /* 用于 rgba 转换 */
+
   /* 
     ----------------------------------------
-    纸张颜色
+    纸张颜色 - 素纸暖白
     ----------------------------------------
-    - paper: 纸张背景色（统计面板、录入表单背景）
-    - paper-opacity: 纸张肌理透明度（0-1）
+    模拟宣纸的温润质感，带有淡淡的暖色调
+    减少冷白色的现代感，增加文化底蕴
   */
-  --theme-paper: #EDEDED;
-  --theme-paper-opacity: 0.18;
-  
+  --theme-paper: #FEFCF8;            /* 素纸白 - 主背景色 */
+  --theme-paper-warm: #F8F5F0;        /* 暖灰白 - 次级背景 */
+  --theme-paper-opacity: 0.15;
+
   /* 
     ----------------------------------------
-    文字颜色
+    文字颜色 - 墨色层次
     ----------------------------------------
-    - text-primary: 主要文字（黑色）
-    - text-secondary: 次要文字（深灰）
-    - text-light: 浅色文字（白色，用于深色背景）
+    区分文字层级，深浅体现主次关系
+    传统书法讲究"计白当黑"，文字也需要层次
   */
-  --theme-text-primary: #000000;
-  --theme-text-secondary: #333333;
-  --theme-text-light: #FFFFFF;
-  
+  --theme-text-primary: #2C2416;     /* 浓墨 - 主要文字 */
+  --theme-text-secondary: #6B5D4D;    /* 淡墨 - 次要文字 */
+  --theme-text-light: #FFFFFF;       /* 留白 - 深色背景上的文字 */
+  --theme-text-muted: #9E9282;       /* 灰墨 - 辅助文字 */
+
   /* 
     ----------------------------------------
-    强调色
+    强调色 - 朱砂点睛
     ----------------------------------------
-    - accent: 强调色（翻页按钮、统计数字）
-    - accent-dark: 深色变体
+    中国传统建筑和书画中的朱红色点缀
+    起到"画龙点睛"的作用
   */
-  --theme-accent: #E6BA37;
-  --theme-accent-dark: #D4A832;
-  
+  --theme-accent: #C75B39;           /* 赭石红 - 强调色 */
+  --theme-accent-dark: #A84832;      /* 深赭 - 悬停状态 */
+  --theme-accent-light: #E07B5A;     /* 浅赭 - 浅色变体 */
+
   /* 
     ----------------------------------------
-    阴影效果
+    边框颜色
     ----------------------------------------
-    - shadow: 默认阴影
-    - shadow-hover: 悬停时阴影（更大更浓）
-    
-    格式：x偏移 y偏移 模糊半径 扩展半径 颜色
+    使用木纹描边，颜色浅淡而不突兀
   */
-  --theme-shadow: 0px 4.32px 12.96px rgba(0, 0, 0, 0.25);
-  --theme-shadow-hover: 0px 6px 18px rgba(0, 0, 0, 0.35);
-  
+  --theme-border: rgba(44, 36, 22, 0.08);   /* 素描淡边 */
+  --theme-border-color: #A0522D;     /* 强调边框 */
+
   /* 
     ----------------------------------------
-    边框
+    阴影效果 - 柔和投影
     ----------------------------------------
-    - border-color: 边框颜色
-    - border-width: 边框宽度
-    - border-radius: 圆角大小
+    传统国画少用浓重阴影，这里使用极淡的阴影
+    营造"水墨晕染"的朦胧美感，同时保持现代感
   */
-  --theme-border-color: #EB564A;
-  --theme-border-width: 1px;
-  --theme-border-radius: 8px;
-  
+  --theme-shadow-sm: 0 1px 3px rgba(44, 36, 22, 0.06);
+  --theme-shadow: 0 4px 12px rgba(44, 36, 22, 0.08);
+  --theme-shadow-lg: 0 8px 24px rgba(44, 36, 22, 0.10);
+  --theme-shadow-hover: 0 8px 20px rgba(44, 36, 22, 0.12);
+
   /* 
     ----------------------------------------
-    字体
+    圆角 - 温润棱角
+    ----------------------------------------
+    适度的圆角，既有现代感的柔和
+    又保留传统的方正之气
+  */
+  --theme-border-radius: 12px;
+  --theme-border-radius-sm: 8px;
+  --theme-border-radius-lg: 16px;
+
+  /* 
+    ----------------------------------------
+    字体系统
     ----------------------------------------
     字体规范：
     - font-name-amount: 姓名和大写金额字体（演示春风楷）
@@ -119,7 +122,7 @@
   */
   --font-name-amount: '演示春风楷', 'KaiTi', 'STKaiti', serif;
   --font-family-fixed: 'SimSun', 'STSong', 'Noto Serif SC', serif;
-  --theme-font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
+  --theme-font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
   --theme-font-size-xxxl: 40px;
   --theme-font-size-xxl: 28px;
   --theme-font-size-xl: 24px;
@@ -127,11 +130,13 @@
   --theme-font-size-md: 16px;
   --theme-font-size-sm: 14px;
   --theme-font-size-xs: 12px;
-  
+
   /* 
     ----------------------------------------
-    间距
+    间距系统 - 疏朗有致
     ----------------------------------------
+    传统美学讲究"疏可走马，密不透风"
+    间距设计追求"疏朗有致"
     - spacing-xl: 超大（32px）
     - spacing-lg: 大（24px，主内容区内边距）
     - spacing-md: 中（16px，面板内边距）
@@ -143,34 +148,13 @@
   --theme-spacing-md: 16px;
   --theme-spacing-sm: 8px;
   --theme-spacing-xs: 4px;
-  
-  /*
-    ----------------------------------------
-    礼金簿网格
-    ----------------------------------------
-    - grid-column-width: 单列宽度（默认80px）
-    - grid-column-gap: 列间距（默认0px）
-    - grid-columns-per-page: 每页列数（默认15）
 
-    调整建议：
-    - 修改列宽：调整 --grid-column-width
-    - 修改列间距：调整 --grid-column-gap
-  */
+  /* 礼金簿网格 */
   --grid-column-width: 80px;
   --grid-column-gap: 0px;
   --grid-columns-per-page: 15;
 
-  /*
-    ----------------------------------------
-    礼金簿展示区基础尺寸参数
-    ----------------------------------------
-    - giftbook-base-width: 基础宽度 1290px（15列*80px + 两侧边距90px）
-    - giftbook-base-height: 基础高度 741px
-    - giftbook-padding-x: 水平边距 45px
-    - giftbook-padding-y: 垂直边距 24px
-    - giftbook-default-window-width: 默认窗口宽度 1444px
-    - giftbook-default-window-height: 默认窗口高度 823px
-  */
+  /* 礼金簿展示区基础尺寸参数 */
   --giftbook-base-width: 1290px;
   --giftbook-base-height: 741px;
   --giftbook-padding-x: 45px;
@@ -182,52 +166,144 @@
   --fullscreen-scale: 1;
 }
 
-/* ==================== 预留主题扩展 ==================== */
+/* ==================== 肃穆灰主题 ==================== */
 /* 
-  切换主题方式：在 body 或 html 标签上添加对应类名
-  例如：<body class="theme-funeral">
+  肃穆灰主题 - 素雅水墨
+  以黑白灰为主色调，保留传统水墨画的素雅意境
+  用于丧仪等庄重场合
 */
-
-/* 丧仪白主题（白事） */
-.theme-funeral {
-  --theme-primary: #4A4A4A;
-  --theme-primary-dark: #333333;
-  --theme-primary-light: #5A5A5A;
-  --theme-paper: #F5F5F5;
-  --theme-paper-opacity: 0.12;
-  --theme-text-primary: #000000;
-  --theme-text-secondary: #333333;
+.theme-gray {
+  --theme-primary: #3D3D3D;          /* 玄灰 - 深沉的灰黑色 */
+  --theme-primary-dark: #2A2A2A;      /* 墨黑 */
+  --theme-primary-light: #5A5A5A;     /* 淡墨 */
+  --theme-primary-rgb: 61, 61, 61;
+  --theme-paper: #F8F8F8;             /* 素白 - 带微暖的白 */
+  --theme-paper-warm: #F0F0F0;
+  --theme-paper-opacity: 0.10;
+  --theme-text-primary: #2A2A2A;      /* 浓墨 */
+  --theme-text-secondary: #5A5A5A;    /* 淡墨 */
   --theme-text-light: #FFFFFF;
-  --theme-accent: #888888;
-  --theme-accent-dark: #666666;
-  --theme-border-color: #4A4A4A;
-  --theme-shadow: 0px 4.32px 12.96px rgba(0, 0, 0, 0.2);
-  --theme-shadow-hover: 0px 6px 18px rgba(0, 0, 0, 0.3);
+  --theme-text-muted: #8A8A8A;        /* 灰墨 */
+  --theme-accent: #4A4A4A;           /* 素灰 - 柔和的强调色 */
+  --theme-accent-dark: #3A3A3A;
+  --theme-accent-light: #6A6A6A;
+  --theme-border: rgba(42, 42, 42, 0.08);
+  --theme-border-color: #3D3D3D;
+  --theme-shadow-sm: 0 1px 3px rgba(42, 42, 42, 0.05);
+  --theme-shadow: 0 4px 12px rgba(42, 42, 42, 0.06);
+  --theme-shadow-lg: 0 8px 24px rgba(42, 42, 42, 0.08);
+  --theme-shadow-hover: 0 8px 20px rgba(42, 42, 42, 0.10);
 }
 
-/* 寿宴金主题（预留） */
-.theme-birthday {
-  --theme-primary: #D4A832;
-  --theme-primary-dark: #B8942F;
-  --theme-primary-light: #E5C040;
-  --theme-paper: #FFF8DC;
-  --theme-paper-opacity: 0.15;
-  --theme-text-primary: #000000;
-  --theme-text-secondary: #333333;
+/* ==================== 寿宴金主题 ==================== */
+/* 
+  寿宴金主题 - 金玉满堂
+  以金色为主调，象征富贵荣华
+  用于祝寿、乔迁等喜庆场合
+*/
+.theme-golden {
+  --theme-primary: #B8860B;          /* 古铜金 */
+  --theme-primary-dark: #8B6914;     /* 深金 */
+  --theme-primary-light: #D4A017;     /* 浅金 */
+  --theme-primary-rgb: 184, 134, 11;
+  --theme-paper: #FDF8F0;             /* 绢白 - 带金光的暖白 */
+  --theme-paper-warm: #FAF5E8;
+  --theme-paper-opacity: 0.12;
+  --theme-text-primary: #3D3D3D;     /* 浓墨 */
+  --theme-text-secondary: #666666;    /* 重墨 */
   --theme-text-light: #FFFFFF;
-  --theme-accent: #DC143C;
-  --theme-accent-dark: #B01030;
-  --theme-border-color: #D4A832;
-  --theme-shadow: 0px 4.32px 12.96px rgba(212, 168, 50, 0.25);
-  --theme-shadow-hover: 0px 6px 18px rgba(212, 168, 50, 0.35);
+  --theme-text-muted: #999999;
+  --theme-accent: #C73E3A;            /* 朱砂红 - 点睛 */
+  --theme-accent-dark: #A52E2A;
+  --theme-accent-light: #E07B5A;
+  --theme-border: rgba(184, 134, 11, 0.12);
+  --theme-border-color: #B8860B;
+  --theme-shadow-sm: 0 1px 3px rgba(184, 134, 11, 0.06);
+  --theme-shadow: 0 4px 12px rgba(184, 134, 11, 0.08);
+  --theme-shadow-lg: 0 8px 24px rgba(184, 134, 11, 0.10);
+  --theme-shadow-hover: 0 8px 20px rgba(184, 134, 11, 0.12);
 }
 
 /* ==================== 主题过渡动画 ==================== */
-/* 为主题切换添加平滑过渡效果 */
 .theme-transition,
 .theme-transition * {
-  transition: background-color 0.3s ease,
-              color 0.3s ease,
-              border-color 0.3s ease,
-              box-shadow 0.3s ease;
+  transition: background-color 0.4s ease,
+              color 0.4s ease,
+              border-color 0.4s ease,
+              box-shadow 0.4s ease;
+}
+
+/* ==================== 玻璃拟态效果 ==================== */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-effect-dark {
+  background: rgba(44, 36, 22, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ==================== 渐变背景 ==================== */
+.gradient-warm {
+  background: linear-gradient(135deg, #FDF8F3 0%, #F8F5F0 50%, #F5F0E8 100%);
+}
+
+.gradient-header {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FEFCF8 100%);
+}
+
+.gradient-card {
+  background: linear-gradient(180deg, #FFFFFF 0%, #FEFCF8 100%);
+}
+
+/* ==================== 按钮悬停效果 ==================== */
+.btn-hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--theme-shadow-hover);
+}
+
+.btn-hover-lift:active {
+  transform: translateY(0);
+}
+
+/* ==================== 焦点样式 ==================== */
+:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 2px;
+}
+
+/* ==================== 选中样式 ==================== */
+::selection {
+  background: rgba(var(--theme-primary-rgb), 0.2);
+  color: var(--theme-text-primary);
+}
+
+/* ==================== 平滑滚动 ==================== */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ==================== 卡片装饰线条 ==================== */
+.card-accent-line {
+  position: relative;
+}
+
+.card-accent-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 4px;
+  height: 100%;
+  background: linear-gradient(180deg, var(--theme-accent) 0%, var(--theme-primary) 100%);
+  border-radius: var(--theme-border-radius-sm) 0 0 var(--theme-border-radius-sm);
 }

@@ -48,19 +48,26 @@ const displayAmount = computed(() => {
 </script>
 
 <style scoped>
+/*
+  ========================================
+  统计面板 - 水墨古韵风格
+  ========================================
+*/
+
 .statistics-panel {
   background: var(--theme-paper);
-  border-radius: var(--theme-border-radius);   /* 8px */
-  padding: 11px;            /* 11px */
+  border-radius: var(--theme-border-radius);
+  padding: 11px;
   box-shadow: var(--theme-shadow);
+  border: 1px solid var(--theme-border);
 }
 
-/* 统计垂直布局：上下排列 */
+/* 统计垂直布局 */
 .stat-vertical {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--theme-spacing-xs);    /* 4px */
+  gap: var(--theme-spacing-xs);
   margin-bottom: var(--theme-spacing-md);
 }
 
@@ -74,13 +81,20 @@ const displayAmount = computed(() => {
 }
 
 .stat-value {
-  font-size: var(--theme-font-size-md);   /* 16px */
+  font-size: var(--theme-font-size-md);
   font-weight: bold;
   color: var(--theme-text-primary);
+  font-family: var(--theme-font-family);
 }
 
 .amount-total {
-  font-size: var(--theme-font-size-md);   /* 16px */
-  color: var(--theme-primary);
+  font-size: var(--theme-font-size-xl);
+  color: var(--theme-accent);
+  font-family: var(--font-name-amount);
+  transition: color 0.3s ease;
+}
+
+.amount-total:hover {
+  color: var(--theme-accent-dark);
 }
 </style>

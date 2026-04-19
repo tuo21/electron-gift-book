@@ -4,10 +4,10 @@ import ImportDialog from './ImportDialog.vue';
 import IconSvg from './IconSvg.vue';
 import type { ImportPreview, ParsedRecord } from '../utils/import';
 import { matchFields } from '../utils/import';
+import type { ThemeType } from '../types/theme';
+import { THEME_CONFIG, getThemeById } from '../types/theme';
 
 // ==================== 类型定义 ====================
-type ThemeType = 'wedding' | 'funeral';
-
 interface RecentFile {
   name: string;
   path: string;
@@ -21,15 +21,15 @@ interface SplashScreenProps {
 }
 
 interface SplashScreenEmits {
-  (e: 'start', data: { eventName: string; theme: ThemeType; action: 'new' | 'open' | 'import'; filePath?: string }): void;
+  (e: 'start', data: { eventName: string; theme: ThemeType; eventDate: string; action: 'new' | 'open' | 'import'; filePath?: string }): void;
   (e: 'delete-file', filePath: string): void;
-  (e: 'import', data: { eventName: string; records: ParsedRecord[] }): void;
+  (e: 'import', data: { eventName: string; records: ParsedRecord[]; eventDate: string }): void;
 }
 
 // ==================== Props & Emits ====================
 const props = withDefaults(defineProps<SplashScreenProps>(), {
   defaultEventName: '',
-  defaultTheme: 'wedding',
+  defaultTheme: 'red',
   recentFiles: () => []
 });
 
@@ -112,6 +112,7 @@ const confirmDelete = async () => {
 // ==================== 响应式数据 ====================
 const eventName = ref(props.defaultEventName);
 const selectedTheme = ref<ThemeType>(props.defaultTheme);
+const eventDate = ref(new Date().toISOString().split('T')[0]); // 默认当前日期，格式 YYYY-MM-DD
 const isAnimating = ref(false);
 const showContent = ref(false);
 const isImporting = ref(false);
@@ -123,31 +124,47 @@ const importPreview = ref<ImportPreview | null>(null);
 const defaultImportName = ref('');
 
 // ==================== 计算属性 ====================
-const isWeddingTheme = computed(() => selectedTheme.value === 'wedding');
-const isFuneralTheme = computed(() => selectedTheme.value === 'funeral');
+const currentThemeMeta = computed(() => getThemeById(selectedTheme.value));
 
-// 主题样式配置
+// 主题样式配置 - 日式极简风格
 const themeStyles = computed(() => {
-  if (isWeddingTheme.value) {
+  const theme = selectedTheme.value;
+  if (theme === 'red') {
     return {
-      background: 'linear-gradient(135deg, #EB564A 0%, #D6453D 100%)',
+      background: 'linear-gradient(135deg, #A0522D 0%, #8B4513 100%)',
       cardBg: '#FFFFFF',
-      primaryColor: '#EB564A',
-      accentColor: '#E6BA37',
-      textColor: '#333333',
-      subtitleColor: '#666666'
+      primaryColor: '#C75B39',
+      accentColor: '#CD853F',
+      textColor: '#2C2416',
+      subtitleColor: '#6B5D4D',
+      btnGradient: 'linear-gradient(135deg, #C75B39 0%, #A0522D 100%)'
     };
-  } else {
+  } else if (theme === 'gray') {
     return {
       background: 'linear-gradient(135deg, #4A4A4A 0%, #333333 100%)',
-      cardBg: '#F5F5F5',
-      primaryColor: '#4A4A4A',
+      cardBg: '#F8F8F8',
+      primaryColor: '#5A5A5A',
       accentColor: '#888888',
-      textColor: '#333333',
-      subtitleColor: '#666666'
+      textColor: '#2A2A2A',
+      subtitleColor: '#5A5A5A',
+      btnGradient: 'linear-gradient(135deg, #5A5A5A 0%, #4A4A4A 100%)'
+    };
+  } else {
+    // golden theme
+    return {
+      background: 'linear-gradient(135deg, #D4A017 0%, #B8860B 100%)',
+      cardBg: '#FEFCF5',
+      primaryColor: '#B8860B',
+      accentColor: '#D4A017',
+      textColor: '#3D3015',
+      subtitleColor: '#7A6B4D',
+      btnGradient: 'linear-gradient(135deg, #D4A017 0%, #B8860B 100%)'
     };
   }
 });
+
+// 所有主题配置（用于UI渲染）
+const allThemes = THEME_CONFIG;
 
 // 格式化日期
 const formatDate = (dateStr: string) => {
@@ -171,13 +188,14 @@ const selectTheme = (theme: ThemeType) => {
 // 新建礼金簿
 const handleCreateNew = async () => {
   if (isAnimating.value) return;
-  
+
   isAnimating.value = true;
-  
+
   // 触发开始事件
   emit('start', {
     eventName: eventName.value.trim(),
     theme: selectedTheme.value,
+    eventDate: eventDate.value,
     action: 'new'
   });
 };
@@ -185,18 +203,19 @@ const handleCreateNew = async () => {
 // 打开最近文件
 const handleOpenRecentFile = async (file: RecentFile) => {
   if (isAnimating.value) return;
-  
+
   // 检查文件路径是否有效
   if (!file.path) {
     alert('文件路径无效');
     isAnimating.value = false;
     return;
   }
-  
+
   isAnimating.value = true;
   emit('start', {
     eventName: '',
     theme: selectedTheme.value,
+    eventDate: eventDate.value,
     action: 'open',
     filePath: file.path
   });
@@ -280,7 +299,8 @@ const handleConfirmImport = (data: { eventName: string; records: ParsedRecord[] 
   // 发送导入事件，包含解析后的数据
   emit('import', {
     eventName: data.eventName,
-    records: data.records
+    records: data.records,
+    eventDate: eventDate.value
   });
 };
 
@@ -302,6 +322,13 @@ onMounted(() => {
     class="splash-screen"
     :style="{ background: themeStyles.background }"
   >
+    <!-- 装饰背景 -->
+    <div class="bg-decoration">
+      <div class="bg-circle circle-1"></div>
+      <div class="bg-circle circle-2"></div>
+      <div class="bg-circle circle-3"></div>
+    </div>
+
     <div 
       class="splash-content"
       :class="{ 'show': showContent, 'hide': isAnimating }"
@@ -324,7 +351,21 @@ onMounted(() => {
           class="event-name-input"
           placeholder="请输入事务名称"
           :style="{ 
-            borderColor: themeStyles.primaryColor,
+            borderColor: 'transparent',
+            '--focus-color': themeStyles.primaryColor 
+          }"
+        />
+      </div>
+
+      <!-- 日期选择 -->
+      <div class="input-section">
+        <label class="input-label">事务日期</label>
+        <input
+          v-model="eventDate"
+          type="date"
+          class="event-date-input"
+          :style="{ 
+            borderColor: 'transparent',
             '--focus-color': themeStyles.primaryColor 
           }"
         />
@@ -334,36 +375,27 @@ onMounted(() => {
       <div class="theme-section">
         <label class="input-label">选择主题</label>
         <div class="theme-options">
-          <!-- 红事主题 -->
           <div
+            v-for="theme in allThemes"
+            :key="theme.id"
             class="theme-card"
-            :class="{ 'selected': isWeddingTheme }"
+            :class="{ 'selected': selectedTheme === theme.id }"
             :style="{ 
-              borderColor: isWeddingTheme ? '#EB564A' : 'transparent',
-              backgroundColor: '#FFF5F5'
+              borderColor: selectedTheme === theme.id ? themeStyles.primaryColor : 'transparent',
+              backgroundColor: themeStyles.cardBg
             }"
-            @click="selectTheme('wedding')"
+            @click="selectTheme(theme.id)"
           >
-            <div class="theme-name wedding-text">喜庆红</div>
-            <div class="theme-desc">婚礼、满月酒等</div>
-            <div v-if="isWeddingTheme" class="selected-indicator" style="background: #EB564A;">
-              <IconSvg name="check" :size="14" color="#FFFFFF" />
+            <div class="theme-icon" :class="`theme-icon-${theme.id}`">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+                <path v-if="theme.id === 'red'" d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="currentColor"/>
+                <circle v-else-if="theme.id === 'gray'" cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.5"/>
+                <path v-else d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="currentColor"/>
+              </svg>
             </div>
-          </div>
-
-          <!-- 白事主题 -->
-          <div
-            class="theme-card"
-            :class="{ 'selected': isFuneralTheme }"
-            :style="{ 
-              borderColor: isFuneralTheme ? '#4A4A4A' : 'transparent',
-              backgroundColor: '#F8F8F8'
-            }"
-            @click="selectTheme('funeral')"
-          >
-            <div class="theme-name funeral-text">肃穆灰</div>
-            <div class="theme-desc">庄重肃穆</div>
-            <div v-if="isFuneralTheme" class="selected-indicator" style="background: #4A4A4A;">
+            <div class="theme-name" :class="`theme-name-${theme.id}`">{{ theme.displayName }}</div>
+            <div class="theme-desc">{{ theme.description.substring(0, 10) }}...</div>
+            <div v-if="selectedTheme === theme.id" class="selected-indicator" :class="`selected-indicator-${theme.id}`">
               <IconSvg name="check" :size="14" color="#FFFFFF" />
             </div>
           </div>
@@ -375,8 +407,8 @@ onMounted(() => {
         <button
           class="action-btn primary-btn"
           :style="{ 
-            backgroundColor: themeStyles.primaryColor,
-            '--hover-color': isWeddingTheme ? '#D6453D' : '#333333'
+            background: themeStyles.btnGradient,
+            '--hover-color': isWeddingTheme ? '#8B4513' : '#333333'
           }"
           @click="handleCreateNew"
           :disabled="isAnimating"
@@ -388,9 +420,9 @@ onMounted(() => {
         <button
           class="action-btn import-btn"
           :style="{ 
-            borderColor: themeStyles.primaryColor,
-            color: themeStyles.primaryColor,
-            '--hover-bg': isWeddingTheme ? '#FFF5F5' : '#F0F0F0'
+            borderColor: 'transparent',
+            color: themeStyles.subtitleColor,
+            '--hover-bg': isWeddingTheme ? 'rgba(160, 82, 45, 0.06)' : 'rgba(74, 74, 74, 0.06)'
           }"
           @click="handleImport"
           :disabled="isAnimating || isImporting"
@@ -439,7 +471,7 @@ onMounted(() => {
       @click.stop
     >
       <div class="context-menu-item delete-item" @click="showDeleteDialog">
-        <IconSvg name="trash" :size="16" color="#EF4444" />
+        <IconSvg name="trash" :size="16" color="#C75B39" />
         <span class="menu-text">删除</span>
       </div>
     </div>
@@ -477,7 +509,13 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ==================== 整体布局 ==================== */
+/*
+  ========================================
+  启动页 - 日式极简风格
+  ========================================
+*/
+
+/* 整体布局 */
 .splash-screen {
   position: fixed;
   top: 0;
@@ -491,18 +529,64 @@ onMounted(() => {
   transition: opacity 0.5s ease;
   overflow-y: auto;
   padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 装饰背景 */
+.bg-decoration {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-circle {
+  position: absolute;
+  border-radius: 50%;
+  opacity: 0.1;
+}
+
+.circle-1 {
+  width: 400px;
+  height: 400px;
+  background: white;
+  top: -100px;
+  right: -100px;
+}
+
+.circle-2 {
+  width: 300px;
+  height: 300px;
+  background: white;
+  bottom: -50px;
+  left: -50px;
+}
+
+.circle-3 {
+  width: 200px;
+  height: 200px;
+  background: white;
+  top: 50%;
+  left: 10%;
+  opacity: 0.05;
 }
 
 .splash-content {
   width: 100%;
-  max-width: 480px;
-  padding: 40px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 16px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-width: 460px;
+  padding: 48px 40px;
+  background: rgba(255, 255, 255, 0.98);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   opacity: 0;
   transform: translateY(30px);
   transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  position: relative;
+  z-index: 1;
 }
 
 .splash-content.show {
@@ -515,82 +599,165 @@ onMounted(() => {
   transform: scale(0.95);
 }
 
-/* ==================== 头部区域 ==================== */
+/* 头部区域 */
 .header-section {
   text-align: center;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
 }
 
 .logo-container {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto 12px;
-  background: linear-gradient(135deg, #f5f5f5 0%, #e0e0e0 100%);
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 16px;
+  background: linear-gradient(135deg, #FEFCF8 0%, #F8F5F0 100%);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(160, 82, 45, 0.15);
+  border: 2px solid rgba(160, 82, 45, 0.08);
 }
 
 .app-logo {
-  width: 52px;
-  height: 52px;
+  width: 56px;
+  height: 56px;
   object-fit: contain;
 }
 
 .app-title {
-  font-size: 26px;
-  font-weight: bold;
-  color: #333333;
-  margin: 0 0 6px 0;
-  font-family: 'KaiTi', 'STKaiti', 'SimSun', serif;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0 0 8px 0;
+  font-family: var(--font-name-amount);
+  letter-spacing: 6px;
 }
 
 .app-subtitle {
   font-size: 13px;
-  color: #666666;
+  color: var(--theme-text-muted);
   margin: 0;
+  letter-spacing: 2px;
 }
 
-/* ==================== 输入区域 ==================== */
+/* 输入区域 */
 .input-section {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .input-label {
   display: block;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: #333333;
-  margin-bottom: 6px;
+  color: var(--theme-text-muted);
+  margin-bottom: 8px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 
 .event-name-input {
   width: 100%;
-  padding: 10px 14px;
+  padding: 14px 16px;
   font-size: 15px;
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #333333;
+  border: 2px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-paper);
+  color: var(--theme-text-primary);
   font-family: inherit;
   transition: all 0.3s ease;
   outline: none;
 }
 
 .event-name-input:focus {
-  border-color: var(--focus-color);
-  box-shadow: 0 0 0 3px rgba(235, 86, 74, 0.1);
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 4px rgba(199, 91, 57, 0.1);
 }
 
 .event-name-input::placeholder {
-  color: #999999;
+  color: var(--theme-text-muted);
 }
 
-/* ==================== 主题选择区域 ==================== */
+/* 日期选择器样式 */
+.event-date-input {
+  width: 100%;
+  height: 48px;
+  padding: 0 16px;
+  font-size: 15px;
+  border: 2px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-paper);
+  color: var(--theme-text-primary);
+  font-family: inherit;
+  transition: all 0.3s ease;
+  outline: none;
+  cursor: pointer;
+  /* 确保日期选择器占满整个宽度 */
+  box-sizing: border-box;
+}
+
+.event-date-input:focus {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 4px rgba(199, 91, 57, 0.1);
+}
+
+/* 日期选择器伪元素样式 - 扩大点击区域 */
+.event-date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* 日期选择器容器 */
+.input-section:has(.event-date-input) {
+  position: relative;
+}
+
+.event-date-input {
+  position: relative;
+}
+
+/* 日期选择弹窗样式 - Webkit浏览器 */
+.event-date-input::-webkit-datetime-edit {
+  padding: 0;
+}
+
+.event-date-input::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+/* Firefox 日期选择器样式 */
+.event-date-input::-moz-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+/* 控制日期选择弹窗的尺寸 */
+input[type="date"]::-webkit-calendar-picker {
+  width: 320px;
+  min-width: 320px;
+  max-width: 400px;
+  font-size: 14px;
+}
+
+/* 调整日期选择弹窗内部元素 */
+input[type="date"]::-webkit-date-and-time-value {
+  font-size: 14px;
+}
+
+/* 尝试调整日历弹窗的大小 */
+.event-date-input::-webkit-calendar-picker {
+  transform: scale(1.2);
+  transform-origin: top left;
+}
+
+/* 主题选择区域 */
 .theme-section {
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .theme-options {
@@ -601,56 +768,97 @@ onMounted(() => {
 
 .theme-card {
   position: relative;
-  padding: 16px 12px;
-  border-radius: 10px;
+  padding: 20px 16px;
+  border-radius: 16px;
   border: 2px solid transparent;
   cursor: pointer;
   text-align: center;
   transition: all 0.3s ease;
+  background: #FFFFFF;
 }
 
 .theme-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 24px rgba(160, 82, 45, 0.1);
 }
 
 .theme-card.selected {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(160, 82, 45, 0.15);
+}
+
+.theme-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.theme-icon-red {
+  color: #C75B39;
+}
+
+.theme-icon-gray {
+  color: #5A5A5A;
+}
+
+.theme-icon-golden {
+  color: #B8860B;
 }
 
 .theme-name {
   font-size: 16px;
-  font-weight: bold;
+  font-weight: 600;
   margin-bottom: 4px;
+  font-family: var(--font-name-amount);
 }
 
-.wedding-text {
-  color: #EB564A;
+.theme-name-red {
+  color: #C75B39;
 }
 
-.funeral-text {
+.theme-name-gray {
   color: #4A4A4A;
+}
+
+.theme-name-golden {
+  color: #B8860B;
 }
 
 .theme-desc {
   font-size: 11px;
-  color: #666666;
+  color: var(--theme-text-muted);
 }
 
 .selected-indicator {
   position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 22px;
-  height: 22px;
+  top: -8px;
+  right: -8px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
   font-size: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   animation: scaleIn 0.3s ease;
+}
+
+.selected-indicator-red {
+  background: linear-gradient(135deg, #C75B39 0%, #A0522D 100%);
+  box-shadow: 0 2px 8px rgba(199, 91, 57, 0.4);
+}
+
+.selected-indicator-gray {
+  background: linear-gradient(135deg, #5A5A5A 0%, #4A4A4A 100%);
+  box-shadow: 0 2px 8px rgba(90, 90, 90, 0.4);
+}
+
+.selected-indicator-golden {
+  background: linear-gradient(135deg, #D4A017 0%, #B8860B 100%);
+  box-shadow: 0 2px 8px rgba(184, 134, 11, 0.4);
 }
 
 @keyframes scaleIn {
@@ -665,17 +873,17 @@ onMounted(() => {
   }
 }
 
-/* ==================== 最近文件列表区域 ==================== */
+/* 最近文件列表区域 */
 .recent-files-section {
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .recent-files-list {
-  max-height: 160px;
+  max-height: 150px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fafafa;
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-paper);
 }
 
 .empty-files {
@@ -688,18 +896,18 @@ onMounted(() => {
 }
 
 .empty-files .empty-text {
-  color: #999999;
+  color: var(--theme-text-muted);
   font-size: 13px;
 }
 
 .recent-file-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .recent-file-item:last-child {
@@ -707,14 +915,7 @@ onMounted(() => {
 }
 
 .recent-file-item:hover {
-  background: rgba(235, 86, 74, 0.05);
-}
-
-.file-icon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgba(160, 82, 45, 0.04);
 }
 
 .file-info {
@@ -726,35 +927,26 @@ onMounted(() => {
 
 .file-name {
   font-size: 14px;
-  color: #333333;
+  color: var(--theme-text-primary);
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-family: var(--font-name-amount);
 }
 
 .file-date {
   font-size: 11px;
-  color: #999999;
+  color: var(--theme-text-muted);
+  margin-top: 2px;
 }
 
-.file-arrow {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.recent-file-item:hover .file-arrow svg {
-  stroke: #EB564A;
-}
-
-/* ==================== 操作按钮区域 ==================== */
+/* 操作按钮区域 */
 .action-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
 .action-btn {
@@ -762,14 +954,15 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 12px 20px;
-  border-radius: 8px;
+  padding: 14px 24px;
+  border-radius: 12px;
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   border: none;
   font-family: inherit;
+  letter-spacing: 2px;
 }
 
 .action-btn:disabled {
@@ -779,45 +972,44 @@ onMounted(() => {
 
 .primary-btn {
   color: white;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(160, 82, 45, 0.3);
 }
 
 .primary-btn:hover:not(:disabled) {
-  background-color: var(--hover-color) !important;
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 6px 24px rgba(160, 82, 45, 0.4);
 }
 
 .import-btn {
-  background: transparent;
-  border: 2px solid;
+  background: white;
+  border: 2px solid var(--theme-border);
+  color: var(--theme-text-secondary);
 }
 
 .import-btn:hover:not(:disabled) {
-  background-color: var(--hover-bg);
+  border-color: var(--theme-accent);
+  color: var(--theme-accent);
   transform: translateY(-2px);
-}
-
-.btn-icon {
-  font-size: 18px;
 }
 
 .btn-text {
   font-size: 15px;
 }
 
-/* ==================== 底部区域 ==================== */
+/* 底部区域 */
 .footer-section {
   text-align: center;
 }
 
 .footer-text {
   font-size: 11px;
-  color: #999999;
+  color: var(--theme-text-muted);
   margin: 0;
+  letter-spacing: 1px;
+  opacity: 0.7;
 }
 
-/* ==================== 滚动条样式 ==================== */
+/* 滚动条样式 */
 .recent-files-list::-webkit-scrollbar {
   width: 4px;
 }
@@ -827,84 +1019,57 @@ onMounted(() => {
 }
 
 .recent-files-list::-webkit-scrollbar-thumb {
-  background: #cccccc;
+  background: var(--theme-border);
   border-radius: 2px;
 }
 
-.recent-files-list::-webkit-scrollbar-thumb:hover {
-  background: #999999;
-}
-
-/* ==================== 响应式适配 ==================== */
-@media (max-width: 520px) {
-  .splash-content {
-    padding: 28px 20px;
-  }
-
-  .theme-options {
-    grid-template-columns: 1fr;
-  }
-
-  .app-title {
-    font-size: 22px;
-  }
-
-  .recent-files-list {
-    max-height: 120px;
-  }
-}
-
-/* ==================== 右键菜单样式 ==================== */
+/* 右键菜单样式 */
 .context-menu {
   position: fixed;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  background: var(--theme-paper);
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   padding: 6px 0;
   z-index: 3000;
   min-width: 120px;
+  border: 1px solid var(--theme-border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .context-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 12px 16px;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
+  color: var(--theme-text-primary);
 }
 
 .context-menu-item:hover {
-  background: #f5f5f5;
+  background: rgba(160, 82, 45, 0.06);
 }
 
 .context-menu-item.delete-item {
-  color: #ef4444;
+  color: #C75B39;
 }
 
 .context-menu-item.delete-item:hover {
-  background: #fef2f2;
+  background: rgba(199, 91, 57, 0.08);
 }
 
-.menu-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.menu-text {
-  font-size: 14px;
-}
-
-/* ==================== 删除确认弹窗样式 ==================== */
+/* 删除确认弹窗样式 */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(44, 36, 22, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -912,9 +1077,9 @@ onMounted(() => {
 }
 
 .modal-content {
-  background: #ffffff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  background: var(--theme-paper);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   min-width: 320px;
   max-width: 90vw;
 }
@@ -923,52 +1088,54 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--theme-border);
 }
 
 .modal-title {
   font-size: 18px;
-  font-weight: bold;
-  color: #333333;
+  font-weight: 600;
+  color: var(--theme-text-primary);
   margin: 0;
+  font-family: var(--font-name-amount);
+  letter-spacing: 2px;
 }
 
 .modal-close {
   background: none;
   border: none;
   font-size: 24px;
-  color: #999999;
+  color: var(--theme-text-muted);
   cursor: pointer;
   width: 32px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   transition: all 0.3s;
 }
 
 .modal-close:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #333333;
+  background: rgba(160, 82, 45, 0.08);
+  color: var(--theme-accent);
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 24px 20px;
 }
 
 .delete-message {
   text-align: center;
-  color: #333333;
+  color: var(--theme-text-primary);
   font-size: 15px;
   line-height: 1.6;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 }
 
 .delete-warning {
-  color: #ef4444;
-  font-weight: bold;
+  color: #C75B39;
+  font-weight: 600;
 }
 
 .delete-actions {
@@ -978,31 +1145,56 @@ onMounted(() => {
 }
 
 .delete-btn {
-  padding: 10px 24px;
-  border-radius: 8px;
+  padding: 12px 28px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s;
   border: none;
   font-family: inherit;
+  letter-spacing: 1px;
 }
 
 .cancel-btn {
-  background: #f5f5f5;
-  color: #666666;
+  background: white;
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
 }
 
 .cancel-btn:hover {
-  background: #e0e0e0;
+  background: rgba(44, 36, 22, 0.02);
+  border-color: var(--theme-text-secondary);
 }
 
 .confirm-btn {
-  background: #ef4444;
+  background: #C75B39;
   color: #ffffff;
+  box-shadow: 0 2px 8px rgba(199, 91, 57, 0.3);
 }
 
 .confirm-btn:hover {
-  background: #dc2626;
+  background: #A84832;
+  box-shadow: 0 4px 12px rgba(199, 91, 57, 0.4);
+}
+
+/* 响应式适配 */
+@media (max-width: 520px) {
+  .splash-content {
+    padding: 32px 24px;
+  }
+
+  .theme-options {
+    grid-template-columns: 1fr;
+  }
+
+  .app-title {
+    font-size: 24px;
+    letter-spacing: 4px;
+  }
+
+  .recent-files-list {
+    max-height: 120px;
+  }
 }
 </style>

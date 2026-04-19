@@ -10,6 +10,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("Failed to get app data dir");
             if !data_dir.exists() {
@@ -41,6 +42,7 @@ pub fn run() {
             commands::batch_insert_records,
             commands::open_database_file,
             commands::create_new_database,
+            commands::update_database_event_date,
             commands::switch_database,
             commands::save_current_database,
             commands::get_recent_databases,

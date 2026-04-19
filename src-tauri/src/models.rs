@@ -112,10 +112,16 @@ impl<T> ApiResponse<T> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RecentDatabase {
     pub name: String,
     pub path: String,
+    pub created_at: String,
+    pub last_modified: String,
     pub last_opened: String,
+    pub theme: Option<String>,
+    pub event_name: Option<String>,
+    pub event_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

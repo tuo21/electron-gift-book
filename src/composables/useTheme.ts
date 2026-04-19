@@ -1,106 +1,69 @@
 import { ref, computed } from 'vue';
-
-// ==================== 类型定义 ====================
-export type ThemeType = 'wedding' | 'funeral';
-
-export interface ThemeConfig {
-  primary: string;
-  primaryDark: string;
-  primaryLight: string;
-  paper: string;
-  textPrimary: string;
-  textSecondary: string;
-  textLight: string;
-  accent: string;
-  accentDark: string;
-}
-
-// ==================== 主题配置 ====================
-const themes: Record<ThemeType, ThemeConfig> = {
-  wedding: {
-    primary: '#EB564A',
-    primaryDark: '#D6453D',
-    primaryLight: '#F06B60',
-    paper: '#EDEDED',
-    textPrimary: '#000000',
-    textSecondary: '#333333',
-    textLight: '#FFFFFF',
-    accent: '#E6BA37',
-    accentDark: '#D4A832',
-  },
-  funeral: {
-    primary: '#4A4A4A',
-    primaryDark: '#333333',
-    primaryLight: '#5A5A5A',
-    paper: '#F5F5F5',
-    textPrimary: '#000000',
-    textSecondary: '#333333',
-    textLight: '#FFFFFF',
-    accent: '#888888',
-    accentDark: '#666666',
-  },
-};
+import type { ThemeType } from '../types/theme';
+import { THEME_CONFIG, getThemeById, normalizeTheme } from '../types/theme';
 
 // ==================== 响应式状态 ====================
-const currentTheme = ref<ThemeType>('wedding');
+const currentTheme = ref<ThemeType>('red');
 const isTransitioning = ref(false);
 
 // ==================== 计算属性 ====================
-const themeConfig = computed(() => themes[currentTheme.value]);
+const themeMeta = computed(() => getThemeById(currentTheme.value));
 
-const isWedding = computed(() => currentTheme.value === 'wedding');
-const isFuneral = computed(() => currentTheme.value === 'funeral');
+const isRed = computed(() => currentTheme.value === 'red');
+const isGray = computed(() => currentTheme.value === 'gray');
+const isGolden = computed(() => currentTheme.value === 'golden');
 
 // ==================== 方法函数 ====================
 
 /**
- * 设置主题
+ * 应用主题到 document（通过 CSS 类名切换）
  * @param theme 主题类型
- * @param applyToDocument 是否应用到 document
  */
-function setTheme(theme: ThemeType, applyToDocument: boolean = true): void {
-  if (currentTheme.value === theme) return;
-  
-  isTransitioning.value = true;
-  currentTheme.value = theme;
-  
-  if (applyToDocument) {
-    applyThemeToDocument(theme);
+function applyThemeToDocument(theme: string): void {
+  const normalizedTheme = normalizeTheme(theme);
+  const meta = getThemeById(normalizedTheme);
+  if (!meta) {
+    console.warn(`主题 ${theme} 不存在，使用默认主题`);
+    return;
   }
-  
-  // 保存到 localStorage
-  saveThemeToStorage(theme);
-  
-  setTimeout(() => {
-    isTransitioning.value = false;
-  }, 300);
-}
 
-/**
- * 应用主题到 document
- * @param theme 主题类型
- */
-function applyThemeToDocument(theme: ThemeType): void {
-  const config = themes[theme];
   const root = document.documentElement;
   
   // 添加过渡效果
   root.style.setProperty('--theme-transition', 'all 0.3s ease');
   
-  // 设置 CSS 变量
-  root.style.setProperty('--theme-primary', config.primary);
-  root.style.setProperty('--theme-primary-dark', config.primaryDark);
-  root.style.setProperty('--theme-primary-light', config.primaryLight);
-  root.style.setProperty('--theme-paper', config.paper);
-  root.style.setProperty('--theme-text-primary', config.textPrimary);
-  root.style.setProperty('--theme-text-secondary', config.textSecondary);
-  root.style.setProperty('--theme-text-light', config.textLight);
-  root.style.setProperty('--theme-accent', config.accent);
-  root.style.setProperty('--theme-accent-dark', config.accentDark);
+  // 移除所有主题类
+  document.body.classList.remove('theme-gray', 'theme-golden');
   
-  // 设置 body class
-  document.body.classList.remove('theme-wedding', 'theme-funeral');
-  document.body.classList.add(`theme-${theme}`);
+  // 添加当前主题类（如果是默认主题red，则不添加任何类，使用:root默认样式）
+  if (meta.cssClass) {
+    document.body.classList.add(meta.cssClass);
+  }
+}
+
+/**
+ * 设置主题
+ * @param theme 主题类型（支持旧主题名自动转换）
+ * @param applyToDocument 是否应用到 document
+ */
+function setTheme(theme: string, applyToDocument: boolean = true): void {
+  const normalizedTheme = normalizeTheme(theme);
+  
+  if (currentTheme.value === normalizedTheme) return;
+  
+  isTransitioning.value = true;
+  currentTheme.value = normalizedTheme;
+  
+  if (applyToDocument) {
+    applyThemeToDocument(normalizedTheme);
+  }
+  
+  // 保存到 localStorage
+  saveThemeToStorage(normalizedTheme);
+  
+  setTimeout(() => {
+    isTransitioning.value = false;
+  }, 300);
 }
 
 /**
@@ -122,13 +85,13 @@ function saveThemeToStorage(theme: ThemeType): void {
 function loadThemeFromStorage(): ThemeType {
   try {
     const saved = localStorage.getItem('gift-book-theme') as ThemeType;
-    if (saved && (saved === 'wedding' || saved === 'funeral')) {
+    if (saved && THEME_CONFIG.some(t => t.id === saved)) {
       return saved;
     }
   } catch (error) {
     console.error('加载主题失败:', error);
   }
-  return 'wedding';
+  return 'red'; // 默认主题：喜庆红
 }
 
 /**
@@ -142,27 +105,29 @@ function initTheme(): void {
 
 /**
  * 切换主题
- * 在红事和白事之间切换
+ * 在所有可用主题之间循环切换
  */
 function toggleTheme(): void {
-  const newTheme = currentTheme.value === 'wedding' ? 'funeral' : 'wedding';
-  setTheme(newTheme);
+  const currentIndex = THEME_CONFIG.findIndex(t => t.id === currentTheme.value);
+  const nextIndex = (currentIndex + 1) % THEME_CONFIG.length;
+  const nextTheme = THEME_CONFIG[nextIndex];
+  setTheme(nextTheme.id);
 }
 
 /**
- * 获取主题样式对象（用于动态样式绑定）
- * @returns 主题样式对象
+ * 获取所有可用主题配置
+ * @returns 主题配置数组
  */
-function getThemeStyles() {
-  return computed(() => ({
-    background: currentTheme.value === 'wedding'
-      ? 'linear-gradient(135deg, #EB564A 0%, #D6453D 100%)'
-      : 'linear-gradient(135deg, #4A4A4A 0%, #333333 100%)',
-    primaryColor: themeConfig.value.primary,
-    accentColor: themeConfig.value.accent,
-    paperColor: themeConfig.value.paper,
-    textColor: themeConfig.value.textPrimary,
-  }));
+function getAllThemes() {
+  return [...THEME_CONFIG];
+}
+
+/**
+ * 获取当前主题的 PDF 模板键
+ * @returns PDF 模板键（与主题标识符一致）
+ */
+function getPdfThemeKey(): ThemeType {
+  return currentTheme.value;
 }
 
 // ==================== 组合式函数 ====================
@@ -173,10 +138,10 @@ export function useTheme() {
     isTransitioning,
     
     // 计算属性
-    themeConfig,
-    isWedding,
-    isFuneral,
-    themeStyles: getThemeStyles(),
+    themeMeta,
+    isRed,
+    isGray,
+    isGolden,
     
     // 方法
     setTheme,
@@ -185,6 +150,8 @@ export function useTheme() {
     applyThemeToDocument,
     loadThemeFromStorage,
     saveThemeToStorage,
+    getAllThemes,
+    getPdfThemeKey,
   };
 }
 
