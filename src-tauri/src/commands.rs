@@ -1,10 +1,176 @@
 use std::path::PathBuf;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_dialog::DialogExt;
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 
 use crate::database::*;
 use crate::models::*;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AppConfig {
+    custom_data_path: Option<String>,
+}
+
+fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let data_dir = app.path().app_data_dir().map_err(|e| format!("获取数据目录失败: {}", e))?;
+    Ok(data_dir.join("app_config.json"))
+}
+
+fn load_app_config(app: &AppHandle) -> Option<AppConfig> {
+    let config_path = get_config_path(app).ok()?;
+    if config_path.exists() {
+        let content = std::fs::read_to_string(&config_path).ok()?;
+        serde_json::from_str(&content).ok()
+    } else {
+        None
+    }
+}
+
+fn save_app_config(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
+    let config_path = get_config_path(app)?;
+    let content = serde_json::to_string_pretty(config).map_err(|e| format!("序列化配置失败: {}", e))?;
+    std::fs::write(&config_path, content).map_err(|e| format!("保存配置失败: {}", e))?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FontInfoDto {
+    pub name: String,
+    pub css_name: String,
+    pub is_default: bool,
+}
+
+// 清理字体名称，对于用 & 或其他分隔符连接的多个名称，只保留第一个
+fn clean_font_name(name: &str) -> String {
+    let mut clean = name.trim().to_string();
+    
+    // 移除扩展名和 (TrueType)/(OpenType) 等后缀
+    if let Some(idx) = clean.find('(') {
+        clean = clean[..idx].trim().to_string();
+    }
+    
+    // 处理多种分隔符：&, &amp;, |, , 
+    let separators = [" &amp; ", " & ", " | ", "|", ", "];
+    for sep in separators.iter() {
+        if clean.contains(sep) {
+            if let Some(first) = clean.split(sep).next() {
+                clean = first.trim().to_string();
+            }
+        }
+    }
+    
+    clean
+}
+
+#[tauri::command]
+pub async fn get_system_fonts_list() -> Result<Vec<FontInfoDto>, String> {
+    let mut font_names = std::collections::HashSet::new();
+    
+    // 预定义常见中文字体，作为后备
+    let common_fonts = vec![
+        "演示春风楷",
+        "KaiTi", "楷体",
+        "SimSun", "宋体",
+        "SimHei", "黑体",
+        "Microsoft YaHei", "微软雅黑",
+        "FangSong", "仿宋",
+        "YouYuan", "幼圆",
+        "LiSu", "隶书",
+        "STSong", "华文宋体",
+        "STKaiti", "华文楷体",
+        "STZhongsong", "华文中宋",
+        "STXingkai", "华文行楷",
+        "STXinwei", "华文新魏",
+        "STHupo", "华文琥珀",
+        "STCaiyun", "华文彩云",
+        "STLiti", "华文隶书",
+        "DengXian", "等线",
+        "FZShuTi", "方正舒体",
+        "FZYaoti", "方正姚体",
+        "Arial",
+        "Times New Roman",
+        "Calibri",
+        "Consolas",
+    ];
+    
+    // 先添加预定义字体
+    for font in common_fonts {
+        font_names.insert(font.to_string());
+    }
+    
+    // 尝试从 Windows 注册表获取系统字体
+    #[cfg(target_os = "windows")]
+    {
+        use winreg::RegKey;
+        use winreg::enums::*;
+        
+        // 读取系统字体注册表
+        let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+        if let Ok(fonts_key) = hklm.open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts") {
+            for (name, _) in fonts_key.enum_values().flatten() {
+                let clean_name = clean_font_name(&name);
+                if !clean_name.is_empty() {
+                    font_names.insert(clean_name);
+                }
+            }
+        }
+        
+        // 读取当前用户字体注册表
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        if let Ok(fonts_key) = hkcu.open_subkey(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts") {
+            for (name, _) in fonts_key.enum_values().flatten() {
+                let clean_name = clean_font_name(&name);
+                if !clean_name.is_empty() {
+                    font_names.insert(clean_name);
+                }
+            }
+        }
+    }
+    
+    // 转换为 Vec 并排序
+    let mut font_names_vec: Vec<String> = font_names.into_iter().collect();
+    font_names_vec.sort();
+    
+    // 创建 FontInfoDto 列表
+    let mut result: Vec<FontInfoDto> = font_names_vec
+        .into_iter()
+        .map(|name| FontInfoDto {
+            name: name.clone(),
+            css_name: name,
+            is_default: false,
+        })
+        .collect();
+    
+    // 设置默认字体
+    if let Some(pos) = result.iter().position(|f| f.name.contains("演示春风楷")) {
+        let mut default_font = result.remove(pos);
+        default_font.is_default = true;
+        result.insert(0, default_font);
+    } else if let Some(pos) = result.iter().position(|f| f.name.contains("KaiTi") || f.name.contains("楷体")) {
+        let mut default_font = result.remove(pos);
+        default_font.is_default = true;
+        result.insert(0, default_font);
+    } else if !result.is_empty() {
+        result[0].is_default = true;
+    }
+    
+    log::info!("返回系统字体 {} 个", result.len());
+    Ok(result)
+}
+
+pub fn init_custom_data_path(app: &AppHandle) {
+    if let Some(config) = load_app_config(app) {
+        if let Some(path) = config.custom_data_path {
+            let path_buf = PathBuf::from(&path);
+            if path_buf.exists() && path_buf.is_dir() {
+                set_custom_data_dir(path_buf);
+            }
+        }
+    }
+}
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
@@ -101,25 +267,33 @@ pub async fn update_database_theme(
 
 #[tauri::command]
 pub async fn rename_database(
-    file_path: String,
-    new_name: String,
+    old_path: String,
+    new_file_name: String,
 ) -> Result<String, String> {
-    let path = PathBuf::from(&file_path);
+    let path = PathBuf::from(&old_path);
     if !path.exists() {
         return Err("数据库文件不存在".to_string());
     }
 
     let dir = path.parent().ok_or("无法获取父目录")?;
-    let new_path = dir.join(format!("{}.db", new_name));
+    let new_path = dir.join(format!("{}.db", new_file_name));
 
     if new_path.exists() {
         return Err("目标文件已存在".to_string());
     }
 
+    // 如果当前连接池正连接在此文件上，需要先关闭连接池
+    if let Some(current_path) = get_db_path() {
+        if current_path == path {
+            clear_pool().await;
+            log::info!("关闭当前数据库连接池以便重命名");
+        }
+    }
+
     std::fs::rename(&path, &new_path)
         .map_err(|e| format!("重命名失败: {}", e))?;
 
-    log::info!("重命名数据库: {} -> {}", file_path, new_path.to_string_lossy());
+    log::info!("重命名数据库: {} -> {}", old_path, new_path.to_string_lossy());
     Ok(new_path.to_string_lossy().to_string())
 }
 
@@ -658,7 +832,7 @@ pub async fn select_data_folder(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn set_custom_data_path(_app: AppHandle, path: String, _migrate: bool) -> Result<(), String> {
+pub async fn set_custom_data_path(app: AppHandle, path: String, migrate: bool) -> Result<(), String> {
     let path_buf = PathBuf::from(&path);
     
     if !path_buf.exists() {
@@ -669,8 +843,17 @@ pub async fn set_custom_data_path(_app: AppHandle, path: String, _migrate: bool)
         return Err("选择的不是文件夹".to_string());
     }
     
+    // 获取旧数据目录（在设置新路径之前）
+    let old_data_dir = get_data_dir(&app);
+    
     // 设置自定义数据目录
     crate::database::set_custom_data_dir(path_buf.clone());
+    
+    // 持久化自定义路径到配置文件
+    let config = AppConfig {
+        custom_data_path: Some(path_buf.to_string_lossy().to_string()),
+    };
+    save_app_config(&app, &config)?;
     
     // 确保目录存在
     if !path_buf.exists() {
@@ -678,29 +861,52 @@ pub async fn set_custom_data_path(_app: AppHandle, path: String, _migrate: bool)
             .map_err(|e| format!("创建文件夹失败: {}", e))?;
     }
     
-    // 如果有当前数据库，需要移动到新的路径
-    if let Some(current_path) = get_db_path() {
-        if current_path.exists() {
-            let file_name = current_path.file_name().ok_or("无法获取数据库文件名")?;
-            let new_path = path_buf.join(file_name);
-            
-            // 关闭当前数据库连接
-            clear_pool().await;
-            
-            // 移动文件
-            if current_path != new_path {
-                std::fs::copy(&current_path, &new_path)
-                    .map_err(|e| format!("复制数据库文件失败: {}", e))?;
-                
-                // 重新连接到新位置的数据库
-                let db_url = format!("sqlite:{}", new_path.to_string_lossy());
-                let pool = sqlx::sqlite::SqlitePoolOptions::new()
-                    .connect(&db_url)
-                    .await
-                    .map_err(|e| format!("重新连接数据库失败: {}", e))?;
-                
-                set_db_path(new_path.clone());
-                set_pool(pool).await;
+    // 如果需要迁移，迁移旧目录下所有 .db 文件到新目录
+    if migrate && old_data_dir.exists() && old_data_dir != path_buf {
+        if let Ok(entries) = std::fs::read_dir(&old_data_dir) {
+            for entry in entries.flatten() {
+                let file_path = entry.path();
+                if file_path.extension().map(|e| e == "db").unwrap_or(false) {
+                    let file_name = entry.file_name();
+                    let new_path = path_buf.join(&file_name);
+                    
+                    // 如果新目录中已存在同名文件，跳过
+                    if new_path.exists() {
+                        log::warn!("目标目录已存在文件: {:?}，跳过迁移", file_name);
+                        continue;
+                    }
+                    
+                    // 复制文件到新目录
+                    if let Err(e) = std::fs::copy(&file_path, &new_path) {
+                        log::error!("复制文件 {:?} 失败: {}", file_path, e);
+                        continue;
+                    }
+                    log::info!("迁移文件: {:?} -> {:?}", file_path, new_path);
+                }
+            }
+        }
+        
+        // 更新当前数据库路径到新位置
+        if let Some(current_path) = get_db_path() {
+            let current_file_name = current_path.file_name();
+            if let Some(file_name) = current_file_name {
+                let new_db_path = path_buf.join(file_name);
+                if new_db_path.exists() && new_db_path != current_path {
+                    // 关闭当前数据库连接
+                    clear_pool().await;
+                    
+                    // 重新连接到新位置的数据库
+                    let db_url = format!("sqlite:{}", new_db_path.to_string_lossy());
+                    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+                        .connect(&db_url)
+                        .await
+                        .map_err(|e| format!("重新连接数据库失败: {}", e))?;
+                    
+                    set_db_path(new_db_path.clone());
+                    set_pool(pool).await;
+                    
+                    log::info!("数据库路径已更新: {:?} -> {:?}", current_path, new_db_path);
+                }
             }
         }
     }

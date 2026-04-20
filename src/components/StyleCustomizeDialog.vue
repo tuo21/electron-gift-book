@@ -64,22 +64,23 @@
               书法字体
             </h4>
             <div class="font-control">
-              <div class="font-selector">
-                <span class="font-label">选择字体：</span>
-                <select v-model="localFontCssName" class="font-select" @change="handleFontChange">
-                  <option v-for="font in systemFonts" :key="font.css_name" :value="font.css_name">
-                    {{ font.name }}{{ font.is_default ? '（默认）' : '' }}
-                  </option>
-                </select>
-              </div>
-              <button
-                v-if="localFontCssName !== '__default__'"
-                class="action-btn text"
-                @click="handleResetFont"
-              >
-                恢复默认
-              </button>
-            </div>
+          <div class="font-selector">
+            <span class="font-label">选择字体：</span>
+            <select v-model="localFontCssName" class="font-select" @change="handleFontChange">
+              <option value="__default__">系统默认（演示春风楷）</option>
+              <option v-for="font in systemFonts" :key="font.css_name" :value="font.css_name">
+                {{ font.name }}{{ font.is_default ? '（默认）' : '' }}
+              </option>
+            </select>
+          </div>
+          <button
+            v-if="localFontCssName !== '__default__'"
+            class="action-btn text"
+            @click="handleResetFont"
+          >
+            恢复默认
+          </button>
+        </div>
 
             <!-- 字体预览区 -->
             <div class="font-preview-area">
@@ -126,25 +127,68 @@ const emit = defineEmits<{
 // 本地状态（未确认前的临时值）
 const localStyle = ref<'full' | 'compact'>('full')
 const localFontCssName = ref('__default__')  // __default__ 表示系统默认（演示春风楷）
-const systemFonts = ref<FontInfo[]>([])  // 系统字体列表
+const systemFonts = ref<FontInfo[]>([])
 const isLoadingFonts = ref(false)
-const originalFontCssName = ref('__default__')  // 记录打开弹窗前的字体，用于取消时恢复
+const originalFontCssName = ref('__default__')
+
+// 内置字体列表（Rust 命令失败时的备用方案）
+const BUILTIN_FONTS: FontInfo[] = [
+  { name: '演示春风楷', css_name: '演示春风楷', is_default: true },
+  { name: 'KaiTi', css_name: 'KaiTi', is_default: false },
+  { name: '楷体', css_name: '楷体', is_default: false },
+  { name: 'SimSun', css_name: 'SimSun', is_default: false },
+  { name: '宋体', css_name: '宋体', is_default: false },
+  { name: 'SimHei', css_name: 'SimHei', is_default: false },
+  { name: '黑体', css_name: '黑体', is_default: false },
+  { name: 'Microsoft YaHei', css_name: '微软雅黑', is_default: false },
+  { name: '仿宋', css_name: '仿宋', is_default: false },
+  { name: '幼圆', css_name: '幼圆', is_default: false },
+  { name: '隶书', css_name: '隶书', is_default: false },
+]
+
+// 处理字体名称，对于用 & 或其他分隔符连接的多个名称，只保留第一个
+const processFontName = (name: string): string => {
+  // 处理多种分隔符：&, &amp;, |, , 
+  const separators = [' &amp; ', ' & ', '|', ',']
+  for (const sep of separators) {
+    if (name.includes(sep)) {
+      const parts = name.split(sep).map(p => p.trim()).filter(p => p)
+      if (parts.length > 0) {
+        return parts[0]
+      }
+    }
+  }
+  return name.trim()
+}
 
 // 加载系统字体列表
 const loadSystemFonts = async () => {
+  // 先显示内置字体作为初始占位，保持列表始终有内容
+  if (systemFonts.value.length === 0) {
+    systemFonts.value = BUILTIN_FONTS
+  }
   isLoadingFonts.value = true
   try {
+    // 使用 Rust 命令获取系统字体
     const response = await bridge.getSystemFontsList()
     if (response.success && response.data) {
-      systemFonts.value = response.data
+      console.log('Rust 枚举到系统字体:', response.data.length, '个')
+      // 处理字体名称，同时处理name和css_name
+      systemFonts.value = response.data.map(font => {
+        const processedName = processFontName(font.name)
+        const processedCssName = processFontName(font.css_name || font.name)
+        return {
+          ...font,
+          name: processedName,
+          css_name: processedCssName
+        }
+      })
+    } else {
+      console.warn('Rust 未返回字体，使用内置列表')
     }
   } catch (e) {
-    console.error('加载系统字体失败:', e)
-    // 备用默认字体
-    systemFonts.value = [
-      { name: '宋体', css_name: 'SimSun', is_default: true },
-      { name: '楷体', css_name: 'KaiTi', is_default: false },
-    ]
+    console.error('Rust 字体枚举异常:', e)
+    // 保持已有字体列表
   } finally {
     isLoadingFonts.value = false
   }
@@ -166,10 +210,8 @@ watch(() => props.visible, (val) => {
     originalFontCssName.value = props.config.customFontCssName || '__default__'
     localStyle.value = props.config.displayStyle
     localFontCssName.value = originalFontCssName.value
-    // 如果还没加载字体列表，则加载
-    if (systemFonts.value.length === 0) {
-      loadSystemFonts()
-    }
+    // 每次打开对话框都重新加载系统字体
+    loadSystemFonts()
   } else {
     // 取消时恢复原字体
     localFontCssName.value = originalFontCssName.value
@@ -179,7 +221,6 @@ watch(() => props.visible, (val) => {
 // 计算属性
 
 const currentFontFamily = computed(() => {
-  // __default__ 表示系统默认（演示春风楷）
   if (localFontCssName.value === '__default__') {
     return "'演示春风楷', 'KaiTi', 'SimSun', serif"
   }
@@ -192,9 +233,7 @@ const handleClose = () => {
 }
 
 const handleConfirm = () => {
-  // 确认时应用字体和样式
   emit('confirm', localStyle.value)
-  // __default__ 表示恢复系统默认（演示春风楷）
   if (localFontCssName.value === '__default__') {
     emit('reset-font')
   } else {
@@ -445,7 +484,8 @@ onMounted(() => {
 .font-select {
   flex: 1;
   min-width: 0;
-  max-width: 260px;
+  max-width: 320px;
+  width: 280px;
   padding: 8px 32px 8px 12px;
   font-size: 13px;
   border: 1px solid var(--theme-border);
@@ -461,6 +501,7 @@ onMounted(() => {
   font-family: inherit;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .font-select:hover {
@@ -474,11 +515,12 @@ onMounted(() => {
 }
 
 .font-select option {
-  padding: 8px;
+  padding: 8px 12px;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 320px;
 }
 
 .font-actions {
