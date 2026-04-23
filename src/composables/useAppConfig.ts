@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue';
-import type { ThemeType } from './useTheme';
+import type { ThemeType } from '../types/theme';
+import bridge from '../api/bridge';
 
 // ==================== 类型定义 ====================
 export interface AppConfig {
@@ -26,7 +27,6 @@ export interface RecentBook {
 }
 
 // ==================== 常量定义 ====================
-const STORAGE_KEY = 'gift-book-config';
 const DEFAULT_EVENT_NAME = '';
 
 // ==================== 响应式状态 ====================
@@ -69,16 +69,46 @@ function getDefaultConfig(): AppConfig {
 }
 
 /**
- * 从 localStorage 加载配置
+ * 从配置文件加载配置
  */
-function loadConfig(): void {
+async function loadConfig(): Promise<void> {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
+    const response = await bridge.getAppConfig();
+    if (response.success && response.data) {
+      // 检查是否需要从localStorage迁移
+      const localStorageConfig = localStorage.getItem('gift-book-config');
+      if (localStorageConfig) {
+        try {
+          const parsed = JSON.parse(localStorageConfig);
+          // 迁移配置到后端
+          const configToSave = {
+            event_name: parsed.eventName || DEFAULT_EVENT_NAME,
+            theme: parsed.theme || 'red',
+            display_style: parsed.displayStyle || 'full',
+            custom_font_css_name: parsed.customFontCssName || null,
+            event_date: parsed.eventDate || null,
+            recent_books: parsed.recentBooks || [],
+            unnamed_index: parsed.unnamedIndex || 1,
+          };
+          await bridge.updateAppConfig(configToSave);
+          // 清除localStorage中的配置
+          localStorage.removeItem('gift-book-config');
+          console.log('配置已从localStorage迁移到配置文件');
+        } catch (e) {
+          console.error('迁移配置失败:', e);
+        }
+      }
+      
       config.value = {
         ...getDefaultConfig(),
-        ...parsed,
+        eventName: response.data.event_name || DEFAULT_EVENT_NAME,
+        theme: response.data.theme || 'red',
+        currentDbPath: null,
+        recentBooks: response.data.recent_books || [],
+        unnamedIndex: response.data.unnamed_index || 1,
+        displayStyle: response.data.display_style || 'full',
+        customFontCssName: response.data.custom_font_css_name || null,
+        eventDate: response.data.event_date || null,
       };
     }
   } catch (error) {
@@ -88,11 +118,20 @@ function loadConfig(): void {
 }
 
 /**
- * 保存配置到 localStorage
+ * 保存配置到配置文件
  */
-function saveConfig(): void {
+async function saveConfig(): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config.value));
+    const configToSave = {
+      event_name: config.value.eventName,
+      theme: config.value.theme,
+      display_style: config.value.displayStyle,
+      custom_font_css_name: config.value.customFontCssName,
+      event_date: config.value.eventDate,
+      recent_books: config.value.recentBooks,
+      unnamed_index: config.value.unnamedIndex,
+    };
+    await bridge.updateAppConfig(configToSave);
   } catch (error) {
     console.error('保存配置失败:', error);
   }
@@ -102,45 +141,45 @@ function saveConfig(): void {
  * 设置事务名称
  * @param name 事务名称
  */
-function setEventName(name: string): void {
+async function setEventName(name: string): Promise<void> {
   config.value.eventName = name.trim();
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 设置主题
  * @param theme 主题类型
  */
-function setTheme(theme: ThemeType): void {
+async function setTheme(theme: ThemeType): Promise<void> {
   config.value.theme = theme;
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 设置展示样式
  * @param style 展示样式（full=完整大字型, compact=简洁紧凑型）
  */
-function setDisplayStyle(style: 'full' | 'compact'): void {
+async function setDisplayStyle(style: 'full' | 'compact'): Promise<void> {
   config.value.displayStyle = style;
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 设置自定义字体（CSS 字体名称）
  * @param fontCssName CSS 字体名称（如 SimSun, KaiTi 等）
  */
-function setCustomFont(fontCssName: string | null): void {
+async function setCustomFont(fontCssName: string | null): Promise<void> {
   config.value.customFontCssName = fontCssName;
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 设置事务日期
  * @param date 事务日期 YYYY-MM-DD 格式
  */
-function setEventDate(date: string): void {
+async function setEventDate(date: string): Promise<void> {
   config.value.eventDate = date;
-  saveConfig();
+  await saveConfig();
 }
 
 /**
@@ -155,19 +194,19 @@ function getEventDate(): string {
  * 设置当前数据库路径
  * @param path 数据库文件路径
  */
-function setCurrentDbPath(path: string | null): void {
+async function setCurrentDbPath(path: string | null): Promise<void> {
   config.value.currentDbPath = path;
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 获取下一个未命名序号
  * @returns 序号
  */
-function getNextUnnamedIndex(): number {
+async function getNextUnnamedIndex(): Promise<number> {
   const index = config.value.unnamedIndex;
   config.value.unnamedIndex++;
-  saveConfig();
+  await saveConfig();
   return index;
 }
 
@@ -186,13 +225,14 @@ function sanitizeFileName(name: string): string {
  * @param eventName 事务名称
  * @returns 文件名
  */
-function generateFileName(eventName?: string): string {
+async function generateFileName(eventName?: string): Promise<string> {
   const name = eventName?.trim();
   if (name && name !== DEFAULT_EVENT_NAME) {
     const safeName = sanitizeFileName(name);
     return `${safeName}.db`;
   }
-  return `未命名事务(${getNextUnnamedIndex()}).db`;
+  const index = await getNextUnnamedIndex();
+  return `未命名事务(${index}).db`;
 }
 
 /**
@@ -200,7 +240,7 @@ function generateFileName(eventName?: string): string {
  * @param name 显示名称
  * @param path 文件路径
  */
-function addToRecentBooks(name: string, path: string): void {
+async function addToRecentBooks(name: string, path: string): Promise<void> {
   // 移除已存在的相同路径
   config.value.recentBooks = config.value.recentBooks.filter(
     book => book.path !== path
@@ -218,47 +258,47 @@ function addToRecentBooks(name: string, path: string): void {
     config.value.recentBooks = config.value.recentBooks.slice(0, 10);
   }
   
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 从最近打开列表中移除
  * @param path 文件路径
  */
-function removeFromRecentBooks(path: string): void {
+async function removeFromRecentBooks(path: string): Promise<void> {
   config.value.recentBooks = config.value.recentBooks.filter(
     book => book.path !== path
   );
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 清空最近打开列表
  */
-function clearRecentBooks(): void {
+async function clearRecentBooks(): Promise<void> {
   config.value.recentBooks = [];
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 重置配置（用于新建礼金簿时）
  * @param keepUnnamedIndex 是否保留未命名序号
  */
-function resetConfig(keepUnnamedIndex: boolean = true): void {
+async function resetConfig(keepUnnamedIndex: boolean = true): Promise<void> {
   const oldIndex = config.value.unnamedIndex;
   config.value = {
     ...getDefaultConfig(),
     unnamedIndex: keepUnnamedIndex ? oldIndex : 1,
   };
-  saveConfig();
+  await saveConfig();
 }
 
 /**
  * 初始化配置
- * 从 localStorage 加载配置
+ * 从配置文件加载配置
  */
-function initConfig(): void {
-  loadConfig();
+async function initConfig(): Promise<void> {
+  await loadConfig();
 }
 
 // ==================== 组合式函数 ====================

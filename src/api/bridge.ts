@@ -320,11 +320,47 @@ export const bridge = {
     appName: string
     exportDate: string
     filename: string
-    theme?: 'red' | 'gray'
+    theme?: 'red' | 'gray' | 'golden'
   }): Promise<ApiResponse<{ filePath: string }>> {
     try {
       const result = await invoke<string>('generate_pdf', { request: data })
       return wrapResult({ filePath: result })
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getAppConfig(): Promise<ApiResponse<any>> {
+    try {
+      const result = await invoke<any>('get_app_config')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async updateAppConfig(config: any): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('update_app_config', { config })
+      return wrapResult(undefined as void)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async resetAppConfig(): Promise<ApiResponse<void>> {
+    try {
+      await invoke<void>('reset_app_config')
+      return wrapResult(undefined as void)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
+  async getConfigFilePath(): Promise<ApiResponse<string>> {
+    try {
+      const result = await invoke<string>('get_config_file_path')
+      return wrapResult(result)
     } catch (e) {
       return wrapError(String(e))
     }

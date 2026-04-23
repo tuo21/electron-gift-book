@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import type { ThemeType } from '../../types/theme';
-import CreateBookSection from './CreateBookSection.vue';
-import ManageBooksSection from './ManageBooksSection.vue';
-import ActivateModal from './ActivateModal.vue';
-import SettingsModal from './SettingsModal.vue';
-import '../../types/database';
+import DashboardPage from './DashboardPage.vue';
+import InstructionsPage from './InstructionsPage.vue';
+import SettingsPage from './SettingsPage.vue';
+import AboutPage from './AboutPage.vue';
+import IconSvg from '../IconSvg.vue';
+import { useActivation } from '../../composables/useActivation';
 
 // ==================== 类型定义 ====================
 interface RecentBook {
@@ -17,6 +18,12 @@ interface RecentBook {
   theme?: string;
   eventName?: string;
   eventDate?: string;
+}
+
+interface NavItem {
+  id: string;
+  label: string;
+  icon: string;
 }
 
 // ==================== Props & Emits ====================
@@ -32,22 +39,12 @@ const emit = defineEmits<{
   (e: 'open-file'): void;
   (e: 'minimize'): void;
   (e: 'close'): void;
+  (e: 'show-activate'): void;
 }>();
 
 // ==================== 响应式状态 ====================
-const showActivateModal = ref(false);
-const showSettingsModal = ref(false);
+const currentPage = ref('dashboard');
 const recentBooks = ref<RecentBook[]>([]);
-
-// 编辑弹窗相关
-// const showEditModal = ref(false);
-// const editForm = ref({
-//   name: '',
-//   eventDate: '',
-//   theme: 'wedding' as 'wedding' | 'funeral'
-// });
-
-// 编辑状态 - 直接显示在创建区域
 const editingBook = ref<{
   path: string;
   name: string;
@@ -55,7 +52,24 @@ const editingBook = ref<{
   theme: ThemeType;
 } | null>(null);
 
+// 激活相关
+const { checkActivation } = useActivation();
+const isActivated = ref(false);
+
+// 导航菜单
+const navItems: NavItem[] = [
+  { id: 'dashboard', label: '首页', icon: 'home' },
+  { id: 'instructions', label: '使用说明', icon: 'help' },
+  { id: 'settings', label: '设置', icon: 'settings' },
+  { id: 'about', label: '关于', icon: 'info' },
+];
+
 // ==================== 方法函数 ====================
+
+// 检查激活状态
+const checkIsActivated = async () => {
+  isActivated.value = await checkActivation();
+};
 
 // 加载最近礼薄列表
 const loadRecentBooks = async () => {
@@ -105,7 +119,6 @@ const handleOpenFile = () => {
 const handleDeleteBook = async (path: string) => {
   console.log('收到删除请求:', path);
   try {
-    // 再次确认，确保删除操作只在用户确认后执行
     const confirmed = await window.confirmDialog('确定要删除这个礼薄吗？此操作不可恢复。');
     console.log('二次确认结果:', confirmed);
     if (!confirmed) {
@@ -146,25 +159,30 @@ const handleSaveEdit = async (data: {
   theme: ThemeType;
 }) => {
   try {
-    // 修改数据库文件名
     const oldPath = data.path;
     const dir = oldPath.substring(0, oldPath.lastIndexOf('\\') + 1);
-    const newName = data.name.replace(/[\\/:*?"<>|]/g, '_'); // 清理非法文件名字符
+    const newName = data.name.replace(/[\\/:*?"<>|]/g, '_');
     const newPath = dir + newName + '.db';
 
-    // 更新事件日期
-    await window.electronAPI.updateDatabaseEventDate(oldPath, data.eventDate);
+    let finalPath = oldPath;
 
-    // 如果需要重命名文件
     if (oldPath !== newPath) {
-      // 关闭当前连接并移动文件
-      await window.electronAPI.switchDatabase(newPath);
+      const renameResult = await window.electronAPI.renameDatabase(oldPath, newName);
+      if (!renameResult.success) {
+        if (renameResult.error?.includes('已存在')) {
+          alert('礼簿名称已存在，请使用其他名称');
+        } else {
+          alert('重命名失败: ' + (renameResult.error || '未知错误'));
+        }
+        return;
+      }
+      finalPath = newPath;
     }
 
-    // 刷新礼簿列表
+    await window.electronAPI.updateDatabaseEventDate(finalPath, data.eventDate);
+    await window.electronAPI.updateDatabaseTheme(finalPath, data.theme as any);
+    await window.electronAPI.switchDatabase(finalPath);
     await loadRecentBooks();
-    
-    // 取消编辑状态
     editingBook.value = null;
   } catch (error) {
     alert('编辑失败: ' + (error as Error).message);
@@ -176,114 +194,95 @@ const handleCancelEdit = () => {
   editingBook.value = null;
 };
 
-// 窗口控制
-// const handleMinimize = () => {
-//   emit('minimize');
-// };
+// 处理显示激活
+const handleShowActivate = () => {
+  emit('show-activate');
+};
 
-// const handleClose = () => {
-//   emit('close');
-// };
+// 处理导航切换
+const handleNavClick = (navId: string) => {
+  currentPage.value = navId;
+};
 
 // ==================== 生命周期 ====================
 onMounted(() => {
   loadRecentBooks();
+  checkIsActivated();
 });
 </script>
 
 <template>
   <div class="home-view">
-    <!-- 主内容区 -->
-    <div class="home-content">
-      <div class="main-sections">
-        <!-- 创建礼薄区域 -->
-        <CreateBookSection 
+    <!-- 背景层 -->
+    <div class="bg-layer"></div>
+    
+    <!-- 左侧导航栏 -->
+    <aside class="sidebar">
+      <!-- Logo区域 -->
+      <div class="logo-section">
+        <img src="/images/logo.png" alt="礼簿管理系统" class="logo-image" />
+        <div class="app-info">
+          <span class="app-name">礼簿管理系统</span>
+          <span class="app-version">v1.0.0</span>
+        </div>
+      </div>
+      
+      <!-- 导航菜单 -->
+      <nav class="nav-menu">
+        <button 
+          v-for="item in navItems" 
+          :key="item.id"
+          class="nav-item"
+          :class="{ active: currentPage === item.id }"
+          @click="handleNavClick(item.id)"
+        >
+          <IconSvg :name="item.icon" :size="20" />
+          <span class="nav-label">{{ item.label }}</span>
+        </button>
+      </nav>
+      
+      <!-- 底部激活状态 -->
+      <div class="activation-section">
+        <div class="activation-status" :class="{ activated: isActivated }">
+          <span class="status-icon">
+            <IconSvg :name="isActivated ? 'check' : 'warning'" :size="14" />
+          </span>
+          <span class="status-text">{{ isActivated ? '已激活' : '未激活' }}</span>
+        </div>
+        <p class="activation-desc">您当前使用的是{{ isActivated ? '已' : '未' }}激活版本</p>
+        <button v-if="!isActivated" class="activate-btn" @click="handleShowActivate">
+          输入激活码
+        </button>
+      </div>
+    </aside>
+    
+    <!-- 右侧内容区 -->
+    <main class="main-content">
+      <!-- 动态页面内容 -->
+      <div class="page-content">
+        <DashboardPage 
+          v-if="currentPage === 'dashboard'"
           :default-theme="props.defaultTheme"
+          :recent-books="recentBooks"
           :editing-book="editingBook"
-          @create="(data) => handleCreateBook(data)"
-          @save-edit="(data) => handleSaveEdit(data)"
-          @cancel-edit="handleCancelEdit"
-        />
-
-        <!-- 礼薄管理区域 -->
-        <ManageBooksSection
-          :books="recentBooks"
-          @open="handleOpenBook"
-          @delete="handleDeleteBook"
-          @edit="handleEditBook"
-          @import="handleImportBook"
+          @create-book="handleCreateBook"
+          @open-book="handleOpenBook"
+          @edit-book="handleEditBook"
+          @delete-book="handleDeleteBook"
+          @import-book="handleImportBook"
           @open-file="handleOpenFile"
+          @show-activate="handleShowActivate"
+          @cancel-edit="handleCancelEdit"
+          @save-edit="handleSaveEdit"
         />
-
-        <!-- 使用说明区域 -->
-        <div class="usage-section">
-          <div class="section-header">
-            <h2 class="section-title">使用说明</h2>
-          </div>
-          <div class="usage-content">
-            <div class="usage-item">
-              <div class="usage-icon">📝</div>
-              <div class="usage-info">
-                <div class="usage-title">创建礼簿</div>
-                <div class="usage-desc">填写事务名称和日期，选择主题样式</div>
-              </div>
-            </div>
-            <div class="usage-item">
-              <div class="usage-icon">📁</div>
-              <div class="usage-info">
-                <div class="usage-title">管理礼簿</div>
-                <div class="usage-desc">查看、打开和删除已创建的礼簿</div>
-              </div>
-            </div>
-            <div class="usage-item">
-              <div class="usage-icon">📊</div>
-              <div class="usage-info">
-                <div class="usage-title">记录礼金</div>
-                <div class="usage-desc">添加、编辑和删除礼金记录</div>
-              </div>
-            </div>
-            <div class="usage-item">
-              <div class="usage-icon">📈</div>
-              <div class="usage-info">
-                <div class="usage-title">数据统计</div>
-                <div class="usage-desc">查看礼金收支统计和报表</div>
-              </div>
-            </div>
-            <div class="usage-item">
-              <div class="usage-icon">📋</div>
-              <div class="usage-info">
-                <div class="usage-title">导出数据</div>
-                <div class="usage-desc">导出为PDF或Excel格式</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <InstructionsPage v-else-if="currentPage === 'instructions'" />
+        <SettingsPage 
+          v-else-if="currentPage === 'settings'"
+          @show-activate="handleShowActivate"
+        />
+        <AboutPage v-else-if="currentPage === 'about'" />
       </div>
-
-      <!-- 底部按钮区域 -->
-      <div class="bottom-actions">
-        <div class="action-card" @click="showActivateModal = true">
-          <div class="action-icon">🔐</div>
-          <div class="action-title">激活窗口</div>
-          <div class="action-desc">查看激活信息</div>
-        </div>
-        <div class="action-card" @click="showSettingsModal = true">
-          <div class="action-icon">⚙️</div>
-          <div class="action-title">设置</div>
-          <div class="action-desc">数据路径等设置</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 激活弹窗 -->
-    <ActivateModal
-      v-model:show="showActivateModal"
-    />
-
-    <!-- 设置弹窗 -->
-    <SettingsModal
-      v-model:show="showSettingsModal"
-    />
+    </main>
   </div>
 </template>
 
@@ -292,180 +291,237 @@ onMounted(() => {
   width: 100vw;
   height: 100vh;
   display: flex;
-  flex-direction: column;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
   overflow: hidden;
+  position: relative;
 }
 
-/* 主内容区 */
-.home-content {
-  flex: 1;
+/* 背景层 - 纯色背景 */
+.bg-layer {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #FFF5F5 0%, #FFEEEE 50%, #FFF0F0 100%);
+  z-index: -1;
+}
+
+/* 左侧导航栏 */
+.sidebar {
+  width: 280px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  padding: 20px 24px;
-  gap: 16px;
-  overflow-y: auto;
+  background: 
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(255, 250, 250, 0) 100%),
+    var(--sidebar-bg-image, url('/Img/侧边栏背景.png'));
+  background-size: cover;
+  background-position: center;
+  background-blend-mode: overlay;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 24px 0;
+  z-index: 10;
 }
 
-/* 主要区域 - 三栏布局 */
-.main-sections {
-  display: grid;
-  grid-template-columns: 420px 1fr 300px;
-  gap: 16px;
-  flex: 1;
-}
-
-/* 底部操作区 */
-.bottom-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.action-card {
+/* Logo区域 */
+.logo-section {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 24px 20px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid transparent;
+  gap: 12px;
+  padding: 0 20px 24px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.action-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-  border-color: rgba(199, 91, 57, 0.2);
+.logo-image {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(196, 30, 58, 0.25);
+  object-fit: cover;
 }
 
-.action-icon {
-  font-size: 32px;
-  margin-bottom: 8px;
+.app-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-.action-title {
-  font-size: 15px;
+.app-name {
+  font-size: 16px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 4px;
 }
 
-.action-desc {
+.app-version {
   font-size: 12px;
   color: #999;
 }
 
-/* 滚动条样式 */
-.home-content::-webkit-scrollbar {
-  width: 6px;
+/* 导航菜单 */
+.nav-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px;
+  overflow-y: auto;
 }
 
-.home-content::-webkit-scrollbar-track {
+.nav-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav-menu::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.home-content::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 3px;
+.nav-menu::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
 }
 
-.home-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
-}
-
-/* 使用说明区域 */
-.usage-section {
-  background: white;
-  border-radius: 16px;
-  padding: 20px 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+.nav-item {
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.usage-section .section-header {
-  margin-bottom: 8px;
-}
-
-.usage-section .section-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 4px 0;
-}
-
-.usage-content {
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
 }
 
-.usage-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 8px;
-  background: #f8f9fa;
-  transition: background 0.2s ease;
+.nav-item:hover {
+  background: rgba(196, 30, 58, 0.04);
+  color: #C41E3A;
 }
 
-.usage-item:hover {
-  background: #f0f2f5;
+.nav-item.active {
+  background: rgba(196, 30, 58, 0.08);
+  color: #C41E3A;
 }
 
-.usage-icon {
-  font-size: 20px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.usage-info {
+.nav-label {
   flex: 1;
+}
+
+/* 激活状态区域 */
+.activation-section {
+  padding: 16px;
+  margin: 0 12px;
+  background: rgb(255 255 255 / 91%);
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.activation-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #999;
+  margin-bottom: 6px;
+}
+
+.activation-status.activated {
+  color: #52c41a;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(153, 153, 153, 0.1);
+  border-radius: 50%;
+}
+
+.activation-status.activated .status-icon {
+  background: rgba(82, 196, 26, 0.1);
+}
+
+.activation-desc {
+  font-size: 12px;
+  color: #999;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+}
+
+.activate-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #C41E3A;
+  border-radius: 8px;
+  background: transparent;
+  color: #C41E3A;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.activate-btn:hover {
+  background: rgba(196, 30, 58, 0.05);
+}
+
+/* 右侧内容区 */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.usage-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 2px;
+/* 页面内容区 */
+.page-content {
+  flex: 1;
+  padding: 24px;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.usage-desc {
-  font-size: 12px;
-  color: #666;
-  line-height: 1.4;
-}
-
-/* 响应式布局 */
-@media (max-width: 1200px) {
-  .main-sections {
-    grid-template-columns: 380px 1fr 280px;
-  }
-}
-
-@media (max-width: 992px) {
-  .main-sections {
-    grid-template-columns: 1fr 1fr;
-  }
-  .usage-section {
-    grid-column: 1 / -1;
-  }
-}
-
+/* 响应式 */
 @media (max-width: 768px) {
-  .main-sections {
-    grid-template-columns: 1fr;
+  .sidebar {
+    width: 80px;
+    padding: 16px 0;
   }
-  .usage-section {
-    grid-column: 1;
+  
+  .logo-section {
+    padding: 0 10px 16px;
+    justify-content: center;
+  }
+  
+  .app-info,
+  .nav-label,
+  .activation-desc,
+  .activate-btn {
+    display: none;
+  }
+  
+  .nav-item {
+    justify-content: center;
+    padding: 12px;
+  }
+  
+  .activation-section {
+    padding: 10px;
+  }
+  
+  .activation-status {
+    justify-content: center;
+    margin-bottom: 0;
+  }
+  
+  .status-text {
+    display: none;
   }
 }
 </style>

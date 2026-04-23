@@ -130,6 +130,25 @@ export interface TauriAPI {
   selectDataFolder: () => Promise<ApiResponse<string>>
   setCustomDataPath: (path: string, migrate: boolean) => Promise<ApiResponse>
   openPathInExplorer: (path: string) => Promise<ApiResponse>
+  // 保存文件对话框
+  saveFileDialog: (filename: string, extensions: string[]) => Promise<ApiResponse<{ filePath: string }>>,
+  // 获取配置文件路径
+  getConfigFilePath: () => Promise<ApiResponse<string>>
+}
+
+// 激活相关类型
+export interface LicenseInfo {
+  mid: string
+  name: string
+  exp: number | null
+}
+
+export interface LicenseAPI {
+  getMachineId: () => Promise<string>
+  verifyLicense: (code: string) => Promise<LicenseInfo>
+  saveLicense: (code: string) => Promise<void>
+  getLicenseStatus: () => Promise<LicenseInfo | null>
+  isActivated: () => Promise<boolean>
 }
 
 // 扩展 Window 接口
@@ -138,6 +157,7 @@ declare global {
     db: DatabaseAPI
     app: AppAPI
     electronAPI: TauriAPI
+    license: LicenseAPI
     confirmDialog: (message: string, options?: { 
       title?: string, 
       confirmText?: string, 

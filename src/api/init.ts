@@ -1,5 +1,6 @@
 import { bridge } from './bridge'
 import type { DatabaseAPI, AppAPI, TauriAPI } from '../types/database'
+import { licenseAPI } from './license'
 
 function initAPI() {
   const db: DatabaseAPI = {
@@ -43,11 +44,13 @@ function initAPI() {
     setCustomDataPath: bridge.setCustomDataPath,
     openPathInExplorer: bridge.openPathInExplorer,
     saveFileDialog: bridge.saveFileDialog,
+    getConfigFilePath: bridge.getConfigFilePath,
   }
 
   window.db = db
   window.app = app
   window.electronAPI = electronAPI
+  window.license = licenseAPI
 }
 
 initAPI()

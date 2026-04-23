@@ -4,6 +4,7 @@ import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import HomeView from './components/home/HomeView.vue';
 import SyncQRDialog from './components/SyncQRDialog.vue';
+import ActivateModal from './components/home/ActivateModal.vue';
 import type { Record, Statistics, RecordHistory } from './types/database';
 import type { ThemeType } from './types/theme';
 import { getLunarDisplay } from './utils/lunarCalendar';
@@ -11,18 +12,22 @@ import { exportToExcel, exportToPDF } from './utils/export';
 import { useTheme } from './composables/useTheme';
 import { useAppConfig } from './composables/useAppConfig';
 import { useFullscreenScale } from './composables/useFullscreenScale';
+import { useActivation } from './composables/useActivation';
 import Toast from './components/Toast.vue';
 import EditHistoryModal from './components/business/EditHistoryModal.vue';
 import StatisticsModal from './components/business/StatisticsModal.vue';
 import SearchModal from './components/business/SearchModal.vue';
 import ExportModal from './components/business/ExportModal.vue';
-import AboutDialog from './components/AboutDialog.vue';
 import StyleCustomizeDialog from './components/StyleCustomizeDialog.vue';
 import IconSvg from './components/IconSvg.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 
+// ==================== 激活相关 ====================
+const { checkActivation } = useActivation();
+const showActivateModal = ref(false);
+
 // ==================== 启动页和配置 ====================
-const { setTheme, applyThemeToDocument, currentTheme } = useTheme();
+const { setTheme, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig, setDisplayStyle, setCustomFont, setEventDate } = useAppConfig();
 
 // 重命名数据库后更新最近列表
@@ -105,9 +110,6 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 // 导出弹窗状态
 const showExportModal = ref(false);
 const isExporting = ref(false);
-
-// 关于弹窗状态
-const showAboutDialog = ref(false);
 
 // 样式自定义弹窗状态
 const showStyleDialog = ref(false);
@@ -415,7 +417,12 @@ const currentPageAmount = computed(() => {
   return formatMoney(total);
 });
 
-const openStatisticsModal = () => {
+const openStatisticsModal = async () => {
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    showActivateModal.value = true;
+    return;
+  }
   showStatisticsModal.value = true;
 };
 
@@ -611,7 +618,12 @@ const handleSave = () => { alert('数据已自动保存'); };
 // const handleImport = () => { alert('导入功能开发中...'); };
 
 // 打开导出弹窗
-const handleExport = () => {
+const handleExport = async () => {
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    showActivateModal.value = true;
+    return;
+  }
   showExportModal.value = true;
 };
 
@@ -695,10 +707,22 @@ const handleExportPDF = async () => {
   }
 };
 
-const handleEditClick = () => { openEditHistoryModal(); };
+const handleEditClick = async () => {
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    showActivateModal.value = true;
+    return;
+  }
+  openEditHistoryModal();
+};
 
 // 打开搜索弹窗
-const handleSearch = () => {
+const handleSearch = async () => {
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    showActivateModal.value = true;
+    return;
+  }
   showSearchModal.value = true;
   searchKeyword.value = '';
   searchResults.value = [];
@@ -849,12 +873,12 @@ const handleEditBookFromHome = async (data: { path: string; name: string; eventD
     
     // 如果名称有变化，重命名数据库文件
     if (data.name) {
-      const newFileName = generateFileName(data.name);
+      const newFileName = await generateFileName(data.name);
       const response = await window.electronAPI.renameDatabase(data.path, newFileName);
       if (response.success && response.data?.newPath) {
         // 更新最近打开列表
-        removeFromRecentBooks(data.path);
-        addToRecentBooks(data.name, response.data.newPath);
+        await removeFromRecentBooks(data.path);
+        await addToRecentBooks(data.name, response.data.newPath);
       }
     }
     
@@ -901,20 +925,20 @@ const handleCreateNewBook = async (eventName: string, theme?: ThemeType, eventDa
   try {
     // 如果有当前数据，先保存
     if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = generateFileName(config.value.eventName);
+      const currentFileName = await generateFileName(config.value.eventName);
       // 重命名当前数据库文件
       await window.electronAPI.saveCurrentDatabase(currentFileName);
-      addToRecentBooks(config.value.eventName, config.value.currentDbPath);
+      await addToRecentBooks(config.value.eventName, config.value.currentDbPath);
     }
     
     // 生成新文件名
-    const newFileName = generateFileName(eventName);
+    const newFileName = await generateFileName(eventName);
     
     // 创建新的数据库
     const response = await window.electronAPI.createNewDatabase(newFileName, theme, eventName, eventDate);
     if (response.success && response.data?.filePath) {
-      setCurrentDbPath(response.data.filePath);
-      addToRecentBooks(eventName, response.data.filePath);
+      await setCurrentDbPath(response.data.filePath);
+      await addToRecentBooks(eventName, response.data.filePath);
       records.value = [];
       statistics.value = {
         totalCount: 0,
@@ -943,7 +967,7 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
     
     // 先保存当前数据（如果有）
     if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = generateFileName(config.value.eventName);
+      const currentFileName = await generateFileName(config.value.eventName);
       await window.electronAPI.saveCurrentDatabase(currentFileName);
     }
     
@@ -959,9 +983,9 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
       // 使用提取的名称或传入的名称
       const finalEventName = eventName || extractedEventName || '电子礼金簿';
       appName.value = finalEventName;
-      setEventName(finalEventName);
-      setCurrentDbPath(filePath);
-      addToRecentBooks(finalEventName, filePath);
+      await setEventName(finalEventName);
+      await setCurrentDbPath(filePath);
+      await addToRecentBooks(finalEventName, filePath);
       
       // 应用主题（如果有传入的主题参数）
       if (theme) {
@@ -1005,23 +1029,25 @@ const handleNameEditComplete = async () => {
 
   try {
     // 保存到配置
-    setEventName(newName);
+    await setEventName(newName);
 
     // 如果有当前数据库，重命名数据库文件
     if (config.value.currentDbPath) {
-      const newFileName = generateFileName(newName);
+      const newFileName = await generateFileName(newName);
       const response = await window.electronAPI.renameDatabase(config.value.currentDbPath, newFileName);
 
       if (response.success && response.data?.newPath) {
         // 获取旧路径
         const oldPath = config.value.currentDbPath;
         // 更新当前数据库路径
-        setCurrentDbPath(response.data.newPath);
+        await setCurrentDbPath(response.data.newPath);
         // 更新最近打开列表（先移除旧路径，再添加新路径）
         if (oldPath) {
+          // renameRecentBook 函数可能也需要更新为异步
+          // 暂时保持不变，后续再处理
           renameRecentBook(oldPath, newName, response.data.newPath);
         } else {
-          addToRecentBooks(newName, response.data.newPath);
+          await addToRecentBooks(newName, response.data.newPath);
         }
       } else {
         console.error('重命名数据库失败:', response.error);
@@ -1037,7 +1063,7 @@ const handleBackToSplash = async () => {
   try {
     // 保存当前数据（如果有）
     if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = generateFileName(config.value.eventName);
+      const currentFileName = await generateFileName(config.value.eventName);
       await window.electronAPI.saveCurrentDatabase(currentFileName);
     }
     
@@ -1130,6 +1156,7 @@ onUnmounted(() => {
     @open-file="handleOpenFileFromHome"
     @minimize="handleMinimizeWindow"
     @close="handleCloseWindow"
+    @show-activate="showActivateModal = true"
   />
 
   <!-- 
@@ -1159,7 +1186,7 @@ onUnmounted(() => {
     <header class="app-header">
       <!-- 左侧：Logo和名称 -->
       <div class="header-left">
-        <img src="/images/logo.png" alt="Logo" class="app-logo" />
+        <img src="/images/logo.png" alt="Logo" class="app-logo" @click="handleBackToSplash" />
         <div class="app-name-wrapper">
           <input v-if="isEditingName" v-model="appName" 
                  @blur="handleNameEditComplete" 
@@ -1200,10 +1227,6 @@ onUnmounted(() => {
         <button class="func-btn" @click="showStyleDialog = true">
           <IconSvg name="palette" :size="20" />
           <span class="btn-text">样式</span>
-        </button>
-        <button class="func-btn about-btn" @click="showAboutDialog = true">
-          <IconSvg name="info" :size="20" />
-          <span class="btn-text">关于</span>
         </button>
         <button class="func-btn" @click="handleSyncToMiniApp" title="小程序">
           <IconSvg name="wechat" :size="20" />
@@ -1320,8 +1343,11 @@ onUnmounted(() => {
       @export="handleExportFormat"
     />
 
-    <!-- 关于弹窗 -->
-    <AboutDialog v-model="showAboutDialog" />
+    <!-- 激活弹窗 -->
+    <ActivateModal
+      :show="showActivateModal"
+      @update:show="showActivateModal = $event"
+    />
 
     <!-- 样式自定义弹窗 -->
     <StyleCustomizeDialog
@@ -1354,8 +1380,9 @@ onUnmounted(() => {
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
   font-family: var(--theme-font-family);
-  background: var(--theme-primary);
+  background: var(--theme-bg-image) center center / cover no-repeat fixed;
   overflow: hidden;
+  min-height: 100vh;
 }
 
 /* ==================== 启动页过渡动画 ==================== */
@@ -1573,7 +1600,7 @@ body {
 .app-container {
   display: flex;
   flex-direction: column;
-  background: var(--theme-paper);
+  background: transparent;
   overflow: hidden;
   transform: scale(var(--fullscreen-scale));
   transform-origin: top left;
@@ -1584,7 +1611,7 @@ body {
   position: relative;
 }
 
-/* 背景纹理层 */
+/* 背景纹理层 - 使用主题变量 */
 .app-container::before {
   content: '';
   position: absolute;
@@ -1592,29 +1619,27 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background: 
-    radial-gradient(ellipse at 20% 20%, rgba(var(--theme-primary-rgb), 0.03) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 80%, rgba(var(--theme-primary-rgb), 0.02) 0%, transparent 50%);
+  background: var(--theme-bg-overlay);
   pointer-events: none;
   z-index: 0;
 }
 
-/* ==================== 顶部导航栏 ==================== */
+/* ==================== 顶部导航栏 - 使用主题变量 ==================== */
 .app-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 32px;
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--theme-border);
+  background: var(--theme-header-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--theme-header-border);
   z-index: 100;
   position: relative;
   overflow: hidden;
 }
 
-/* 祥云底纹背景 */
+/* 导航栏纹理背景 - 使用主题变量 */
 .app-header::before {
   content: '';
   position: absolute;
@@ -1622,26 +1647,26 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80'%3E%3Cg fill='none' stroke='%23C75B39' stroke-width='1'%3E%3Cpath d='M20 40c0-8 6-14 14-14s14 6 14 14c0 6-4 11-10 13v11h-8V53c-6-2-10-7-10-13z'/%3E%3Cpath d='M60 35c0-10 8-18 18-18s18 8 18 18c0 8-5 14-12 17v14h-10V52c-7-3-12-9-12-17z'/%3E%3Cpath d='M120 40c0-8 6-14 14-14s14 6 14 14c0 6-4 11-10 13v11h-8V53c-6-2-10-7-10-13z'/%3E%3Cpath d='M160 38c0-9 7-16 16-16s16 7 16 16c0 7-4 12-10 14v12h-10V52c-6-2-10-7-10-14z'/%3E%3Cpath d='M40 55c0-6 5-11 11-11s11 5 11 11c0 5-3 9-8 10v9h-6v-9c-5-1-8-5-8-10z'/%3E%3Cpath d='M100 58c0-5 4-9 9-9s9 4 9 9c0 4-2 7-6 8v8h-5v-8c-4-1-6-4-6-8z'/%3E%3Cpath d='M180 55c0-6 5-11 11-11s11 5 11 11c0 5-3 9-8 10v9h-6v-9c-5-1-8-5-8-10z'/%3E%3C/g%3E%3C/svg%3E");
-  background-repeat: repeat-x;
-  background-position: center;
-  background-size: 300px 60px;
-  opacity: 0.15;
+  background-image: var(--theme-header-pattern);
+  background-repeat: var(--theme-header-pattern-repeat, repeat-x);
+  background-position: var(--theme-header-pattern-position, center);
+  background-size: var(--theme-header-pattern-size, 300px 60px);
+  opacity: var(--theme-header-pattern-opacity);
   pointer-events: none;
   z-index: 0;
 }
 
-/* 导航栏底部装饰线 */
+/* 导航栏底部金色装饰线 */
 .app-header::after {
   content: '';
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 200px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--theme-accent), transparent);
-  opacity: 0.3;
+  width: 300px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--theme-gold), transparent);
+  opacity: 0.6;
 }
 
 /* 导航栏左侧 */
@@ -1660,15 +1685,16 @@ body {
   border-radius: 12px;
   box-shadow: var(--theme-shadow-sm);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
 }
 
 .app-logo:hover {
-  transform: scale(1.05);
+  transform: scale(1.08);
   box-shadow: var(--theme-shadow);
 }
 
 .app-name {
-  color: var(--theme-text-primary);
+  color: var(--theme-text-light);
   font-size: var(--theme-font-size-xl);
   font-weight: 600;
   font-family: var(--font-name-amount);
@@ -1677,6 +1703,7 @@ body {
   transition: color 0.3s ease;
   position: relative;
   padding-left: 16px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .app-name::before {
@@ -1687,12 +1714,12 @@ body {
   transform: translateY(-50%);
   width: 3px;
   height: 20px;
-  background: linear-gradient(180deg, var(--theme-accent) 0%, var(--theme-primary) 100%);
+  background: linear-gradient(180deg, var(--theme-gold) 0%, var(--theme-gold-dark) 100%);
   border-radius: 2px;
 }
 
 .app-name:hover {
-  color: var(--theme-accent);
+  color: var(--theme-gold-light);
 }
 
 .app-name-input {
@@ -1725,7 +1752,7 @@ body {
   border: none;
   border-radius: var(--theme-border-radius-sm);
   background: transparent;
-  color: var(--theme-text-secondary);
+  color: var(--theme-header-text);
   cursor: pointer;
   transition: all 0.25s ease;
   font-family: inherit;
@@ -1741,14 +1768,14 @@ body {
   transform: translateX(-50%);
   width: 0;
   height: 2px;
-  background: var(--theme-accent);
+  background: var(--theme-header-text);
   border-radius: 0 0 2px 2px;
   transition: width 0.25s ease;
 }
 
 .func-btn:hover {
-  color: var(--theme-text-primary);
-  background: rgba(var(--theme-primary-rgb), 0.04);
+  color: var(--theme-header-text-hover);
+  background: rgba(249, 212, 187, 0.15);
 }
 
 .func-btn:hover::before {
@@ -1766,7 +1793,7 @@ body {
 }
 
 .about-btn:hover {
-  background: rgba(107, 93, 77, 0.06);
+  background: rgba(249, 212, 187, 0.1);
 }
 
 /* 导航栏右侧 - 农历日期 */
@@ -1778,22 +1805,23 @@ body {
 
 .lunar-date {
   padding: 8px 16px;
-  background: rgba(var(--theme-primary-rgb), 0.04);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: var(--theme-border-radius-sm);
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-header-border);
 }
 
 .lunar-primary {
   font-size: var(--theme-font-size-md);
   font-weight: 600;
-  color: var(--theme-text-primary);
+  color: var(--theme-gold-light);
   font-family: var(--font-name-amount);
   letter-spacing: 1px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .lunar-secondary {
   font-size: 11px;
-  color: var(--theme-text-muted);
+  color: rgba(255, 255, 255, 0.8);
   margin-top: 2px;
   letter-spacing: 0.5px;
 }
@@ -1845,7 +1873,7 @@ body {
 /* 预览文字容器 - 带伪元素下划线 */
 .preview-name {
   font-size: 80px;
-  color: var(--theme-text-primary);
+  color: var(--theme-preview-name-color, var(--theme-text-primary));
   font-family: var(--font-name-amount);
   white-space: nowrap;
   overflow: hidden;
@@ -1921,7 +1949,7 @@ body {
 
 /* ==================== 统计面板 ==================== */
 .statistics-panel {
-  background: var(--theme-paper);
+  background: var(--theme-container-bg);
   border-radius: var(--theme-border-radius);
   padding: 16px;
   box-shadow: var(--theme-shadow);
@@ -1929,7 +1957,7 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-container-border);
   position: relative;
   overflow: hidden;
 }
@@ -1997,12 +2025,12 @@ body {
 
 /* ==================== 录入表单面板 ==================== */
 .form-panel {
-  background: var(--theme-paper);
+  background: var(--theme-container-bg);
   border-radius: var(--theme-border-radius);
   padding: 20px;
   box-shadow: var(--theme-shadow);
   flex: 1;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-container-border);
   position: relative;
   overflow: hidden;
 }

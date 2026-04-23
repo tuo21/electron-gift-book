@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue';
 import type { ThemeType } from '../../types/theme';
 import { THEME_CONFIG, getDefaultTheme } from '../../types/theme';
+import { useActivation } from '../../composables/useActivation';
 
 // ==================== Props & Emits ====================
 const props = defineProps<{
@@ -18,7 +19,10 @@ const emit = defineEmits<{
   (e: 'create', data: { eventName: string; eventDate: string; theme: ThemeType }): void;
   (e: 'save-edit', data: { path: string; name: string; eventDate: string; theme: ThemeType }): void;
   (e: 'cancel-edit'): void;
+  (e: 'show-activate'): void;
 }>();
+
+const { checkActivation } = useActivation();
 
 // ==================== 响应式状态 ====================
 const eventName = ref('');
@@ -61,6 +65,13 @@ const selectTheme = (theme: ThemeType) => {
 // 处理创建
 const handleCreate = async () => {
   if (isEditing.value || !isValid.value || isCreating.value) return;
+
+  // 激活检查
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    emit('show-activate');
+    return;
+  }
 
   isCreating.value = true;
   
@@ -131,23 +142,31 @@ const handleCancelEdit = () => {
       </div>
 
       <!-- 主题选择 -->
-      <div class="form-item">
+      <div class="form-item theme-select-item">
         <label class="form-label">主题选择</label>
-        <div class="theme-selector">
-          <button
+        <div class="theme-cards">
+          <div
             v-for="theme in themes"
             :key="theme.id"
-            type="button"
-            class="theme-option"
+            class="theme-card"
             :class="[
-              `theme-${theme.id}`,
+              `theme-card-${theme.id}`,
               { active: selectedTheme === theme.id }
             ]"
             @click="selectTheme(theme.id)"
             :title="theme.description"
           >
-            <span class="theme-name">{{ theme.displayName }}</span>
-          </button>
+            <div class="card-content">
+              <div class="radio-row">
+                <div class="radio-circle">
+                  <div v-if="selectedTheme === theme.id" class="radio-dot"></div>
+                </div>
+                <span class="theme-title">{{ theme.displayName }}</span>
+              </div>
+              <p class="theme-short-desc">{{ theme.shortDesc }}</p>
+            </div>
+            <div class="card-decoration" :class="`decoration-${theme.id}`"></div>
+          </div>
         </div>
       </div>
 
@@ -276,92 +295,180 @@ const handleCancelEdit = () => {
   z-index: 1;
 }
 
-/* 主题选择器 */
-.theme-selector {
-  display: flex;
-  gap: 8px;
+/* 主题选择卡片 */
+.theme-select-item {
+  grid-column: 1 / -1;
 }
 
-.theme-option {
+.theme-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.theme-card {
   flex: 1;
-  height: 40px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  overflow: hidden;
+  min-height: 80px;
+}
+
+.theme-card:hover {
+  border-color: #d0d0d0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.radio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.radio-circle {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #d0d0d0;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background: #fafafa;
-  cursor: pointer;
   transition: all 0.2s ease;
-  font-size: 13px;
-  color: #666;
+  flex-shrink: 0;
 }
 
-.theme-option:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+.radio-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
-.theme-name {
-  font-size: 13px;
-  font-weight: 500;
+.theme-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
 }
 
-/* 喜庆红主题 */
-.theme-red {
-  background: linear-gradient(135deg, #ff6b6b 0%, #c75b39 100%);
-  border-color: #c75b39;
-  color: white;
+.theme-short-desc {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+  padding-left: 28px;
 }
 
-.theme-red .theme-name {
-  color: white;
+/* 装饰图案区域 - 固定在右侧 */
+.card-decoration {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 80%;
+  background-repeat: no-repeat;
+  background-position: right center;
+  background-size: cover;
+  pointer-events: none;
+  z-index: 0;
 }
 
-.theme-red:hover {
-  box-shadow: 0 4px 12px rgba(199, 91, 57, 0.3);
+/* 喜庆红主题卡片 */
+.theme-card-red {
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #FFF5F5 100%);
 }
 
-.theme-red.active {
-  box-shadow: 0 0 0 2px rgba(199, 91, 57, 0.3), 0 4px 12px rgba(199, 91, 57, 0.3);
+.theme-card-red:hover {
+  border-color: rgba(196, 30, 58, 0.4);
 }
 
-/* 肃穆灰主题 */
-.theme-gray {
-  background: linear-gradient(135deg, #f5f5f5 0%, #d0d0d0 100%);
-  border-color: #b0b0b0;
+.theme-card-red.active {
+  border-color: #C41E3A;
+  background: linear-gradient(90deg, rgba(196, 30, 58, 0.05) 0%, rgba(196, 30, 58, 0.02) 50%, #FFF0F0 100%);
 }
 
-.theme-gray .theme-name {
-  color: #4a4a4a;
+.theme-card-red.active .radio-circle {
+  border-color: #C41E3A;
+  color: #C41E3A;
 }
 
-.theme-gray:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.theme-card-red.active .theme-title {
+  color: #C41E3A;
 }
 
-.theme-gray.active {
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15);
+.theme-card-red .card-decoration {
+  background-image: var(--theme-card-bg-red, url('/Img/主题卡片-喜庆红.png'));
 }
 
-/* 寿宴金主题 */
-.theme-golden {
-  background: linear-gradient(135deg, #D4A017 0%, #B8860B 100%);
+/* 肃穆灰主题卡片 */
+.theme-card-gray {
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #F8F8F8 100%);
+}
+
+.theme-card-gray:hover {
+  border-color: rgba(74, 74, 74, 0.4);
+}
+
+.theme-card-gray.active {
+  border-color: #4A4A4A;
+  background: linear-gradient(90deg, rgba(74, 74, 74, 0.05) 0%, rgba(74, 74, 74, 0.02) 50%, #F5F5F5 100%);
+}
+
+.theme-card-gray.active .radio-circle {
+  border-color: #4A4A4A;
+  color: #4A4A4A;
+}
+
+.theme-card-gray.active .theme-title {
+  color: #4A4A4A;
+}
+
+.theme-card-gray .card-decoration {
+  background-image: var(--theme-card-bg-gray, url('/Img/主题卡片-肃穆灰.png'));
+}
+
+.theme-card-gray.active .theme-title {
+  color: #4A4A4A;
+}
+
+/* 寿宴金主题卡片 */
+.theme-card-golden {
+  background: linear-gradient(90deg, #ffffff 0%, #ffffff 50%, #FDF8F0 100%);
+}
+
+.theme-card-golden:hover {
+  border-color: rgba(184, 134, 11, 0.4);
+}
+
+.theme-card-golden.active {
   border-color: #B8860B;
-  color: white;
+  background: linear-gradient(90deg, rgba(184, 134, 11, 0.05) 0%, rgba(184, 134, 11, 0.02) 50%, #FDF5E6 100%);
 }
 
-.theme-golden .theme-name {
-  color: white;
+.theme-card-golden.active .radio-circle {
+  border-color: #B8860B;
+  color: #B8860B;
 }
 
-.theme-golden:hover {
-  box-shadow: 0 4px 12px rgba(184, 134, 11, 0.3);
+.theme-card-golden.active .theme-title {
+  color: #B8860B;
 }
 
-.theme-golden.active {
-  box-shadow: 0 0 0 2px rgba(184, 134, 11, 0.3), 0 4px 12px rgba(184, 134, 11, 0.3);
+.theme-card-golden .card-decoration {
+  background-image: var(--theme-card-bg-golden, url('/Img/主题卡片-寿宴金.png'));
 }
 
 /* 创建按钮 */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import '../../types/database';
 
 
@@ -15,6 +15,7 @@ const emit = defineEmits<{
 // ==================== 响应式状态 ====================
 const currentDataPath = ref<string>('');
 const defaultDataPath = ref('');
+const configFilePath = ref('');
 const isLoading = ref(false);
 const isChangingPath = ref(false);
 
@@ -60,6 +61,11 @@ const loadDataPath = async () => {
         currentDataPath.value = response.data || '';
       }
     }
+    
+    // 显示配置文件路径（只显示文件夹路径）
+    const configFolderPath = 'C:\\Users\\bakua\\AppData\\Roaming\\com.giftbook.app';
+    configFilePath.value = configFolderPath;
+    console.log('配置文件路径:', configFolderPath);
   } catch (error) {
     console.error('加载数据路径失败:', error);
   } finally {
@@ -92,6 +98,24 @@ const handleOpenInExplorer = async () => {
   
   try {
     const openResponse = await window.electronAPI.openPathInExplorer(pathToOpen);
+    if (!openResponse.success) {
+      alert('打开资源管理器失败: ' + (openResponse.error || '未知错误'));
+    }
+  } catch (error) {
+    console.error('打开资源管理器失败:', error);
+    alert('打开资源管理器失败');
+  }
+};
+
+// 打开配置文件所在的资源管理器
+const handleOpenConfigFile = async () => {
+  if (!configFilePath.value) {
+    alert('配置文件路径无效');
+    return;
+  }
+  
+  try {
+    const openResponse = await window.electronAPI.openPathInExplorer(configFilePath.value);
     if (!openResponse.success) {
       alert('打开资源管理器失败: ' + (openResponse.error || '未知错误'));
     }
@@ -141,6 +165,13 @@ onMounted(() => {
     loadDataPath();
   }
 });
+
+// 监听show属性变化，当模态框显示时加载数据
+watch(() => props.show, (newValue) => {
+  if (newValue) {
+    loadDataPath();
+  }
+});
 </script>
 
 <template>
@@ -182,6 +213,18 @@ onMounted(() => {
                   >
                     {{ isChangingPath ? '处理中...' : '更改位置' }}
                   </button>
+                </div>
+                <div class="setting-item path-item">
+                  <div class="setting-info">
+                    <div class="setting-label">配置文件路径</div>
+                    <div 
+                      class="setting-value path-value clickable" 
+                      :title="configFilePath"
+                      @click="() => handleOpenConfigFile()"
+                    >
+                      {{ isLoading ? '加载中...' : configFilePath || '未找到' }}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

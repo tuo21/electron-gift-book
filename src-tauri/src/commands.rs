@@ -9,8 +9,26 @@ use crate::models::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct AppConfig {
-    custom_data_path: Option<String>,
+pub struct AppConfig {
+    customDataPath: Option<String>,
+    eventName: String,
+    theme: String,
+    displayStyle: String,
+    customFontCssName: Option<String>,
+    eventDate: Option<String>,
+    recentBooks: Vec<RecentBook>,
+    unnamedIndex: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentBook {
+    name: String,
+    path: String,
+    last_opened: String,
+    theme: Option<String>,
+    event_name: Option<String>,
+    event_date: Option<String>,
 }
 
 fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -18,18 +36,54 @@ fn get_config_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(data_dir.join("app_config.json"))
 }
 
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            customDataPath: None,
+            eventName: String::new(),
+            theme: "red".to_string(),
+            displayStyle: "full".to_string(),
+            customFontCssName: None,
+            eventDate: None,
+            recentBooks: Vec::new(),
+            unnamedIndex: 1,
+        }
+    }
+}
+
 fn load_app_config(app: &AppHandle) -> Option<AppConfig> {
     let config_path = get_config_path(app).ok()?;
     if config_path.exists() {
-        let content = std::fs::read_to_string(&config_path).ok()?;
-        serde_json::from_str(&content).ok()
+        match std::fs::read_to_string(&config_path) {
+            Ok(content) => {
+                match serde_json::from_str(&content) {
+                    Ok(config) => Some(config),
+                    Err(e) => {
+                        log::error!("解析配置文件失败: {}", e);
+                        Some(AppConfig::default())
+                    }
+                }
+            }
+            Err(e) => {
+                log::error!("读取配置文件失败: {}", e);
+                Some(AppConfig::default())
+            }
+        }
     } else {
-        None
+        Some(AppConfig::default())
     }
 }
 
 fn save_app_config(app: &AppHandle, config: &AppConfig) -> Result<(), String> {
     let config_path = get_config_path(app)?;
+    
+    // 确保数据目录存在
+    if let Some(parent) = config_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据目录失败: {}", e))?;
+        }
+    }
+    
     let content = serde_json::to_string_pretty(config).map_err(|e| format!("序列化配置失败: {}", e))?;
     std::fs::write(&config_path, content).map_err(|e| format!("保存配置失败: {}", e))?;
     Ok(())
@@ -163,7 +217,7 @@ pub async fn get_system_fonts_list() -> Result<Vec<FontInfoDto>, String> {
 
 pub fn init_custom_data_path(app: &AppHandle) {
     if let Some(config) = load_app_config(app) {
-        if let Some(path) = config.custom_data_path {
+        if let Some(path) = config.customDataPath {
             let path_buf = PathBuf::from(&path);
             if path_buf.exists() && path_buf.is_dir() {
                 set_custom_data_dir(path_buf);
@@ -850,9 +904,8 @@ pub async fn set_custom_data_path(app: AppHandle, path: String, migrate: bool) -
     crate::database::set_custom_data_dir(path_buf.clone());
     
     // 持久化自定义路径到配置文件
-    let config = AppConfig {
-        custom_data_path: Some(path_buf.to_string_lossy().to_string()),
-    };
+    let mut config = load_app_config(&app).unwrap_or_default();
+    config.customDataPath = Some(path_buf.to_string_lossy().to_string());
     save_app_config(&app, &config)?;
     
     // 确保目录存在
@@ -1256,4 +1309,55 @@ pub async fn open_path_in_explorer(path: String) -> Result<(), String> {
     }
     
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
+    let config = load_app_config(&app).unwrap_or_default();
+    Ok(config)
+}
+
+#[tauri::command]
+pub async fn update_app_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
+    save_app_config(&app, &config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn reset_app_config(app: AppHandle) -> Result<(), String> {
+    let config = AppConfig::default();
+    save_app_config(&app, &config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_config_file_path() -> Result<String, String> {
+    // 返回一个固定的配置文件路径，避免依赖AppHandle
+    let config_path = "C:\\Users\\用户名\\AppData\\Roaming\\gift-book\\app_config.json";
+    
+    // 尝试创建目录和文件
+    if let Some(parent) = std::path::Path::new(config_path).parent() {
+        if !parent.exists() {
+            match std::fs::create_dir_all(parent) {
+                Ok(_) => log::info!("数据目录创建成功"),
+                Err(e) => log::error!("创建数据目录失败: {}", e),
+            }
+        }
+        
+        let config_file_path = std::path::Path::new(config_path);
+        if !config_file_path.exists() {
+            let default_config = AppConfig::default();
+            match serde_json::to_string_pretty(&default_config) {
+                Ok(content) => {
+                    match std::fs::write(config_file_path, content) {
+                        Ok(_) => log::info!("配置文件创建成功"),
+                        Err(e) => log::error!("创建配置文件失败: {}", e),
+                    }
+                }
+                Err(e) => log::error!("序列化配置失败: {}", e),
+            }
+        }
+    }
+    
+    Ok(config_path.to_string())
 }

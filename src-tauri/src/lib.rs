@@ -1,6 +1,7 @@
 mod commands;
 mod database;
 mod models;
+mod license;
 
 use tauri::Manager;
 
@@ -16,6 +17,9 @@ pub fn run() {
             if !data_dir.exists() {
                 std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
             }
+
+            // 初始化自定义数据路径（从配置文件加载）
+            let _ = commands::init_custom_data_path(app.handle());
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -52,6 +56,25 @@ pub fn run() {
             commands::save_file_dialog,
             commands::generate_pdf,
             commands::get_system_font,
+            commands::get_system_fonts_list,
+            commands::get_data_path,
+            commands::get_default_data_path,
+            commands::select_data_folder,
+            commands::set_custom_data_path,
+            commands::open_path_in_explorer,
+            commands::rename_database,
+            commands::get_database_theme,
+            commands::update_database_theme,
+            commands::get_app_config,
+            commands::update_app_config,
+            commands::reset_app_config,
+            commands::get_config_file_path,
+            license::get_machine_id,
+            license::verify_license,
+            license::save_license,
+            license::get_license_status,
+            license::is_activated,
+            license::clear_license,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

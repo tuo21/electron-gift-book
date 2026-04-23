@@ -74,7 +74,7 @@
 
       <!-- 备注输入 -->
       <div class="form-item">
-        <label class="form-label">备注</label>
+        <label class="form-label">备注\地址</label>
         <input
           ref="remarkInput"
           v-model="formData.remark"
@@ -93,7 +93,7 @@
 
       <!-- 物品描述 -->
       <div class="form-item">
-        <label class="form-label">物品</label>
+        <label class="form-label">礼品</label>
         <input
           ref="itemInput"
           v-model="formData.itemDescription"
@@ -491,14 +491,14 @@ defineExpose({
 }
 
 .form-title {
-  color: var(--theme-text-primary);
+  color: var(--theme-form-title);
   font-size: var(--theme-font-size-lg);
   font-weight: 600;
   text-align: center;
   margin-bottom: var(--theme-spacing-md);
   font-family: var(--font-name-amount);
   padding-bottom: var(--theme-spacing-sm);
-  border-bottom: 1px solid var(--theme-border);
+  border-bottom: 1px solid var(--theme-form-border);
   letter-spacing: 4px;
   position: relative;
 }
@@ -511,12 +511,12 @@ defineExpose({
   transform: translateX(-50%);
   width: 40px;
   height: 2px;
-  background: var(--theme-accent);
+  background: var(--theme-form-title);
   border-radius: 1px;
 }
 
 .form-title.edit-mode {
-  color: var(--theme-accent);
+  color: var(--theme-form-title);
 }
 
 .edit-hint {
@@ -524,25 +524,25 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: rgba(var(--theme-primary-rgb), 0.04);
+  background: rgba(255, 76, 76, 0.08);
   border-radius: var(--theme-border-radius-sm);
   margin-bottom: var(--theme-spacing-md);
   font-size: var(--theme-font-size-sm);
-  color: var(--theme-text-primary);
-  border: 1px solid var(--theme-border);
+  color: #333;
+  border: 1px solid var(--theme-form-border);
 }
 
 .edit-name {
   font-family: var(--font-name-amount);
   font-weight: 600;
-  color: var(--theme-accent);
+  color: var(--theme-form-title);
 }
 
 .cancel-edit-btn {
   padding: 4px 12px;
   border: none;
   border-radius: var(--theme-border-radius-sm);
-  background: var(--theme-accent);
+  background: var(--theme-btn-primary-bg);
   color: white;
   font-size: 12px;
   font-weight: 500;
@@ -552,7 +552,7 @@ defineExpose({
 }
 
 .cancel-edit-btn:hover {
-  background: var(--theme-accent-dark);
+  background: var(--theme-btn-primary-bg-hover);
   transform: translateY(-1px);
 }
 
@@ -588,8 +588,8 @@ defineExpose({
 
 .form-input:focus {
   outline: none;
-  border-color: var(--theme-accent);
-  box-shadow: 0 0 0 3px rgba(var(--theme-primary-rgb), 0.08);
+  border-color: var(--theme-form-input-focus);
+  box-shadow: 0 0 0 3px rgba(255, 76, 76, 0.1);
   background: white;
 }
 
@@ -598,7 +598,7 @@ defineExpose({
 }
 
 .amount-chinese {
-  color: var(--theme-accent);
+  color: var(--theme-form-title);
   font-size: 12px;
   font-weight: 500;
   padding: 6px 0;
@@ -629,17 +629,17 @@ defineExpose({
 }
 
 .payment-btn:hover {
-  border-color: var(--theme-accent);
-  color: var(--theme-accent);
-  background: rgba(var(--theme-primary-rgb), 0.02);
+  border-color: var(--theme-form-accent);
+  color: var(--theme-form-accent);
+  background: rgba(255, 76, 76, 0.05);
 }
 
 .payment-btn.active {
-  background: var(--theme-accent);
+  background: var(--theme-btn-primary-bg);
   color: white;
   font-weight: 600;
-  border-color: var(--theme-accent);
-  box-shadow: 0 2px 8px rgba(var(--theme-primary-rgb), 0.2);
+  border-color: var(--theme-form-accent);
+  box-shadow: 0 2px 8px rgba(255, 76, 76, 0.3);
 }
 
 .payment-hint {
@@ -672,14 +672,15 @@ defineExpose({
 }
 
 .submit-btn {
-  background: linear-gradient(135deg, var(--theme-accent) 0%, var(--theme-primary) 100%);
-  color: var(--theme-text-light);
-  box-shadow: 0 2px 8px rgba(var(--theme-primary-rgb), 0.25);
+  background: var(--theme-btn-primary-bg);
+  color: white;
+  box-shadow: 0 2px 8px rgba(255, 76, 76, 0.3);
 }
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(var(--theme-primary-rgb), 0.35);
+  box-shadow: 0 4px 16px rgba(255, 76, 76, 0.4);
+  background: var(--theme-btn-primary-bg-hover);
 }
 
 .submit-btn:active {
@@ -694,15 +695,15 @@ defineExpose({
 }
 
 .clear-btn {
-  background: white;
-  color: var(--theme-text-secondary);
-  border: 1px solid var(--theme-border);
+  background: var(--theme-btn-secondary-bg);
+  color: var(--theme-btn-secondary-text);
+  border: 1px solid var(--theme-btn-secondary-border);
 }
 
 .clear-btn:hover {
-  background: rgba(var(--theme-primary-rgb), 0.02);
-  border-color: var(--theme-accent);
-  color: var(--theme-accent);
+  background: rgba(255, 76, 76, 0.05);
+  border-color: var(--theme-btn-secondary-border-hover);
+  color: var(--theme-btn-secondary-text-hover);
 }
 
 .success-message {

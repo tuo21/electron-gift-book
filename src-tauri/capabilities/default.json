@@ -24,6 +24,13 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        "powershell",
+        "pwsh"
+      ]
+    },
     "http:default",
     {
       "identifier": "http:allow-fetch",

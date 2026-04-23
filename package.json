@@ -14,7 +14,8 @@
     "create-placeholder": "npx tsx scripts/optimizeTemplates.ts public --placeholder",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "generate-license": "node scripts/generate-license.js"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.10.1",

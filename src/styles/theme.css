@@ -1,16 +1,10 @@
 /*
   ========================================
-  电子礼金簿 - 日式极简主题系统 v3.0
+  电子礼金簿 - 主题系统 v4.0
   ========================================
   
-  设计理念：温润木质 · 匠心雅韵
-  - 灵感来源：日本侘寂美学、北欧简约、木质手工艺
-  - 色彩哲学：自然暖色、留白意境、质感纹理
-  
-  字体规范：
-  - 姓名文本和大写金额：演示春风楷
-  - 固定文字内容：宋体
-  - 其他变量文字：楷体
+  支持主题：喜庆红、肃穆灰、寿宴金
+  通过 CSS 变量实现主题间完全隔离
 */
 
 /* ==================== 字体定义 ==================== */
@@ -22,81 +16,12 @@
   font-display: swap;
 }
 
-/* ==================== 红色喜庆主题（默认）==================== */
+/* ==================== 基础变量（向后兼容）==================== */
 :root {
   /* 
     ----------------------------------------
-    主色调 - 温润木红
+    圆角系统
     ----------------------------------------
-    以温暖的木红色为基调，营造亲切典雅的氛围
-    参考日本传统建筑的红木色泽
-  */
-  --theme-primary: #A0522D;          /* 檀木棕 - 主色，自然温暖 */
-  --theme-primary-dark: #8B4513;      /* 深木 - 悬停状态 */
-  --theme-primary-light: #CD853F;     /* 浅木 - 浅色变体 */
-  --theme-primary-rgb: 160, 82, 45;   /* 用于 rgba 转换 */
-
-  /* 
-    ----------------------------------------
-    纸张颜色 - 素纸暖白
-    ----------------------------------------
-    模拟宣纸的温润质感，带有淡淡的暖色调
-    减少冷白色的现代感，增加文化底蕴
-  */
-  --theme-paper: #FEFCF8;            /* 素纸白 - 主背景色 */
-  --theme-paper-warm: #F8F5F0;        /* 暖灰白 - 次级背景 */
-  --theme-paper-opacity: 0.15;
-
-  /* 
-    ----------------------------------------
-    文字颜色 - 墨色层次
-    ----------------------------------------
-    区分文字层级，深浅体现主次关系
-    传统书法讲究"计白当黑"，文字也需要层次
-  */
-  --theme-text-primary: #2C2416;     /* 浓墨 - 主要文字 */
-  --theme-text-secondary: #6B5D4D;    /* 淡墨 - 次要文字 */
-  --theme-text-light: #FFFFFF;       /* 留白 - 深色背景上的文字 */
-  --theme-text-muted: #9E9282;       /* 灰墨 - 辅助文字 */
-
-  /* 
-    ----------------------------------------
-    强调色 - 朱砂点睛
-    ----------------------------------------
-    中国传统建筑和书画中的朱红色点缀
-    起到"画龙点睛"的作用
-  */
-  --theme-accent: #C75B39;           /* 赭石红 - 强调色 */
-  --theme-accent-dark: #A84832;      /* 深赭 - 悬停状态 */
-  --theme-accent-light: #E07B5A;     /* 浅赭 - 浅色变体 */
-
-  /* 
-    ----------------------------------------
-    边框颜色
-    ----------------------------------------
-    使用木纹描边，颜色浅淡而不突兀
-  */
-  --theme-border: rgba(44, 36, 22, 0.08);   /* 素描淡边 */
-  --theme-border-color: #A0522D;     /* 强调边框 */
-
-  /* 
-    ----------------------------------------
-    阴影效果 - 柔和投影
-    ----------------------------------------
-    传统国画少用浓重阴影，这里使用极淡的阴影
-    营造"水墨晕染"的朦胧美感，同时保持现代感
-  */
-  --theme-shadow-sm: 0 1px 3px rgba(44, 36, 22, 0.06);
-  --theme-shadow: 0 4px 12px rgba(44, 36, 22, 0.08);
-  --theme-shadow-lg: 0 8px 24px rgba(44, 36, 22, 0.10);
-  --theme-shadow-hover: 0 8px 20px rgba(44, 36, 22, 0.12);
-
-  /* 
-    ----------------------------------------
-    圆角 - 温润棱角
-    ----------------------------------------
-    适度的圆角，既有现代感的柔和
-    又保留传统的方正之气
   */
   --theme-border-radius: 12px;
   --theme-border-radius-sm: 8px;
@@ -106,19 +31,6 @@
     ----------------------------------------
     字体系统
     ----------------------------------------
-    字体规范：
-    - font-name-amount: 姓名和大写金额字体（演示春风楷）
-    - font-family-fixed: 固定文字内容字体（宋体）
-    - font-family: 其他变量文字字体（楷体）
-    
-    字号：
-    - font-size-xxxl: 超超大（40px，礼金展示姓名、金额）
-    - font-size-xxl: 超大（28px，标题）
-    - font-size-xl: 大（24px，面板标题）
-    - font-size-lg: 中（20px，标题）
-    - font-size-md: 正常（16px，普通文字）
-    - font-size-sm: 小（14px，标签）
-    - font-size-xs: 超小（12px，提示文字）
   */
   --font-name-amount: '演示春风楷', 'KaiTi', 'STKaiti', serif;
   --font-family-fixed: 'SimSun', 'STSong', 'Noto Serif SC', serif;
@@ -133,21 +45,37 @@
 
   /* 
     ----------------------------------------
-    间距系统 - 疏朗有致
+    间距系统
     ----------------------------------------
-    传统美学讲究"疏可走马，密不透风"
-    间距设计追求"疏朗有致"
-    - spacing-xl: 超大（32px）
-    - spacing-lg: 大（24px，主内容区内边距）
-    - spacing-md: 中（16px，面板内边距）
-    - spacing-sm: 小（8px，元素间距）
-    - spacing-xs: 超小（4px）
   */
   --theme-spacing-xl: 32px;
   --theme-spacing-lg: 24px;
   --theme-spacing-md: 16px;
   --theme-spacing-sm: 8px;
   --theme-spacing-xs: 4px;
+
+  /* 
+    ----------------------------------------
+    首页背景图片
+    ----------------------------------------
+  */
+  --home-bg-image: url('/Img/喜庆红背景.png');
+
+  /* 
+    ----------------------------------------
+    侧边栏背景图片
+    ----------------------------------------
+  */
+  --sidebar-bg-image: url('/Img/侧边栏背景.png');
+
+  /* 
+    ----------------------------------------
+    主题卡片背景图片
+    ----------------------------------------
+  */
+  --theme-card-bg-red: url('/Img/主题卡片-喜庆红.png?v=3');
+  --theme-card-bg-gray: url('/Img/主题卡片-肃穆灰.png?v=3');
+  --theme-card-bg-golden: url('/Img/主题卡片-寿宴金.png?v=3');
 
   /* 礼金簿网格 */
   --grid-column-width: 80px;
@@ -166,33 +94,240 @@
   --fullscreen-scale: 1;
 }
 
+/* ==================== 喜庆红主题 ==================== */
+/* 
+  喜庆红主题 - 热烈婚庆
+  以红金色为基调，营造热烈喜庆的婚庆氛围
+*/
+.theme-red,
+:root {
+  /* 主色调 */
+  --theme-primary: #C41E3A;
+  --theme-primary-dark: #A01830;
+  --theme-primary-light: #E0354E;
+  --theme-primary-rgb: 196, 30, 58;
+
+  /* 背景 */
+  --theme-bg-gradient-start: #8B0A1E;
+  --theme-bg-gradient-end: #C41E3A;
+  --theme-bg-solid: #B91C32;
+
+  /* 纸张/容器背景 */
+  --theme-paper: rgba(255, 255, 255, 0.95);
+  --theme-paper-warm: rgba(255, 250, 245, 0.92);
+  --theme-paper-opacity: 0.95;
+
+  /* 文字颜色 */
+  --theme-text-primary: #2D1F1F;
+  --theme-text-secondary: #5C4A4A;
+  --theme-text-light: #FFFFFF;
+  --theme-text-muted: #8B6F6F;
+  --theme-text-gold: #FFD700;
+
+  /* 强调色 */
+  --theme-accent: #C41E3A;
+  --theme-accent-dark: #A01830;
+  --theme-accent-light: #E0354E;
+  --theme-gold: #D4AF37;
+  --theme-gold-light: #FFD700;
+  --theme-gold-dark: #B8860B;
+
+  /* 边框 */
+  --theme-border: rgba(212, 175, 55, 0.25);
+  --theme-border-color: #D4AF37;
+
+  /* 阴影 */
+  --theme-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.15);
+  --theme-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  --theme-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.25);
+  --theme-shadow-hover: 0 8px 24px rgba(196, 30, 58, 0.3);
+  --theme-shadow-gold: 0 0 20px rgba(212, 175, 55, 0.4);
+
+  /* ========================================
+     组件特定变量 - 喜庆红主题
+     ======================================== */
+
+  /* 背景图片 */
+  --theme-bg-image: url('/Img/喜庆红背景.png');
+  --home-bg-image: url('/Img/喜庆红背景.png');
+  --theme-bg-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0.05) 100%);
+
+  /* 导航栏纹理 */
+  --theme-header-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='200' height='80' viewBox='0 0 200 80' fill='none'%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1' stroke-linecap='round' d='M76.2434 29.7848C75.0993 30.5251 74.1571 30.3245 64.8695 33.6223C55.5819 36.92 45.0156 28.642 41.7179 27.6325C38.4201 26.623 32.2957 29.4496 28.325 30.3245C24.3542 31.1995 19.2393 28.9785 16.1434 27.6325C13.0476 26.2865 8 27.6325 8 27.6325C9.41332 26.6835 12.7111 24.4694 17.6914 25.5462C22.6717 26.623 22.0659 27.6325 26.5078 27.6325C30.9497 27.6325 34.3148 22.1138 41.7179 23.1234C49.121 24.1329 53.4956 27.969 58.274 25.5462'/%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1.229818462006362' stroke-linecap='round' d='M141.397 69.0044C140.737 69.5504 140.193 69.4025 134.831 71.8349C129.469 74.2672 123.369 68.1615 121.465 67.4169C119.562 66.6723 116.026 68.7572 113.734 69.4025C111.441 70.0478 108.488 68.4097 106.701 67.4169C104.914 66.4241 102 67.4169 102 67.4169C102.816 66.7169 104.72 65.0838 107.595 65.878C110.47 66.6723 110.12 67.4169 112.685 67.4169C115.249 67.4169 117.192 63.3464 121.465 64.091C125.739 64.8356 128.265 67.6651 131.023 65.878'/%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1' stroke-linecap='round' d='M32 27.1917C33.0903 26.2226 35.6343 23.9612 42.0952 25.1727C48.5561 26.3841 52.3923 31.4989 61.0741 30.2202C69.756 28.9415 71.6404 26.1149 69.0156 21'/%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1.229818462006362' stroke-linecap='round' d='M116 66.5669C116.629 65.8521 118.098 64.1842 121.828 65.0777C125.558 65.9712 127.772 69.7439 132.785 68.8007C137.797 67.8576 138.885 65.7727 137.369 62'/%3E%3Cpath d='M64.2048 22.1827C65.7529 22.1827 66.8301 23.5287 65.4821 25.0766C64.1342 26.6245 59.3577 26.6918 57.6752 25.0766C55.9927 23.4614 53.3006 26.2207 52.2238 22.6538C51.147 19.0868 53.9063 15.3853 61.5787 17.0005C61.5787 14.1739 68.3088 12.0875 69.7221 13.5009C70.1932 10.0685 82.2401 7.17458 86.6147 14.9142C91.4604 12.3567 96.2387 14.7796 96.2387 18.0773C99.9403 18.0773 103.373 26.8264 89.8451 25.0766C87.8934 27.0283 76.5195 28.9801 77.3944 23.5287C78.2693 18.0773 84.4611 20.231 83.5188 22.6538C82.7785 24.4036 84.7928 25.7512 86.6147 22.6538C88.4365 19.5564 81.7733 13.5009 77.3944 18.0773C73.6212 16.6655 69.1837 18.2119 69.1837 21.6443C67.905 19.7599 60.3672 19.2887 59.6942 22.1827C59.0212 25.0767 62.6566 22.1827 64.2048 22.1827Z' stroke='rgba(255, 195, 0, 0.46)' stroke-width='1' stroke-linecap='round'/%3E%3Cpath d='M134.046 62.9858C134.94 62.9858 135.561 63.9786 134.783 65.1203C134.005 66.262 131.248 66.3117 130.276 65.1203C129.305 63.929 127.751 65.9642 127.129 63.3333C126.508 60.7023 128.101 57.9721 132.53 59.1635C132.53 57.0786 136.415 55.5397 137.231 56.5822C137.503 54.0505 144.458 51.916 146.983 57.6246C149.781 55.7383 152.539 57.5254 152.539 59.9577C154.676 59.9577 156.658 66.411 148.848 65.1203C147.721 66.5599 141.155 67.9995 141.66 63.9786C142.165 59.9577 145.74 61.5462 145.196 63.3333C144.769 64.6239 145.931 65.6179 146.983 63.3333C148.035 61.0486 144.188 56.5822 141.66 59.9577C139.482 58.9164 136.92 60.057 136.92 62.5887C136.182 61.1987 131.83 60.8512 131.442 62.9858C131.053 65.1203 133.152 62.9858 134.046 62.9858Z' stroke='rgba(255, 195, 0, 0.46)' stroke-width='1.229818462006362' stroke-linecap='round'/%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1' stroke-linecap='round' d='M68 28.0711C69.171 28.6566 71.9035 30.0228 76.6818 29.4171C78.3644 31.638 86.4405 36.6856 93.4398 28.7441C102.795 28.7441 106.564 27.8692 106.564 23.4273C106.564 18.9855 100.574 17.8414 98.5547 20.1969'/%3E%3Cpath stroke='rgba(255, 195, 0, 0.46)' stroke-width='1.229818462006362' stroke-linecap='round' d='M137 67.6907C137.676 68.1226 139.253 69.1303 142.012 68.6835C142.983 70.3217 147.646 74.0447 151.686 68.1871C157.087 68.1871 159.263 67.5418 159.263 64.2655C159.263 60.9893 155.805 60.1454 154.639 61.8828'/%3E%3C/svg%3E");
+  --theme-header-pattern-opacity: 0.3;
+  --theme-header-pattern-size: 300px 60px;
+  --theme-header-pattern-repeat: repeat-x;
+  --theme-header-pattern-position: center;
+
+  /* 容器背景 */
+  --theme-container-bg: rgba(254, 237, 219, 1);
+  --theme-container-bg-alpha: rgba(254, 237, 219, 0.95);
+  --theme-container-bg-alpha-low: rgba(254, 237, 219, 0.7);
+  --theme-container-border: rgb(212 175 55 / 79%);
+  --theme-container-border-light: rgb(212 175 55 / 50%);
+  --theme-container-border-lighter: rgb(212 175 55 / 30%);
+
+  /* 导航栏 */
+  --theme-header-bg: transparent;
+  --theme-header-text: #F9D4BB;
+  --theme-header-text-hover: #FFF5E6;
+  --theme-header-border: rgba(212, 175, 55, 0.3);
+
+  /* 按钮 - 主按钮 */
+  --theme-btn-primary-bg: linear-gradient(135deg, #ff4c4c 0%, #ff3333 100%);
+  --theme-btn-primary-bg-hover: linear-gradient(135deg, #ff6b6b 0%, #ff4c4c 100%);
+  --theme-btn-primary-text: #FFFFFF;
+
+  /* 按钮 - 次按钮 */
+  --theme-btn-secondary-bg: rgba(254, 237, 219, 0.8);
+  --theme-btn-secondary-border: rgb(212 175 55 / 50%);
+  --theme-btn-secondary-text: #666666;
+  --theme-btn-secondary-border-hover: #ff4c4c;
+  --theme-btn-secondary-text-hover: #ff4c4c;
+
+  /* 表单 */
+  --theme-form-title: #ff4c4c;
+  --theme-form-accent: #ff4c4c;
+  --theme-form-input-focus: #ff4c4c;
+  --theme-form-border: rgba(255, 76, 76, 0.3);
+
+  /* 分页栏 */
+  --theme-pagination-bg: #ff4c4c;
+  --theme-pagination-text: #FFFFFF;
+  --theme-pagination-text-muted: rgba(255, 255, 255, 0.8);
+  --theme-pagination-btn-bg: rgba(255, 255, 255, 0.15);
+  --theme-pagination-btn-bg-hover: rgba(255, 255, 255, 0.25);
+  --theme-pagination-btn-border: rgba(255, 255, 255, 0.6);
+  --theme-pagination-btn-border-hover: rgba(255, 255, 255, 0.9);
+  --theme-pagination-input-bg: rgba(255, 255, 255, 0.2);
+  --theme-pagination-input-border: rgba(255, 255, 255, 0.5);
+
+  /* 内容区 */
+  --theme-content-bg: rgba(254, 237, 219, 0.95);
+  --theme-content-bg-hover: rgba(254, 237, 219, 1);
+  --theme-content-border: rgb(212 175 55 / 50%);
+  --theme-content-line: rgb(212 175 55 / 50%);
+
+  /* 实时预览区 */
+  --theme-preview-name-color: var(--theme-gold-light);
+}
+
 /* ==================== 肃穆灰主题 ==================== */
 /* 
   肃穆灰主题 - 素雅水墨
-  以黑白灰为主色调，保留传统水墨画的素雅意境
+  以水墨山水为基调，保留传统水墨画的素雅意境
   用于丧仪等庄重场合
 */
 .theme-gray {
-  --theme-primary: #3D3D3D;          /* 玄灰 - 深沉的灰黑色 */
-  --theme-primary-dark: #2A2A2A;      /* 墨黑 */
-  --theme-primary-light: #5A5A5A;     /* 淡墨 */
-  --theme-primary-rgb: 61, 61, 61;
-  --theme-paper: #F8F8F8;             /* 素白 - 带微暖的白 */
-  --theme-paper-warm: #F0F0F0;
-  --theme-paper-opacity: 0.10;
-  --theme-text-primary: #2A2A2A;      /* 浓墨 */
-  --theme-text-secondary: #5A5A5A;    /* 淡墨 */
+  /* 主色调 - 水墨灰 */
+  --theme-primary: #4A4A4A;
+  --theme-primary-dark: #3A3A3A;
+  --theme-primary-light: #5A5A5A;
+  --theme-primary-rgb: 74, 74, 74;
+
+  /* 背景 - 浅灰水墨 */
+  --theme-bg-gradient-start: #E8E8E8;
+  --theme-bg-gradient-end: #F0F0F0;
+  --theme-bg-solid: #EEEEEE;
+
+  /* 纸张/容器背景 */
+  --theme-paper: rgba(255, 255, 255, 0.85);
+  --theme-paper-warm: rgba(250, 250, 250, 0.9);
+  --theme-paper-opacity: 0.15;
+
+  /* 文字颜色 */
+  --theme-text-primary: #3A3A3A;
+  --theme-text-secondary: #666666;
   --theme-text-light: #FFFFFF;
-  --theme-text-muted: #8A8A8A;        /* 灰墨 */
-  --theme-accent: #4A4A4A;           /* 素灰 - 柔和的强调色 */
+  --theme-text-muted: #999999;
+  --theme-text-gold: #AAAAAA;
+
+  /* 强调色 - 水墨深灰 */
+  --theme-accent: #4A4A4A;
   --theme-accent-dark: #3A3A3A;
   --theme-accent-light: #6A6A6A;
-  --theme-border: rgba(42, 42, 42, 0.08);
-  --theme-border-color: #3D3D3D;
-  --theme-shadow-sm: 0 1px 3px rgba(42, 42, 42, 0.05);
-  --theme-shadow: 0 4px 12px rgba(42, 42, 42, 0.06);
-  --theme-shadow-lg: 0 8px 24px rgba(42, 42, 42, 0.08);
-  --theme-shadow-hover: 0 8px 20px rgba(42, 42, 42, 0.10);
+  --theme-gold: #888888;
+  --theme-gold-light: #AAAAAA;
+  --theme-gold-dark: #666666;
+
+  /* 边框 - 浅灰水墨 */
+  --theme-border: rgba(100, 100, 100, 0.12);
+  --theme-border-color: #AAAAAA;
+
+  /* 阴影 */
+  --theme-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --theme-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --theme-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.1);
+  --theme-shadow-hover: 0 8px 20px rgba(0, 0, 0, 0.12);
+  --theme-shadow-gold: 0 0 20px rgba(100, 100, 100, 0.15);
+
+  /* ========================================
+     组件特定变量 - 肃穆灰主题
+     ======================================== */
+
+  /* 背景图片 - 水墨山水背景 */
+  --theme-bg-image: url('/Img/肃穆灰背景.png');
+  --home-bg-image: url('/Img/肃穆灰背景.png');
+  --theme-bg-overlay: linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 100%);
+
+  /* 导航栏纹理 - 水墨山水纹理图片 */
+  --theme-header-pattern: url('/Img/肃穆灰工具栏.png');
+  --theme-header-pattern-opacity: 0.3;
+  --theme-header-pattern-size: cover;
+  --theme-header-pattern-repeat: no-repeat;
+  --theme-header-pattern-position: center bottom;
+
+  /* 容器背景 - 半透明白色 */
+  --theme-container-bg: rgba(255, 255, 255, 0.92);
+  --theme-container-bg-alpha: rgba(255, 255, 255, 0.9);
+  --theme-container-bg-alpha-low: rgba(255, 255, 255, 0.7);
+  --theme-container-border: rgba(150, 150, 150, 0.25);
+  --theme-container-border-light: rgba(150, 150, 150, 0.15);
+  --theme-container-border-lighter: rgba(150, 150, 150, 0.1);
+
+  /* 导航栏 - 深灰半透明 */
+  --theme-header-bg: rgba(60, 60, 60, 0.85);
+  --theme-header-text: rgba(255, 255, 255, 0.95);
+  --theme-header-text-hover: #FFFFFF;
+  --theme-header-border: rgba(255, 255, 255, 0.15);
+
+  /* 按钮 - 主按钮 - 深灰 */
+  --theme-btn-primary-bg: linear-gradient(135deg, #4A4A4A 0%, #3A3A3A 100%);
+  --theme-btn-primary-bg-hover: linear-gradient(135deg, #5A5A5A 0%, #4A4A4A 100%);
+  --theme-btn-primary-text: #FFFFFF;
+
+  /* 按钮 - 次按钮 */
+  --theme-btn-secondary-bg: rgba(255, 255, 255, 0.8);
+  --theme-btn-secondary-border: rgba(150, 150, 150, 0.3);
+  --theme-btn-secondary-text: #666666;
+  --theme-btn-secondary-border-hover: #4A4A4A;
+  --theme-btn-secondary-text-hover: #3A3A3A;
+
+  /* 表单 - 深灰标题 */
+  --theme-form-title: #4A4A4A;
+  --theme-form-accent: #4A4A4A;
+  --theme-form-input-focus: #4A4A4A;
+  --theme-form-border: rgba(74, 74, 74, 0.15);
+
+  /* 分页栏 - 深灰背景 */
+  --theme-pagination-bg: #4A4A4A;
+  --theme-pagination-text: #FFFFFF;
+  --theme-pagination-text-muted: rgba(255, 255, 255, 0.7);
+  --theme-pagination-btn-bg: rgba(255, 255, 255, 0.12);
+  --theme-pagination-btn-bg-hover: rgba(255, 255, 255, 0.22);
+  --theme-pagination-btn-border: rgba(255, 255, 255, 0.35);
+  --theme-pagination-btn-border-hover: rgba(255, 255, 255, 0.75);
+  --theme-pagination-input-bg: rgba(255, 255, 255, 0.18);
+  --theme-pagination-input-border: rgba(255, 255, 255, 0.4);
+
+  /* 内容区 - 白色半透明 */
+  --theme-content-bg: rgba(255, 255, 255, 0.9);
+  --theme-content-bg-hover: rgba(255, 255, 255, 0.98);
+  --theme-content-border: rgba(150, 150, 150, 0.2);
+  --theme-content-line: rgba(150, 150, 150, 0.15);
+
+  /* 实时预览区 */
+  --theme-preview-name-color: var(--theme-text-primary);
 }
 
 /* ==================== 寿宴金主题 ==================== */
@@ -202,26 +337,115 @@
   用于祝寿、乔迁等喜庆场合
 */
 .theme-golden {
-  --theme-primary: #B8860B;          /* 古铜金 */
-  --theme-primary-dark: #8B6914;     /* 深金 */
-  --theme-primary-light: #D4A017;     /* 浅金 */
+  /* 主色调 */
+  --theme-primary: #B8860B;
+  --theme-primary-dark: #8B6914;
+  --theme-primary-light: #D4A017;
   --theme-primary-rgb: 184, 134, 11;
-  --theme-paper: #FDF8F0;             /* 绢白 - 带金光的暖白 */
+
+  /* 背景 */
+  --theme-bg-gradient-start: #8B6914;
+  --theme-bg-gradient-end: #B8860B;
+  --theme-bg-solid: #A67C00;
+
+  /* 纸张/容器背景 */
+  --theme-paper: #FDF8F0;
   --theme-paper-warm: #FAF5E8;
   --theme-paper-opacity: 0.12;
-  --theme-text-primary: #3D3D3D;     /* 浓墨 */
-  --theme-text-secondary: #666666;    /* 重墨 */
+
+  /* 文字颜色 */
+  --theme-text-primary: #3D3D3D;
+  --theme-text-secondary: #666666;
   --theme-text-light: #FFFFFF;
   --theme-text-muted: #999999;
-  --theme-accent: #C73E3A;            /* 朱砂红 - 点睛 */
+  --theme-text-gold: #FFD700;
+
+  /* 强调色 */
+  --theme-accent: #C73E3A;
   --theme-accent-dark: #A52E2A;
   --theme-accent-light: #E07B5A;
-  --theme-border: rgba(184, 134, 11, 0.12);
+  --theme-gold: #B8860B;
+  --theme-gold-light: #D4A017;
+  --theme-gold-dark: #8B6914;
+
+  /* 边框 */
+  --theme-border: rgba(184, 134, 11, 0.2);
   --theme-border-color: #B8860B;
+
+  /* 阴影 */
   --theme-shadow-sm: 0 1px 3px rgba(184, 134, 11, 0.06);
   --theme-shadow: 0 4px 12px rgba(184, 134, 11, 0.08);
   --theme-shadow-lg: 0 8px 24px rgba(184, 134, 11, 0.10);
   --theme-shadow-hover: 0 8px 20px rgba(184, 134, 11, 0.12);
+  --theme-shadow-gold: 0 0 20px rgba(184, 134, 11, 0.3);
+
+  /* ========================================
+     组件特定变量 - 寿宴金主题
+     ======================================== */
+
+  /* 背景图片 - 寿宴金使用金色喜庆背景 */
+  --theme-bg-image: url('/Img/寿宴金背景.png');
+  --home-bg-image: url('/Img/寿宴金背景.png');
+  --theme-bg-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0.08) 0%, rgba(0, 0, 0, 0.03) 100%);
+
+  /* 导航栏纹理 - 金色祥云纹理 */
+  --theme-header-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='80' viewBox='0 0 200 80' fill='none'%3E%3Cpath stroke='rgba(255, 215, 0, 0.4)' stroke-width='1' stroke-linecap='round' d='M76.2434 29.7848C75.0993 30.5251 74.1571 30.3245 64.8695 33.6223C55.5819 36.92 45.0156 28.642 41.7179 27.6325C38.4201 26.623 32.2957 29.4496 28.325 30.3245C24.3542 31.1995 19.2393 28.9785 16.1434 27.6325C13.0476 26.2865 8 27.6325 8 27.6325C9.41332 26.6835 12.7111 24.4694 17.6914 25.5462C22.6717 26.623 22.0659 27.6325 26.5078 27.6325C30.9497 27.6325 34.3148 22.1138 41.7179 23.1234C49.121 24.1329 53.4956 27.969 58.274 25.5462'/%3E%3Cpath stroke='rgba(255, 215, 0, 0.4)' stroke-width='1.229818462006362' stroke-linecap='round' d='M141.397 69.0044C140.737 69.5504 140.193 69.4025 134.831 71.8349C129.469 74.2672 123.369 68.1615 121.465 67.4169C119.562 66.6723 116.026 68.7572 113.734 69.4025C111.441 70.0478 108.488 68.4097 106.701 67.4169C104.914 66.4241 102 67.4169 102 67.4169C102.816 66.7169 104.72 65.0838 107.595 65.878C110.47 66.6723 110.12 67.4169 112.685 67.4169C115.249 67.4169 117.192 63.3464 121.465 64.091C125.739 64.8356 128.265 67.6651 131.023 65.878'/%3E%3C/svg%3E");
+  --theme-header-pattern-opacity: 0.25;
+  --theme-header-pattern-size: 300px 60px;
+  --theme-header-pattern-repeat: repeat-x;
+  --theme-header-pattern-position: center;
+
+  /* 容器背景 */
+  --theme-container-bg: #FDF8F0;
+  --theme-container-bg-alpha: rgba(253, 248, 240, 0.95);
+  --theme-container-bg-alpha-low: rgba(253, 248, 240, 0.7);
+  --theme-container-border: rgba(184, 134, 11, 0.4);
+  --theme-container-border-light: rgba(184, 134, 11, 0.25);
+  --theme-container-border-lighter: rgba(184, 134, 11, 0.15);
+
+  /* 导航栏 */
+  --theme-header-bg: rgb(201 168 3 / 8%);
+  --theme-header-text: rgba(255, 255, 255, 0.9);
+  --theme-header-text-hover: #FFFFFF;
+  --theme-header-border: rgba(255, 255, 255, 0.2);
+
+  /* 按钮 - 主按钮 */
+  --theme-btn-primary-bg: linear-gradient(135deg, #B8860B 0%, #8B6914 100%);
+  --theme-btn-primary-bg-hover: linear-gradient(135deg, #D4A017 0%, #B8860B 100%);
+  --theme-btn-primary-text: #FFFFFF;
+
+  /* 按钮 - 次按钮 */
+  --theme-btn-secondary-bg: #FAF5E8;
+  --theme-btn-secondary-border: rgba(184, 134, 11, 0.3);
+  --theme-btn-secondary-text: #666666;
+  --theme-btn-secondary-border-hover: #B8860B;
+  --theme-btn-secondary-text-hover: #B8860B;
+
+  /* 表单 */
+  --theme-form-title: #B8860B;
+  --theme-form-accent: #B8860B;
+  --theme-form-input-focus: #B8860B;
+  --theme-form-border: rgba(184, 134, 11, 0.68);
+
+  /* 分页栏 */
+  --theme-pagination-bg: #B8860B;
+  --theme-pagination-text: #FFFFFF;
+  --theme-pagination-text-muted: rgba(255, 255, 255, 0.7);
+  --theme-pagination-btn-bg: rgba(255, 255, 255, 0.15);
+  --theme-pagination-btn-bg-hover: rgba(255, 255, 255, 0.25);
+  --theme-pagination-btn-border: rgba(255, 255, 255, 0.5);
+  --theme-pagination-btn-border-hover: rgba(255, 255, 255, 0.9);
+  --theme-pagination-input-bg: rgba(255, 255, 255, 0.2);
+  --theme-pagination-input-border: rgba(255, 255, 255, 0.5);
+
+  /* 内容区 */
+  --theme-content-bg: #FFFFFF;
+  --theme-content-bg-hover: #FAF5E8;
+  --theme-content-border: rgba(184, 134, 11, 0.25);
+  --theme-content-line: rgba(184, 134, 11, 0.15);
+
+  /* 实时预览区 */
+  --theme-preview-name-color: var(--theme-text-primary);
 }
 
 /* ==================== 主题过渡动画 ==================== */

@@ -23,22 +23,24 @@ function applyThemeToDocument(theme: string): void {
   const normalizedTheme = normalizeTheme(theme);
   const meta = getThemeById(normalizedTheme);
   if (!meta) {
-    console.warn(`主题 ${theme} 不存在，使用默认主题`);
     return;
   }
 
-  const root = document.documentElement;
+  const body = document.body;
   
-  // 添加过渡效果
-  root.style.setProperty('--theme-transition', 'all 0.3s ease');
+  // 添加过渡动画类
+  body.classList.add('theme-transition');
   
   // 移除所有主题类
-  document.body.classList.remove('theme-gray', 'theme-golden');
+  body.classList.remove('theme-red', 'theme-gray', 'theme-golden');
   
-  // 添加当前主题类（如果是默认主题red，则不添加任何类，使用:root默认样式）
-  if (meta.cssClass) {
-    document.body.classList.add(meta.cssClass);
-  }
+  // 添加当前主题类（所有主题都需要添加）
+  body.classList.add(meta.cssClass);
+  
+  // 移除过渡动画类
+  setTimeout(() => {
+    body.classList.remove('theme-transition');
+  }, 400);
 }
 
 /**

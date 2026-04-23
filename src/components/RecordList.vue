@@ -623,11 +623,11 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: var(--theme-paper);
+  background: var(--theme-container-bg);
   border-radius: var(--theme-border-radius);
   box-shadow: var(--theme-shadow);
   overflow: hidden;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-container-border);
   position: relative;
 }
 
@@ -669,13 +669,13 @@ defineExpose({
   max-width: 1290px;
 }
 
-/* 单列基础样式 - 新配色方案 */
+/* 单列基础样式 */
 .record-column {
   width: var(--grid-column-width);
   min-width: var(--grid-column-width);
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid rgba(139, 41, 66, 0.15);
+  background: var(--theme-content-bg);
+  border: 1px solid var(--theme-content-border);
   border-right: none;
   border-radius: 0;
   display: flex;
@@ -687,14 +687,15 @@ defineExpose({
 
 /* 最后一列补上右边框 */
 .record-column:last-child {
-  border-right: 1px solid rgba(139, 41, 66, 0.12);
+  border-right: 1px solid var(--theme-content-border);
 }
 
 /* 悬停效果 */
 .record-column:hover {
-  box-shadow: none;
+  box-shadow: 0 0 15px var(--theme-container-border-light);
   transform: none;
-  background: rgba(255, 255, 255, 0.90);
+  background: var(--theme-content-bg-hover);
+  z-index: 1;
 }
 
 /* 已删除记录样式 */
@@ -746,13 +747,13 @@ defineExpose({
 
 /* 空白列样式 */
 .empty-column {
-  opacity: 0.35;
-  background: rgba(255, 255, 255, 0.4);
-  border-color: rgba(139, 41, 66, 0.06);
+  opacity: 0.5;
+  background: var(--theme-container-bg-alpha-low);
+  border-color: var(--theme-container-border-lighter);
 }
 
 .empty-column:last-child {
-  border-right: 1px solid rgba(139, 41, 66, 0.06);
+  border-right: 1px solid var(--theme-container-border-lighter);
 }
 
 /* 单元格通用样式 */
@@ -761,7 +762,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   padding: var(--theme-spacing-xs) 0;
-  border-bottom: 1px dotted rgba(139, 41, 66, 0.10);
+  border-bottom: 1px dotted var(--theme-content-line);
 }
 
 .cell:last-child {
@@ -778,7 +779,7 @@ defineExpose({
   color: var(--theme-primary);
   font-weight: bold;
   writing-mode: horizontal-tb;
-  font-family: var(--font-family-fixed);
+  font-family: var(--font-name-amount);
   letter-spacing: 1px;
 }
 
@@ -832,6 +833,7 @@ defineExpose({
   align-items: center;
   gap: 2px;
   padding: var(--theme-spacing-xs) 0;
+  min-height: 40px; /* 确保空白列高度与有内容的列一致 */
 }
 
 .amount-number {
@@ -874,8 +876,8 @@ defineExpose({
   justify-content: space-between;
   align-items: center;
   padding: 14px 24px;
-  background: rgba(var(--theme-primary-rgb), 0.02);
-  border-top: 1px solid var(--theme-border);
+  background: var(--theme-pagination-bg);
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
   position: relative;
 }
 
@@ -885,37 +887,38 @@ defineExpose({
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 100px;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, var(--theme-accent), transparent);
-  opacity: 0.4;
+  width: 150px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.5), transparent);
+  opacity: 0.6;
 }
 
 .page-btn {
   padding: 8px 18px;
-  border: none;
+  border: 1px solid var(--theme-pagination-btn-border);
   border-radius: var(--theme-border-radius-sm);
-  background: var(--theme-accent);
-  color: white;
+  background: var(--theme-pagination-btn-bg);
+  color: rgba(255, 255, 255, 0.9);
   font-size: var(--theme-font-size-sm);
   cursor: pointer;
   transition: all 0.25s ease;
   font-weight: 500;
   font-family: inherit;
-  box-shadow: 0 2px 6px rgba(var(--theme-primary-rgb), 0.2);
 }
 
 .page-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(var(--theme-primary-rgb), 0.3);
+  background: var(--theme-pagination-btn-bg-hover);
+  border-color: var(--theme-pagination-btn-border-hover);
+  color: white;
 }
 
 .page-btn:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
-  background: var(--theme-border);
-  color: var(--theme-text-muted);
-  box-shadow: none;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 .page-info {
@@ -928,12 +931,12 @@ defineExpose({
 .page-number {
   font-size: var(--theme-font-size-md);
   font-weight: 600;
-  color: var(--theme-text-primary);
+  color: var(--theme-pagination-text);
 }
 
 .record-count {
   font-size: 12px;
-  color: var(--theme-text-muted);
+  color: var(--theme-pagination-text-muted);
 }
 
 /* 页码输入框样式 */
@@ -942,26 +945,27 @@ defineExpose({
   align-items: center;
   gap: 6px;
   font-size: var(--theme-font-size-md);
-  color: var(--theme-text-primary);
+  color: var(--theme-pagination-text);
 }
 
 .page-input {
   width: 50px;
   padding: 6px 10px;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-pagination-input-border);
   border-radius: var(--theme-border-radius-sm);
   text-align: center;
   font-size: 14px;
-  background: white;
-  color: var(--theme-text-primary);
+  background: var(--theme-pagination-input-bg);
+  color: white;
   font-family: inherit;
   transition: all 0.25s ease;
 }
 
 .page-input:focus {
   outline: none;
-  border-color: var(--theme-accent);
-  box-shadow: 0 0 0 2px rgba(var(--theme-primary-rgb), 0.08);
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 /* 隐藏数字输入框的上下箭头 */
@@ -977,18 +981,18 @@ defineExpose({
 }
 
 .records-grid::-webkit-scrollbar-track {
-  background: rgba(var(--theme-primary-rgb), 0.04);
+  background: rgba(196, 30, 58, 0.08);
   border-radius: 3px;
 }
 
 .records-grid::-webkit-scrollbar-thumb {
-  background: var(--theme-accent);
+  background: linear-gradient(180deg, var(--theme-gold) 0%, var(--theme-gold-dark) 100%);
   border-radius: 3px;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 .records-grid::-webkit-scrollbar-thumb:hover {
-  background: var(--theme-accent-dark);
+  background: linear-gradient(180deg, var(--theme-gold-light) 0%, var(--theme-gold) 100%);
   opacity: 1;
 }
 
@@ -996,8 +1000,8 @@ defineExpose({
 .context-menu {
   position: fixed;
   z-index: 9999;
-  background: var(--theme-paper);
-  border: 1px solid var(--theme-border);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(212, 175, 55, 0.3);
   border-radius: var(--theme-border-radius-sm);
   box-shadow: var(--theme-shadow-lg);
   min-width: 120px;
@@ -1018,12 +1022,12 @@ defineExpose({
 }
 
 .context-menu-item:hover {
-  background: rgba(var(--theme-primary-rgb), 0.06);
-  color: var(--theme-accent);
+  background: rgba(196, 30, 58, 0.08);
+  color: var(--theme-primary);
 }
 
 .context-menu-item.delete:hover {
-  background: rgba(239, 68, 68, 0.06);
+  background: rgba(239, 68, 68, 0.08);
   color: #ef4444;
 }
 

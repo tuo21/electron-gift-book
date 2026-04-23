@@ -5,7 +5,7 @@ import IconSvg from './IconSvg.vue';
 import type { ImportPreview, ParsedRecord } from '../utils/import';
 import { matchFields } from '../utils/import';
 import type { ThemeType } from '../types/theme';
-import { THEME_CONFIG, getThemeById } from '../types/theme';
+import { THEME_CONFIG } from '../types/theme';
 
 // ==================== 类型定义 ====================
 interface RecentFile {
@@ -124,7 +124,6 @@ const importPreview = ref<ImportPreview | null>(null);
 const defaultImportName = ref('');
 
 // ==================== 计算属性 ====================
-const currentThemeMeta = computed(() => getThemeById(selectedTheme.value));
 
 // 主题样式配置 - 日式极简风格
 const themeStyles = computed(() => {
@@ -408,7 +407,7 @@ onMounted(() => {
           class="action-btn primary-btn"
           :style="{ 
             background: themeStyles.btnGradient,
-            '--hover-color': isWeddingTheme ? '#8B4513' : '#333333'
+            '--hover-color': selectedTheme === 'red' ? '#8B4513' : '#333333'
           }"
           @click="handleCreateNew"
           :disabled="isAnimating"
@@ -422,7 +421,7 @@ onMounted(() => {
           :style="{ 
             borderColor: 'transparent',
             color: themeStyles.subtitleColor,
-            '--hover-bg': isWeddingTheme ? 'rgba(160, 82, 45, 0.06)' : 'rgba(74, 74, 74, 0.06)'
+            '--hover-bg': selectedTheme === 'red' ? 'rgba(160, 82, 45, 0.06)' : 'rgba(74, 74, 74, 0.06)'
           }"
           @click="handleImport"
           :disabled="isAnimating || isImporting"

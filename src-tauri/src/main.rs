@@ -4,6 +4,7 @@
 mod commands;
 mod database;
 mod models;
+mod license;
 
 use tauri::Manager;
 
@@ -62,6 +63,13 @@ fn main() {
             commands::get_default_data_path,
             commands::select_data_folder,
             commands::set_custom_data_path,
+            commands::get_system_fonts_list,
+            license::get_machine_id,
+            license::verify_license,
+            license::save_license,
+            license::get_license_status,
+            license::is_activated,
+            license::clear_license,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
