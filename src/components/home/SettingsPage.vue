@@ -171,16 +171,6 @@ const handleChangePath = async () => {
     isChangingPath.value = false;
   }
 };
-
-const handleResetSettings = () => {
-  if (confirm('确定要恢复默认设置吗？')) {
-    settings.value = {
-      minimizeToTray: false,
-      startupWithSystem: false,
-    };
-    saveSettings();
-  }
-};
 </script>
 
 <template>
@@ -283,22 +273,6 @@ const handleResetSettings = () => {
       </div>
     </div>
 
-    <!-- 重置设置 -->
-    <div class="settings-card reset-card">
-      <div class="card-header">
-        <IconSvg name="refresh" :size="24" />
-        <h2 class="card-title">重置设置</h2>
-      </div>
-      
-      <div class="reset-content">
-        <p class="reset-desc">将所有设置恢复为默认值，不会影响您的礼金簿数据。</p>
-        <button class="reset-btn" @click="handleResetSettings">
-          <IconSvg name="refresh" :size="18" />
-          恢复默认设置
-        </button>
-      </div>
-    </div>
-
     <!-- 保存提示 -->
     <Transition name="fade">
       <div v-if="saveMessage" class="save-toast">
@@ -342,10 +316,6 @@ const handleResetSettings = () => {
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-}
-
-.reset-card {
-  border: 1px solid rgba(255, 77, 79, 0.2);
 }
 
 .card-header {
@@ -496,24 +466,21 @@ input:checked + .slider:before {
 }
 
 /* 激活区域 */
-.activation-content,
-.reset-content {
+.activation-content {
   display: flex;
   flex-direction: column;
   gap: 16px;
   padding: 8px 0;
 }
 
-.activation-desc,
-.reset-desc {
+.activation-desc {
   font-size: 14px;
   color: #666;
   margin: 0;
   line-height: 1.6;
 }
 
-.activate-btn,
-.reset-btn {
+.activate-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -536,16 +503,6 @@ input:checked + .slider:before {
 .activate-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(199, 91, 57, 0.3);
-}
-
-.reset-btn {
-  background: white;
-  color: #ff4d4f;
-  border: 1px solid #ff4d4f;
-}
-
-.reset-btn:hover {
-  background: rgba(255, 77, 79, 0.05);
 }
 
 /* 保存提示 */

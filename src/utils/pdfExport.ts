@@ -6,6 +6,11 @@ import type { Record } from '../types/database'
 const SCALE = 4.167
 const PAGE_WIDTH_PT = Math.round(842 * SCALE)
 const PAGE_HEIGHT_PT = Math.round(595 * SCALE)
+const VERTICAL_PAGE_WIDTH_PT = Math.round(595 * SCALE)
+const VERTICAL_PAGE_HEIGHT_PT = Math.round(842 * SCALE)
+
+type ThemeType = 'red' | 'gray' | 'golden'
+type LayoutType = 'h' | 'v'
 
 const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
 const CN_UNITS = ['', '拾', '佰', '仟']
@@ -159,11 +164,17 @@ async function loadAllFonts(): Promise<LoadedFonts> {
   }
 }
 
-async function loadTemplateImage(theme: 'red' | 'gray', pageType: string): Promise<string | null> {
+async function loadTemplateImage(theme: ThemeType, pageType: string, layout: LayoutType = 'h'): Promise<string | null> {
   try {
-    const response = await fetch(`/templates/${theme}/${pageType}.jpg`)
+    const fileName = pageType === 'backcover' ? 'backcover' : pageType
+    // 处理 gray 主题统计页文件名拼写错误的特殊情况
+    let imagePath = `/templates/original/${theme}/${theme}-${layout}/${theme}-${layout}-${fileName}.jpg`
+    if (theme === 'gray' && pageType === 'statistics' && layout === 'v') {
+      imagePath = `/templates/original/${theme}/${theme}-${layout}/${theme}-${layout}-statisticst.jpg`
+    }
+    const response = await fetch(imagePath)
     if (!response.ok) {
-      console.warn(`无法加载模板图片: ${theme}/${pageType}`)
+      console.warn(`无法加载模板图片: ${imagePath}`)
       return null
     }
     const blob = await response.blob()
@@ -180,8 +191,8 @@ async function loadTemplateImage(theme: 'red' | 'gray', pageType: string): Promi
 }
 
 function getAdaptiveFontSize(text: string, isName: boolean = false, hasItem: boolean = false): number {
-  const maxSize = 110
-  const minSize = 55
+  const maxSize = 34
+  const minSize = 10
   const maxLength = isName ? 3 : (hasItem ? 2 : 3)
 
   if (!text || text.length <= maxLength) {
@@ -192,11 +203,14 @@ function getAdaptiveFontSize(text: string, isName: boolean = false, hasItem: boo
   return Math.max(minSize, maxSize - reduceSize)
 }
 
-async function createChinesePDF(): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
+async function createChinesePDF(layout: LayoutType = 'h'): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
+  const isVertical = layout === 'v'
   const pdf = new jsPDF({
-    orientation: 'landscape',
+    orientation: isVertical ? 'portrait' : 'landscape',
     unit: 'pt',
-    format: [PAGE_WIDTH_PT, PAGE_HEIGHT_PT],
+    format: isVertical 
+      ? [VERTICAL_PAGE_WIDTH_PT, VERTICAL_PAGE_HEIGHT_PT]
+      : [PAGE_WIDTH_PT, PAGE_HEIGHT_PT],
     compress: true
   })
 
@@ -260,32 +274,60 @@ async function addCoverPage(
   fonts: LoadedFonts,
   appName: string,
   exportDate: string,
-  theme: 'red' | 'gray'
+  theme: ThemeType,
+  layout: LayoutType = 'h'
 ) {
-  const bgImage = await loadTemplateImage(theme, 'cover')
+  const bgImage = await loadTemplateImage(theme, 'cover', layout)
+  const pageWidth = layout === 'v' ? VERTICAL_PAGE_WIDTH_PT : PAGE_WIDTH_PT
+  const pageHeight = layout === 'v' ? VERTICAL_PAGE_HEIGHT_PT : PAGE_HEIGHT_PT
   if (bgImage) {
-    pdf.addImage(bgImage, 'JPEG', 0, 0, PAGE_WIDTH_PT, PAGE_HEIGHT_PT)
+    pdf.addImage(bgImage, 'JPEG', 0, 0, pageWidth, pageHeight)
   }
 
   const isGrayTheme = theme === 'gray'
+  const isGoldenTheme = theme === 'golden'
 
-  const textX = Math.round((251 + 341 / 2) * SCALE)
-  const titleY = Math.round((461 + 30) * SCALE)
-  const dateY = Math.round((501 + 20) * SCALE)
+  if (layout === 'h') {
+    const textX = Math.round((251 + 341 / 2) * SCALE)
+    const titleY = Math.round((461 + 30) * SCALE)
+    const dateY = Math.round((501 + 20) * SCALE)
 
-  if (isGrayTheme) {
-    pdf.setTextColor(255, 255, 255)
+    if (isGrayTheme) {
+      pdf.setTextColor(255, 255, 255)
+    } else if (isGoldenTheme) {
+      pdf.setTextColor(153, 96, 9)
+    } else {
+      pdf.setTextColor(245, 200, 147)
+    }
+
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text(appName || '礼金簿', textX, titleY, { align: 'center' })
+
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(Math.round(14 * SCALE))
+    pdf.text(exportDate, textX, dateY, { align: 'center' })
   } else {
-    pdf.setTextColor(255, 102, 102)
+    const textX = Math.round((125 + 341 / 2) * SCALE)
+    const titleY = Math.round((668 + 35 / 2) * SCALE)
+    const dateY = Math.round((703 + 42 / 2) * SCALE)
+
+    if (isGrayTheme) {
+      pdf.setTextColor(255, 255, 255)
+    } else if (isGoldenTheme) {
+      pdf.setTextColor(153, 96, 9)
+    } else {
+      pdf.setTextColor(245, 200, 147)
+    }
+
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text(appName || '礼金簿', textX, titleY, { align: 'center' })
+
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text(exportDate, textX, dateY, { align: 'center' })
   }
-
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(Math.round(24 * SCALE))
-  pdf.text(appName || '礼金簿', textX, titleY, { align: 'center' })
-
-  setFont(pdf, fonts, 'ZhiSong')
-  pdf.setFontSize(Math.round(14 * SCALE))
-  pdf.text(exportDate, textX, dateY, { align: 'center' })
 }
 
 async function addContentPage(
@@ -298,136 +340,368 @@ async function addContentPage(
   totalPages: number,
   totalRecords: number,
   pageAmount: number,
-  theme: 'red' | 'gray'
+  theme: ThemeType,
+  layout: LayoutType = 'h'
 ) {
   pdf.addPage()
 
-  const bgImage = await loadTemplateImage(theme, 'content')
+  const bgImage = await loadTemplateImage(theme, 'content', layout)
+  const pageWidth = layout === 'v' ? VERTICAL_PAGE_WIDTH_PT : PAGE_WIDTH_PT
+  const pageHeight = layout === 'v' ? VERTICAL_PAGE_HEIGHT_PT : PAGE_HEIGHT_PT
   if (bgImage) {
-    pdf.addImage(bgImage, 'JPEG', 0, 0, PAGE_WIDTH_PT, PAGE_HEIGHT_PT)
+    pdf.addImage(bgImage, 'JPEG', 0, 0, pageWidth, pageHeight)
   }
 
   const isGrayTheme = theme === 'gray'
+  const isGoldenTheme = theme === 'golden'
   const positionOffset = Math.round(13 * SCALE)
 
-  const headerNameX = Math.round(41 * SCALE)
-  const headerY = Math.round((21 + 24) * SCALE)
-  
-  if (isGrayTheme) {
-    pdf.setTextColor(0, 0, 0, 0.6 * 255)
-  } else {
-    pdf.setTextColor(255, 102, 102)
-  }
-  
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(Math.round(24 * SCALE))
-  pdf.text(appName || '礼金簿', headerNameX, headerY)
-
-  const headerDateX = Math.round((633 + 127 / 2) * SCALE)
-  // 页眉日期底部与页眉标题底部对齐
-  const headerDateY = headerY
-  pdf.setTextColor(0, 0, 0)
-  
-  setFont(pdf, fonts, 'ZhiSong')
-  pdf.setFontSize(Math.round(13 * SCALE))
-  pdf.text(exportDate, headerDateX, headerDateY, { align: 'center', baseline: 'bottom' })
-
-  const listStartX = Math.round(41 * SCALE)
-  const listStartY = Math.round(98 * SCALE)
-  const columnWidth = Math.round(46 * SCALE)
-  const columnGap = Math.round(5 * SCALE)
-
-  records.forEach((record, index) => {
-    const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
-    const amountChinese = numberToChinese(record.amount)
-    const nameFontSize = getAdaptiveFontSize(record.guestName, true)
-    const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
-
-    setFont(pdf, fonts, 'XuandongKaishu')
-    pdf.setFontSize(nameFontSize)
-    pdf.setTextColor(0, 0, 0)
-    const nameStartY = listStartY + Math.round(40 * SCALE)
-    const nameEndY = listStartY + Math.round(130 * SCALE)
-    const nameChars = record.guestName.split('')
-    const nameAvailableHeight = nameEndY - nameStartY
+  if (layout === 'h') {
+    const headerNameX = Math.round(41 * SCALE)
+    const headerY = Math.round((21 + 24) * SCALE)
     
-    nameChars.forEach((char, charIndex) => {
-      const topRatio = nameChars.length === 1 ? 0.5 : (5 + (70 / (nameChars.length - 1)) * charIndex) / 100
-      const charY = nameStartY + nameAvailableHeight * topRatio
-      pdf.text(char, x, charY, { align: 'center' })
+    if (isGrayTheme) {
+      pdf.setTextColor(0, 0, 0, 0.6 * 255)
+    } else if (isGoldenTheme) {
+      pdf.setTextColor(212, 165, 116)
+    } else {
+      pdf.setTextColor(255, 102, 102)
+    }
+    
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text(appName || '礼金簿', headerNameX, headerY)
+
+    const headerDateX = Math.round((633 + 127 / 2) * SCALE)
+    const headerDateY = headerY
+    pdf.setTextColor(0, 0, 0)
+    
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(Math.round(13 * SCALE))
+    pdf.text(exportDate, headerDateX, headerDateY, { align: 'center', baseline: 'bottom' })
+
+    const listStartX = Math.round(41 * SCALE)
+    const listStartY = Math.round(98 * SCALE)
+    const columnWidth = Math.round(46 * SCALE)
+    const columnGap = Math.round(5 * SCALE)
+
+    records.forEach((record, index) => {
+      const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
+      const amountChinese = numberToChinese(record.amount)
+      const nameFontSize = getAdaptiveFontSize(record.guestName, true) * SCALE
+      const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription) * SCALE
+
+      setFont(pdf, fonts, 'XuandongKaishu')
+      pdf.setFontSize(nameFontSize)
+      pdf.setTextColor(0, 0, 0)
+      const nameStartY = listStartY + Math.round(40 * SCALE)
+      const nameEndY = listStartY + Math.round(130 * SCALE)
+      const nameChars = record.guestName.split('')
+      const nameAvailableHeight = nameEndY - nameStartY
+      
+      nameChars.forEach((char, charIndex) => {
+        const topRatio = nameChars.length === 1 ? 0.5 : (5 + (70 / (nameChars.length - 1)) * charIndex) / 100
+        const charY = nameStartY + nameAvailableHeight * topRatio
+        pdf.text(char, x, charY, { align: 'center' })
+      })
+
+      if (record.remark) {
+        const remarkY = listStartY + Math.round(139 * SCALE) + positionOffset
+        setFont(pdf, fonts, 'KaiTi')
+        pdf.setFontSize(32)
+        pdf.setTextColor(102, 102, 102)
+        pdf.text(record.remark, x, remarkY, { align: 'center' })
+      }
+
+      const amountBaseY = listStartY + Math.round(218 * SCALE) + positionOffset
+      
+      if (record.itemDescription) {
+        const colWidth = columnWidth / 2 - Math.round(5 * SCALE)
+        const amountY = amountBaseY + amountFontSize
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(amountFontSize)
+        pdf.setTextColor(0, 0, 0)
+        const amountCharHeight = amountFontSize * 1
+        const amountChars = amountChinese.split('')
+        const amountX = x - colWidth / 2
+        amountChars.forEach((char, charIndex) => {
+          pdf.text(char, amountX, amountY + charIndex * amountCharHeight, { align: 'center' })
+        })
+        
+        setFont(pdf, fonts, 'KaiTi')
+        pdf.setFontSize(40)
+        pdf.setTextColor(102, 102, 102)
+        const itemCharHeight = 40 * 1
+        const itemChars = record.itemDescription.split('')
+        const itemX = x + colWidth / 2
+        itemChars.forEach((char, charIndex) => {
+          pdf.text(char, itemX, amountY + charIndex * itemCharHeight, { align: 'center' })
+        })
+      } else {
+        const amountY = amountBaseY + amountFontSize
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(amountFontSize)
+        pdf.setTextColor(0, 0, 0)
+        const amountCharHeight = amountFontSize * 1
+        const amountChars = amountChinese.split('')
+        amountChars.forEach((char, charIndex) => {
+          pdf.text(char, x, amountY + charIndex * amountCharHeight, { align: 'center' })
+        })
+      }
+
+      const paymentY = listStartY + Math.round(371 * SCALE) + positionOffset
+      setFont(pdf, fonts, 'ZhiSong')
+      pdf.setFontSize(28)
+      pdf.setTextColor(196, 74, 61)
+      pdf.text(getPaymentTypeText(record.paymentType), x, paymentY, { align: 'center' })
+
+      const amountNumY = paymentY + Math.round(15 * SCALE)
+      pdf.setTextColor(102, 102, 102)
+      setFont(pdf, fonts, 'ZhiSong')
+      pdf.setFontSize(28)
+      pdf.text('¥' + formatAmount(record.amount), x, amountNumY, { align: 'center' })
     })
 
-    if (record.remark) {
-      const remarkY = listStartY + Math.round(139 * SCALE) + positionOffset
-      setFont(pdf, fonts, 'KaiTi')
-      pdf.setFontSize(32)
-      pdf.setTextColor(102, 102, 102)
-      pdf.text(record.remark, x, remarkY, { align: 'center' })
-    }
-
-    // 金额中文和物品描述并排显示
-    const amountBaseY = listStartY + Math.round(218 * SCALE) + positionOffset
-    
-    if (record.itemDescription) {
-      // 如果有物品描述，金额和物品并排显示
-      const colWidth = columnWidth / 2 - Math.round(5 * SCALE)
-      
-      // 左侧：金额中文（竖排）- 与无物品时保持相同起始位置
-      const amountY = amountBaseY + amountFontSize
-      setFont(pdf, fonts, 'XuandongKaishu')
-      pdf.setFontSize(amountFontSize)
-      pdf.setTextColor(0, 0, 0)
-      const amountCharHeight = amountFontSize * 1
-      const amountChars = amountChinese.split('')
-      const amountX = x - colWidth / 2
-      amountChars.forEach((char, charIndex) => {
-        pdf.text(char, amountX, amountY + charIndex * amountCharHeight, { align: 'center' })
-      })
-      
-      // 右侧：物品描述（竖排）- 与金额顶部对齐
-      setFont(pdf, fonts, 'KaiTi')
-      pdf.setFontSize(40)
-      pdf.setTextColor(102, 102, 102)
-      const itemCharHeight = 40 * 1
-      const itemChars = record.itemDescription.split('')
-      const itemX = x + colWidth / 2
-      itemChars.forEach((char, charIndex) => {
-        pdf.text(char, itemX, amountY + charIndex * itemCharHeight, { align: 'center' })
-      })
-    } else {
-      // 如果没有物品描述，金额居中显示
-      const amountY = amountBaseY + amountFontSize
-      setFont(pdf, fonts, 'XuandongKaishu')
-      pdf.setFontSize(amountFontSize)
-      pdf.setTextColor(0, 0, 0)
-      const amountCharHeight = amountFontSize * 1
-      const amountChars = amountChinese.split('')
-      amountChars.forEach((char, charIndex) => {
-        pdf.text(char, x, amountY + charIndex * amountCharHeight, { align: 'center' })
-      })
-    }
-
-    const paymentY = listStartY + Math.round(371 * SCALE) + positionOffset
+    const footerY = Math.round(518 * SCALE) + Math.round(20 * SCALE)
     setFont(pdf, fonts, 'ZhiSong')
-    pdf.setFontSize(28)
-    pdf.setTextColor(196, 74, 61)
-    pdf.text(getPaymentTypeText(record.paymentType), x, paymentY, { align: 'center' })
+    pdf.setFontSize(52)
+    pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
 
-    const amountNumY = paymentY + Math.round(15 * SCALE)
-    pdf.setTextColor(102, 102, 102)
+    pdf.text('共 ' + totalRecords + ' 条记录', Math.round(41 * SCALE), footerY)
+    pdf.text('第 ' + pageNum + ' 页 / 共 ' + totalPages + ' 页', PAGE_WIDTH_PT / 2, footerY, { align: 'center' })
+    pdf.text('本页小计：¥' + formatAmount(pageAmount), Math.round((41 + 760) * SCALE), footerY, { align: 'right' })
+  } else {
+    const listStartX = Math.round(66 * SCALE)
+    const listStartY = Math.round(49 * SCALE)
+    const columnWidth = Math.round(46 * SCALE)
+    const columnGap = 0
+
+    records.forEach((record, index) => {
+      const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
+      const amountChinese = numberToChinese(record.amount)
+
+      const nameStartY = listStartY + Math.round(42 * SCALE)
+      const nameEndY = listStartY + Math.round(197 * SCALE)
+      const nameChars = record.guestName.split('')
+      const nameAvailableHeight = nameEndY - nameStartY
+      let nameFontSize = Math.round(32 * SCALE)
+      
+      // 参考 RecordList.vue 的自适应字号逻辑
+      const nameMaxLength = 3
+      if (nameChars.length > nameMaxLength) {
+        const reduceSize = (nameChars.length - nameMaxLength) * 12
+        nameFontSize = Math.max(Math.round(12 * SCALE), nameFontSize - reduceSize)
+      }
+      
+      setFont(pdf, fonts, 'XuandongKaishu')
+      pdf.setFontSize(nameFontSize)
+      pdf.setTextColor(0, 0, 0)
+      
+      // 处理超过7个字的换行显示
+      if (nameChars.length > 7) {
+        const firstLineChars = nameChars.slice(0, 7)
+        const secondLineChars = nameChars.slice(7)
+        
+        // 计算字符宽度，偏移量为字符宽度 + 2px
+        const charWidth = nameFontSize * 0.6 // 估算字符宽度
+        const offset = charWidth + 2 * SCALE
+        
+        // 计算行高
+        const lineHeight = nameFontSize * 1.2
+        
+        // 第一行 - 顶对齐
+        firstLineChars.forEach((char, charIndex) => {
+          const charY = nameStartY + charIndex * lineHeight
+          pdf.text(char, x - offset, charY, { align: 'center' })
+        })
+        
+        // 第二行 - 顶对齐
+        secondLineChars.forEach((char, charIndex) => {
+          const charY = nameStartY + charIndex * lineHeight
+          pdf.text(char, x + offset, charY, { align: 'center' })
+        })
+      } else {
+        // 正常显示
+        nameChars.forEach((char, charIndex) => {
+          const topRatio = nameChars.length === 1 ? 0.5 : (5 + (70 / (nameChars.length - 1)) * charIndex) / 100
+          const charY = nameStartY + nameAvailableHeight * topRatio
+          pdf.text(char, x, charY, { align: 'center' })
+        })
+      }
+
+      const giftStartY = listStartY + Math.round(222 * SCALE)
+      const giftEndY = listStartY + Math.round(377 * SCALE)
+      const giftChars = amountChinese.split('')
+      const giftAvailableHeight = giftEndY - giftStartY
+      let giftFontSize = Math.round(32 * SCALE)
+      
+      // 参考 RecordList.vue 的自适应字号逻辑
+      const giftMaxLength = 4
+      if (giftChars.length > giftMaxLength) {
+        const reduceSize = (giftChars.length - giftMaxLength) * 12
+        giftFontSize = Math.max(Math.round(12 * SCALE), giftFontSize - reduceSize)
+      }
+      
+      setFont(pdf, fonts, 'XuandongKaishu')
+      pdf.setFontSize(giftFontSize)
+      pdf.setTextColor(0, 0, 0)
+      
+      // 处理超过7个字的换行显示
+      if (giftChars.length > 7) {
+        const firstLineChars = giftChars.slice(0, 7)
+        const secondLineChars = giftChars.slice(7)
+        
+        // 计算字符宽度，偏移量为字符宽度 + 2px
+        const charWidth = giftFontSize * 0.6 // 估算字符宽度
+        const offset = charWidth + 2 * SCALE
+        
+        // 计算行高
+        const lineHeight = giftFontSize * 1.2
+        
+        // 第一行 - 顶对齐
+        firstLineChars.forEach((char, charIndex) => {
+          const charY = giftStartY + charIndex * lineHeight
+          pdf.text(char, x - offset, charY, { align: 'center' })
+        })
+        
+        // 第二行 - 顶对齐
+        secondLineChars.forEach((char, charIndex) => {
+          const charY = giftStartY + charIndex * lineHeight
+          pdf.text(char, x + offset, charY, { align: 'center' })
+        })
+      } else {
+        // 正常显示
+        giftChars.forEach((char, charIndex) => {
+          const topRatio = giftChars.length === 1 ? 0.5 : (5 + (70 / (giftChars.length - 1)) * charIndex) / 100
+          const charY = giftStartY + giftAvailableHeight * topRatio
+          pdf.text(char, x, charY, { align: 'center' })
+        })
+      }
+
+      const amountLowerY = listStartY + Math.round(356 * SCALE)
+      setFont(pdf, fonts, 'ZhiSong')
+      pdf.setFontSize(Math.round(9 * SCALE))
+      pdf.setTextColor(0, 0, 0, 0.5 * 255)
+      pdf.text(formatAmount(record.amount), x, amountLowerY, { align: 'center' })
+
+      const paymentY = listStartY + Math.round(366 * SCALE)
+      setFont(pdf, fonts, 'ZhiSong')
+      pdf.setFontSize(Math.round(9 * SCALE))
+      pdf.setTextColor(0, 0, 0, 0.5 * 255)
+      pdf.text(getPaymentTypeText(record.paymentType), x, paymentY, { align: 'center' })
+
+      if (record.itemDescription) {
+        const itemStartY = listStartY + Math.round(412 * SCALE)
+        const itemEndY = listStartY + Math.round(545 * SCALE)
+        const itemChars = record.itemDescription.split('')
+        const itemAvailableHeight = itemEndY - itemStartY
+        let itemFontSize = Math.round(26 * SCALE)
+        
+        // 参考 RecordList.vue 的自适应字号逻辑
+        const itemMaxLength = 4
+        if (itemChars.length > itemMaxLength) {
+          const reduceSize = (itemChars.length - itemMaxLength) * 12
+          itemFontSize = Math.max(Math.round(12 * SCALE), itemFontSize - reduceSize)
+        }
+        
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(itemFontSize)
+        pdf.setTextColor(0, 0, 0)
+        
+        // 处理超过7个字的换行显示
+        if (itemChars.length > 7) {
+          const firstLineChars = itemChars.slice(0, 7)
+          const secondLineChars = itemChars.slice(7)
+          
+          // 计算字符宽度，偏移量为字符宽度 + 2px
+          const charWidth = itemFontSize * 0.6 // 估算字符宽度
+          const offset = charWidth + 2 * SCALE
+          
+          // 计算行高
+          const lineHeight = itemFontSize * 1.2
+          
+          // 第一行 - 顶对齐
+          firstLineChars.forEach((char, charIndex) => {
+            const charY = itemStartY + charIndex * lineHeight
+            pdf.text(char, x - offset, charY, { align: 'center' })
+          })
+          
+          // 第二行 - 顶对齐
+          secondLineChars.forEach((char, charIndex) => {
+            const charY = itemStartY + charIndex * lineHeight
+            pdf.text(char, x + offset, charY, { align: 'center' })
+          })
+        } else {
+          // 正常显示
+          itemChars.forEach((char, charIndex) => {
+            const topRatio = itemChars.length === 1 ? 0.5 : (5 + (70 / (itemChars.length - 1)) * charIndex) / 100
+            const charY = itemStartY + itemAvailableHeight * topRatio
+            pdf.text(char, x, charY, { align: 'center' })
+          })
+        }
+      }
+
+      if (record.remark) {
+        const remarkStartY = listStartY + Math.round(588 * SCALE)
+        const remarkEndY = listStartY + Math.round(721 * SCALE)
+        const remarkChars = record.remark.split('')
+        const remarkAvailableHeight = remarkEndY - remarkStartY
+        let remarkFontSize = Math.round(26 * SCALE)
+        
+        // 参考 RecordList.vue 的自适应字号逻辑
+        const remarkMaxLength = 4
+        if (remarkChars.length > remarkMaxLength) {
+          const reduceSize = (remarkChars.length - remarkMaxLength) * 12
+          remarkFontSize = Math.max(Math.round(12 * SCALE), remarkFontSize - reduceSize)
+        }
+        
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(remarkFontSize)
+        pdf.setTextColor(0, 0, 0)
+        
+        // 处理超过7个字的换行显示
+        if (remarkChars.length > 7) {
+          const firstLineChars = remarkChars.slice(0, 7)
+          const secondLineChars = remarkChars.slice(7)
+          
+          // 计算字符宽度，偏移量为字符宽度 + 2px
+          const charWidth = remarkFontSize * 0.6 // 估算字符宽度
+          const offset = charWidth + 2 * SCALE
+          
+          // 计算行高
+          const lineHeight = remarkFontSize * 1.2
+          
+          // 第一行 - 顶对齐
+          firstLineChars.forEach((char, charIndex) => {
+            const charY = remarkStartY + charIndex * lineHeight
+            pdf.text(char, x - offset, charY, { align: 'center' })
+          })
+          
+          // 第二行 - 顶对齐
+          secondLineChars.forEach((char, charIndex) => {
+            const charY = remarkStartY + charIndex * lineHeight
+            pdf.text(char, x + offset, charY, { align: 'center' })
+          })
+        } else {
+          // 正常显示
+          remarkChars.forEach((char, charIndex) => {
+            const topRatio = remarkChars.length === 1 ? 0.5 : (5 + (70 / (remarkChars.length - 1)) * charIndex) / 100
+            const charY = remarkStartY + remarkAvailableHeight * topRatio
+            pdf.text(char, x, charY, { align: 'center' })
+          })
+        }
+      }
+    })
+
+    const footerY = Math.round(797 * SCALE)
     setFont(pdf, fonts, 'ZhiSong')
-    pdf.setFontSize(28)
-    pdf.text('¥' + formatAmount(record.amount), x, amountNumY, { align: 'center' })
-  })
+    pdf.setFontSize(Math.round(13 * SCALE))
+    pdf.setTextColor(0, 0, 0, 0.4 * 255)
 
-  const footerY = Math.round(518 * SCALE) + Math.round(20 * SCALE)
-  setFont(pdf, fonts, 'ZhiSong')
-  pdf.setFontSize(52)
-  pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
-
-  pdf.text('共 ' + totalRecords + ' 条记录', Math.round(41 * SCALE), footerY)
-  pdf.text('第 ' + pageNum + ' 页 / 共 ' + totalPages + ' 页', PAGE_WIDTH_PT / 2, footerY, { align: 'center' })
-  pdf.text('本页小计：¥' + formatAmount(pageAmount), Math.round((41 + 760) * SCALE), footerY, { align: 'right' })
+    pdf.text('共 ' + totalRecords + ' 条记录', Math.round(37 * SCALE), footerY)
+    pdf.text('第 ' + pageNum + ' 页 / 共 ' + totalPages + ' 页', Math.round(297 * SCALE), footerY, { align: 'center' })
+    pdf.text('本页小计：¥' + formatAmount(pageAmount), Math.round(558 * SCALE), footerY, { align: 'right' })
+  }
 }
 
 async function addStatisticsPage(
@@ -435,31 +709,21 @@ async function addStatisticsPage(
   fonts: LoadedFonts,
   records: Record[],
   totalAmount: number,
-  theme: 'red' | 'gray'
+  theme: ThemeType,
+  layout: LayoutType = 'h'
 ) {
   pdf.addPage()
 
-  const bgImage = await loadTemplateImage(theme, 'statistics')
+  const bgImage = await loadTemplateImage(theme, 'statistics', layout)
+  const pageWidth = layout === 'v' ? VERTICAL_PAGE_WIDTH_PT : PAGE_WIDTH_PT
+  const pageHeight = layout === 'v' ? VERTICAL_PAGE_HEIGHT_PT : PAGE_HEIGHT_PT
   if (bgImage) {
-    pdf.addImage(bgImage, 'JPEG', 0, 0, PAGE_WIDTH_PT, PAGE_HEIGHT_PT)
+    pdf.addImage(bgImage, 'JPEG', 0, 0, pageWidth, pageHeight)
   }
 
   const isGrayTheme = theme === 'gray'
+  const isGoldenTheme = theme === 'golden'
 
-  const titleX = Math.round((361 + 120 / 2) * SCALE)
-  const titleY = Math.round((137 + 18) * SCALE)
-
-  if (isGrayTheme) {
-    pdf.setTextColor(0, 0, 0)
-  } else {
-    pdf.setTextColor(255, 102, 102)
-  }
-
-  setFont(pdf, fonts, 'ZhiSong')
-  pdf.setFontSize(Math.round(18 * SCALE))
-  pdf.text('礼金簿统计', titleX, titleY, { align: 'center' })
-
-  // 准备统计数据
   const paymentTypes = [
     { type: 0, name: '现金' },
     { type: 1, name: '微信' },
@@ -476,12 +740,6 @@ async function addStatisticsPage(
     }
   })
 
-  // 准备所有文本行
-  const labelFontSize = 48
-  const valueFontSize = 48
-  const lineSpacing = Math.round(15 * SCALE)
-  const labelValueSpacing = Math.round(20 * SCALE)
-
   const lines = [
     { label: '总人数：', value: `${records.length}人` },
     ...paymentStats.map(stat => ({
@@ -492,105 +750,189 @@ async function addStatisticsPage(
     { label: '', value: numberToChinese(totalAmount) }
   ]
 
-  // 计算最大标签宽度和最大数值宽度
-  setFont(pdf, fonts, 'ZhiSong')
-  pdf.setFontSize(labelFontSize)
-  let maxLabelWidth = 0
-  lines.forEach(line => {
-    if (line.label) {
-      const width = pdf.getTextWidth(line.label)
-      maxLabelWidth = Math.max(maxLabelWidth, width)
+  if (layout === 'h') {
+    const titleX = Math.round((361 + 120 / 2) * SCALE)
+    const titleY = Math.round((137 + 18) * SCALE)
+
+    if (isGrayTheme) {
+      pdf.setTextColor(0, 0, 0)
+    } else if (isGoldenTheme) {
+      pdf.setTextColor(212, 165, 116)
+    } else {
+      pdf.setTextColor(255, 102, 102)
     }
-  })
 
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(valueFontSize)
-  let maxValueWidth = 0
-  lines.forEach(line => {
-    const width = pdf.getTextWidth(line.value)
-    maxValueWidth = Math.max(maxValueWidth, width)
-  })
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(Math.round(18 * SCALE))
+    pdf.text('礼金簿统计', titleX, titleY, { align: 'center' })
 
-  // 计算居中起始位置
-  const totalWidth = maxLabelWidth + labelValueSpacing + maxValueWidth
-  const startX = (PAGE_WIDTH_PT - totalWidth) / 2
-  const labelX = startX
-  const valueX = startX + maxLabelWidth + labelValueSpacing
+    const labelFontSize = 48
+    const valueFontSize = 48
+    const lineSpacing = Math.round(15 * SCALE)
+    const labelValueSpacing = Math.round(20 * SCALE)
 
-  // 绘制统计内容
-  pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(labelFontSize)
+    let maxLabelWidth = 0
+    lines.forEach(line => {
+      if (line.label) {
+        const width = pdf.getTextWidth(line.label)
+        maxLabelWidth = Math.max(maxLabelWidth, width)
+      }
+    })
 
-  // 计算起始Y位置（垂直居中）
-  const totalHeight = lines.length * (labelFontSize + lineSpacing) - lineSpacing
-  let currentY = (PAGE_HEIGHT_PT - totalHeight) / 2 + labelFontSize
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(valueFontSize)
+    let maxValueWidth = 0
+    lines.forEach(line => {
+      const width = pdf.getTextWidth(line.value)
+      maxValueWidth = Math.max(maxValueWidth, width)
+    })
 
-  lines.forEach((line) => {
-    if (line.label) {
-      // 绘制标签（智宋）
+    const totalWidth = maxLabelWidth + labelValueSpacing + maxValueWidth
+    const startX = (PAGE_WIDTH_PT - totalWidth) / 2
+    const labelX = startX
+    const valueX = startX + maxLabelWidth + labelValueSpacing
+
+    pdf.setTextColor(isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51, isGrayTheme ? 0 : 51)
+
+    const totalHeight = lines.length * (labelFontSize + lineSpacing) - lineSpacing
+    let currentY = (PAGE_HEIGHT_PT - totalHeight) / 2 + labelFontSize
+
+    lines.forEach((line) => {
+      if (line.label) {
+        setFont(pdf, fonts, 'ZhiSong')
+        pdf.setFontSize(labelFontSize)
+        pdf.text(line.label, labelX, currentY)
+      }
+
+      setFont(pdf, fonts, 'KaiTi')
+      pdf.setFontSize(valueFontSize)
+      pdf.text(line.value, valueX, currentY)
+
+      currentY += labelFontSize + lineSpacing
+    })
+  } else {
+    const titleX = Math.round((233 + 120 / 2) * SCALE)
+    const titleY = Math.round((220 + 35 / 2) * SCALE)
+
+    pdf.setTextColor(122, 122, 122)
+
+    setFont(pdf, fonts, 'ZhiSong')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text('礼金簿统计', titleX, titleY, { align: 'center' })
+
+    const contentTopY = Math.round(277 * SCALE)
+    const lineSpacing = Math.round(25 * SCALE)
+    const labelFontSize = Math.round(12 * SCALE)
+    const valueFontSize = Math.round(12 * SCALE)
+    const labelValueGap = Math.round(5 * SCALE)
+
+    pdf.setTextColor(120, 120, 120)
+
+    const pageWidth = VERTICAL_PAGE_WIDTH_PT
+    let maxLineWidth = 0
+
+    lines.forEach((line) => {
       setFont(pdf, fonts, 'ZhiSong')
       pdf.setFontSize(labelFontSize)
-      pdf.text(line.label, labelX, currentY)
-    }
+      const labelWidth = line.label ? pdf.getTextWidth(line.label) : 0
+      setFont(pdf, fonts, 'KaiTi')
+      pdf.setFontSize(valueFontSize)
+      const valueWidth = pdf.getTextWidth(line.value)
+      const lineWidth = labelWidth + labelValueGap + valueWidth
+      maxLineWidth = Math.max(maxLineWidth, lineWidth)
+    })
 
-    // 绘制数值（楷体）
-    setFont(pdf, fonts, 'KaiTi')
-    pdf.setFontSize(valueFontSize)
-    pdf.text(line.value, valueX, currentY)
+    const contentLeftX = (pageWidth - maxLineWidth) / 2
 
-    currentY += labelFontSize + lineSpacing
-  })
+    let currentY = contentTopY
+
+    lines.forEach((line) => {
+      if (line.label) {
+        setFont(pdf, fonts, 'ZhiSong')
+        pdf.setFontSize(labelFontSize)
+        pdf.text(line.label, contentLeftX, currentY)
+      }
+
+      setFont(pdf, fonts, 'KaiTi')
+      pdf.setFontSize(valueFontSize)
+      pdf.text(line.value, contentLeftX + maxLineWidth - pdf.getTextWidth(line.value), currentY)
+
+      currentY += labelFontSize + lineSpacing
+    })
+  }
 }
 
 async function addBackCoverPage(
   pdf: jsPDF,
   fonts: LoadedFonts,
-  theme: 'red' | 'gray'
+  theme: ThemeType,
+  layout: LayoutType = 'h'
 ) {
   pdf.addPage()
 
-  const bgImage = await loadTemplateImage(theme, 'backcover')
+  const bgImage = await loadTemplateImage(theme, 'backcover', layout)
+  const pageWidth = layout === 'v' ? VERTICAL_PAGE_WIDTH_PT : PAGE_WIDTH_PT
+  const pageHeight = layout === 'v' ? VERTICAL_PAGE_HEIGHT_PT : PAGE_HEIGHT_PT
   if (bgImage) {
-    pdf.addImage(bgImage, 'JPEG', 0, 0, PAGE_WIDTH_PT, PAGE_HEIGHT_PT)
+    pdf.addImage(bgImage, 'JPEG', 0, 0, pageWidth, pageHeight)
   }
 
   const isGrayTheme = theme === 'gray'
+  const isGoldenTheme = theme === 'golden'
 
   if (isGrayTheme) {
     pdf.setTextColor(255, 255, 255)
+  } else if (isGoldenTheme) {
+    pdf.setTextColor(255, 215, 0)
   } else {
     pdf.setTextColor(255, 211, 145)
   }
 
-  // 封底文字使用页面中心对齐
-  const centerX = PAGE_WIDTH_PT / 2
-  const text1Y = Math.round((263 + 24) * SCALE)
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(Math.round(24 * SCALE))
-  pdf.text('做一款好用的电子礼金簿', centerX, text1Y, { align: 'center' })
+  if (layout === 'h') {
+    const centerX = PAGE_WIDTH_PT / 2
+    const text1Y = Math.round((263 + 24) * SCALE)
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text('做一款好用的电子礼金簿', centerX, text1Y, { align: 'center' })
 
-  const text2Y = Math.round((310 + 20) * SCALE)
-  setFont(pdf, fonts, 'XuandongKaishu')
-  pdf.setFontSize(Math.round(20 * SCALE))
-  pdf.text('微信公众号：说自', centerX, text2Y, { align: 'center' })
+    const text2Y = Math.round((310 + 20) * SCALE)
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(20 * SCALE))
+    pdf.text('微信公众号：说自', centerX, text2Y, { align: 'center' })
+  } else {
+    const centerX = VERTICAL_PAGE_WIDTH_PT / 2
+    const text1Y = Math.round((1500 + 28) * SCALE)
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(28 * SCALE))
+    pdf.text('做一款好用的电子礼金簿', centerX, text1Y, { align: 'center' })
+
+    const text2Y = Math.round((1580 + 24) * SCALE)
+    setFont(pdf, fonts, 'XuandongKaishu')
+    pdf.setFontSize(Math.round(24 * SCALE))
+    pdf.text('微信公众号：说自', centerX, text2Y, { align: 'center' })
+  }
 }
 
 export async function generatePDFWithJsPDF(
   records: Record[],
   eventName: string,
-  theme: 'red' | 'gray',
+  theme: ThemeType = 'red',
   eventDate?: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  layout: LayoutType = 'h'
 ): Promise<Uint8Array> {
-  const { pdf, fonts } = await createChinesePDF()
+  const { pdf, fonts } = await createChinesePDF(layout)
 
   const exportDateObj = eventDate ? new Date(eventDate) : getEventDate(records)
   const exportDate = `${exportDateObj.getFullYear()}年${exportDateObj.getMonth() + 1}月${exportDateObj.getDate()}日`
   const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
 
   onProgress?.(10)
-  await addCoverPage(pdf, fonts, eventName, exportDate, theme)
+  await addCoverPage(pdf, fonts, eventName, exportDate, theme, layout)
 
-  const columnsPerPage = 15
+  const columnsPerPage = layout === 'h' ? 15 : 10
   const totalContentPages = Math.ceil(records.length / columnsPerPage)
 
   for (let i = 0; i < totalContentPages; i++) {
@@ -610,15 +952,16 @@ export async function generatePDFWithJsPDF(
       totalContentPages,
       records.length,
       pageAmount,
-      theme
+      theme,
+      layout
     )
   }
 
   onProgress?.(85)
-  await addStatisticsPage(pdf, fonts, records, totalAmount, theme)
+  await addStatisticsPage(pdf, fonts, records, totalAmount, theme, layout)
 
   onProgress?.(95)
-  await addBackCoverPage(pdf, fonts, theme)
+  await addBackCoverPage(pdf, fonts, theme, layout)
 
   const arrayBuffer = pdf.output('arraybuffer')
   return new Uint8Array(arrayBuffer)
@@ -627,13 +970,14 @@ export async function generatePDFWithJsPDF(
 export async function exportToPDFWithSave(
   records: Record[],
   eventName: string = '电子礼金簿',
-  theme: 'red' | 'gray' = 'red',
+  theme: ThemeType = 'red',
   eventDate?: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  layout: LayoutType = 'h'
 ): Promise<{ success: boolean; filePath?: string; error?: string }> {
   try {
     onProgress?.(0)
-    const pdfData = await generatePDFWithJsPDF(records, eventName, theme, eventDate, onProgress)
+    const pdfData = await generatePDFWithJsPDF(records, eventName, theme, eventDate, onProgress, layout)
 
     const exportDate = eventDate || getEventDate(records)
     const defaultFileName = generateExportFileName(eventName, exportDate) + '.pdf'

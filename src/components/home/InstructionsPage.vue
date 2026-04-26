@@ -82,41 +82,6 @@ const toggleItem = (index: number) => {
         </div>
       </div>
     </div>
-
-    <!-- 快捷键说明 -->
-    <div class="shortcuts-card">
-      <div class="card-header">
-        <IconSvg name="keyboard" :size="24" />
-        <h2 class="card-title">快捷键说明</h2>
-      </div>
-      
-      <div class="shortcuts-list">
-        <div class="shortcut-item">
-          <span class="shortcut-key">Ctrl + N</span>
-          <span class="shortcut-desc">新增记录</span>
-        </div>
-        <div class="shortcut-item">
-          <span class="shortcut-key">Ctrl + F</span>
-          <span class="shortcut-desc">搜索记录</span>
-        </div>
-        <div class="shortcut-item">
-          <span class="shortcut-key">Ctrl + E</span>
-          <span class="shortcut-desc">导出数据</span>
-        </div>
-        <div class="shortcut-item">
-          <span class="shortcut-key">Delete</span>
-          <span class="shortcut-desc">删除选中记录</span>
-        </div>
-        <div class="shortcut-item">
-          <span class="shortcut-key">Tab</span>
-          <span class="shortcut-desc">切换输入框</span>
-        </div>
-        <div class="shortcut-item">
-          <span class="shortcut-key">Enter</span>
-          <span class="shortcut-desc">确认/提交</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -242,43 +207,7 @@ const toggleItem = (index: number) => {
   margin: 0;
 }
 
-/* 快捷键列表 */
-.shortcuts-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
-}
 
-.shortcut-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: rgba(0, 0, 0, 0.02);
-  border-radius: 8px;
-  transition: background 0.2s ease;
-}
-
-.shortcut-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.shortcut-key {
-  font-family: 'Consolas', 'Monaco', monospace;
-  font-size: 13px;
-  font-weight: 600;
-  color: #C75B39;
-  background: rgba(199, 91, 57, 0.1);
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid rgba(199, 91, 57, 0.2);
-  white-space: nowrap;
-}
-
-.shortcut-desc {
-  font-size: 14px;
-  color: #666;
-}
 
 /* 折叠动画 */
 .collapse-enter-active,

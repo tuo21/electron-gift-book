@@ -95,16 +95,9 @@
 
           <!-- 礼品展示框（竖排文字） -->
           <div class="cell gift-cell">
-            <div v-if="record.itemDescription" class="vertical-text" :style="{ fontSize: getAdaptiveFontSize(record.itemDescription, false) + 'px' }">
-              <span
-                v-for="(char, index) in record.itemDescription.split('')"
-                :key="'g'+index"
-                class="vertical-char"
-                :style="getCharStyle(record.itemDescription.length, index)"
-              >
-                {{ char }}
-              </span>
-            </div>
+            <span v-if="record.itemDescription" class="amount-chinese" :style="{ fontSize: getAdaptiveFontSize(record.itemDescription, false) + 'px' }">
+              {{ record.itemDescription }}
+            </span>
             <span v-else class="empty-placeholder">&nbsp;</span>
           </div>
 
@@ -115,16 +108,9 @@
 
           <!-- 地址展示框（竖排文字） -->
           <div class="cell address-cell">
-            <div v-if="record.remark" class="vertical-text" :style="{ fontSize: getAdaptiveFontSize(record.remark, false) + 'px' }">
-              <span
-                v-for="(char, index) in record.remark.split('')"
-                :key="'a'+index"
-                class="vertical-char"
-                :style="getCharStyle(record.remark.length, index)"
-              >
-                {{ char }}
-              </span>
-            </div>
+            <span v-if="record.remark" class="amount-chinese" :style="{ fontSize: getAdaptiveFontSize(record.remark, false) + 'px' }">
+              {{ record.remark }}
+            </span>
             <span v-else class="empty-placeholder">&nbsp;</span>
           </div>
         </template>
@@ -546,10 +532,10 @@ const getPaymentShortLabel = (type: number): string => {
   return getPaymentTypeText(type);
 };
 
-// 根据文字长度计算自适应字号（最大28，最小20）
+// 根据文字长度计算自适应字号（最大28，最小16）
 const getAdaptiveFontSize = (text: string, isName: boolean = false): number => {
   const maxSize = isName ? 28 : 28;   /* 姓名和金额最大28px */
-  const minSize = 20;
+  const minSize = 16;
   const maxLength = isName ? 3 : 4;  /* 姓名3字内最大，金额4字内最大 */
 
   if (!text || text.length <= maxLength) {
@@ -1115,13 +1101,23 @@ defineExpose({
 
 /* 完整型礼金金额样式 */
 .record-column:not(.compact) .amount-chinese {
-  color: var(--theme-accent);
   writing-mode: vertical-rl;
   text-orientation: upright;
   letter-spacing: 3px;
   line-height: 1.6;
   transition: font-size 0.2s ease;
   font-family: var(--font-name-amount);
+}
+
+/* 完整型礼金金额颜色 */
+.record-column:not(.compact) .amount-cell .amount-chinese {
+  color: var(--theme-accent);
+}
+
+/* 完整型礼品和地址颜色 */
+.record-column:not(.compact) .gift-cell .amount-chinese,
+.record-column:not(.compact) .address-cell .amount-chinese {
+  color: var(--theme-text-primary);
 }
 
 /* 完整型支付方式短标签 */
@@ -1224,7 +1220,7 @@ defineExpose({
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--theme-spacing-xs) 0;
+  padding: var(--theme-spacing-xs) -1;
   border-bottom: 1px dotted rgba(139, 41, 66, 0.10);
   height: 35px;
   min-height: 35px;

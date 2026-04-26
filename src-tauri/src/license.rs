@@ -1,13 +1,14 @@
 use sha2::{Sha256, Digest};
 use hmac::{Hmac, Mac};
-use base64::{engine::general_purpose::URL_SAFE, Engine};
+use data_encoding::BASE32_NOPAD;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::AppHandle;
 use tauri::Manager;
 
 // 密钥（生产环境应使用混淆方式存储）
-const SECRET_KEY: &[u8] = b"GIFT_BOOK_LICENSE_KEY_2026_V1.0"; // 替换为实际密钥
+const SECRET_KEY: &[u8] = b"GIFT_BOOK_LICENSE_KEY_2026_V1.0";
+const SIGN_BYTES: usize = 6;  // 签名长度
 
 /// 授权信息结构
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +16,15 @@ pub struct LicenseInfo {
     pub mid: String,
     pub name: String,
     pub exp: Option<u64>,
+}
+
+/// 机器指纹结构（用于模糊匹配）
+#[derive(Debug, Clone)]
+struct MachineFingerprint {
+    board_id: String,
+    bios_version: String,
+    cpu_model: String,
+    computer_name: String,
 }
 
 /// 获取机器码 - 基于Windows注册表硬件信息，兼容Win7+
@@ -87,117 +97,205 @@ pub fn get_machine_id() -> Result<String, String> {
     }
 }
 
-/// 验证激活码
+/// 获取完整机器指纹（用于模糊匹配）
+#[cfg(target_os = "windows")]
+fn get_machine_fingerprint() -> Result<MachineFingerprint, String> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+
+    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
+
+    let board_id = hklm
+        .open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")
+        .and_then(|key| key.get_value::<String, _>("BaseBoardProduct"))
+        .unwrap_or_default();
+
+    let bios_version = hklm
+        .open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")
+        .and_then(|key| key.get_value::<String, _>("BIOSVersion"))
+        .unwrap_or_default();
+
+    let cpu_info = hklm
+        .open_subkey("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0")
+        .and_then(|key| key.get_value::<String, _>("ProcessorNameString"))
+        .unwrap_or_default();
+
+    let computer_name = hklm
+        .open_subkey("SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ComputerName")
+        .and_then(|key| key.get_value::<String, _>("ComputerName"))
+        .unwrap_or_default();
+
+    Ok(MachineFingerprint {
+        board_id,
+        bios_version,
+        cpu_model: cpu_info,
+        computer_name,
+    })
+}
+
+/// 计算组件短哈希（前2字节）
+fn hash_component(s: &str) -> String {
+    if s.is_empty() {
+        return "0000".to_string();
+    }
+    let digest = Sha256::digest(s.as_bytes());
+    hex::encode(&digest[..2])
+}
+
+/// 模糊匹配：检查机器码是否匹配
+fn fuzzy_match(stored_mid: &str, current_mid: &str) -> bool {
+    // 清洗输入
+    let stored_clean = stored_mid.replace('-', "").replace(' ', "").to_lowercase();
+    let current_clean = current_mid.replace('-', "").replace(' ', "").to_lowercase();
+    
+    println!("模糊匹配: stored={}, current={}", stored_clean, current_clean);
+    
+    // 完全匹配
+    if stored_clean == current_clean {
+        println!("完全匹配成功！");
+        return true;
+    }
+
+    // 模糊匹配：检查前8位是否相同（短机器码是8位）
+    if stored_clean.len() >= 8 && current_clean.len() >= 8 {
+        let stored_short = &stored_clean[..8];
+        let current_short = &current_clean[..8];
+        println!("前8位对比: {} vs {}", stored_short, current_short);
+        if stored_short == current_short {
+            println!("前8位匹配成功！");
+            return true;
+        }
+    }
+    
+    // 尝试部分匹配（前4位）
+    if stored_clean.len() >= 4 && current_clean.len() >= 4 {
+        let stored_4 = &stored_clean[..4];
+        let current_4 = &current_clean[..4];
+        if stored_4 == current_4 {
+            println!("前4位匹配成功！");
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// 验证短激活码（Crockford Base32 格式）
 #[tauri::command]
 pub fn verify_license(license_code: String) -> Result<LicenseInfo, String> {
     println!("--- 激活调试信息 ---");
     println!("收到的激活码: {}", license_code);
-    
-    // 只去掉空格和短横线，⚠️ 绝对不要转大小写！！！
-    let token = license_code.replace('-', "").replace(' ', "");
-    println!("清洗后的token: {}", token);
-    
-    let parts: Vec<&str> = token.split('.').collect();
-    if parts.len() != 2 {
-        println!("错误: 格式错误，期望有 '.'");
-        return Err("激活码格式错误".to_string());
-    }
-    println!("Data部分: {}", parts[0]);
-    println!("Sign部分: {}", parts[1]);
 
-    // 自定义兼容的Base64 URL解码（支持末尾缺少填充的情况）
-    fn decode_base64url(s: &str) -> Result<Vec<u8>, ()> {
-        // 先补充可能缺少的填充
-        let padding_needed = (4 - (s.len() % 4)) % 4;
-        let padded = format!("{}{}", s, "=".repeat(padding_needed));
-        
-        // 使用标准的Base64解码（先把URL安全字符换回标准字符）
-        let standard = padded.replace('-', "+").replace('_', "/");
-        
-        base64::engine::general_purpose::STANDARD
-            .decode(&standard)
-            .map_err(|_| ())
-    }
+    // 清洗输入：去横线、空格，转大写
+    let clean = license_code.replace('-', "").replace(' ', "").to_uppercase();
+    println!("清洗后: {}", clean);
 
-    let data_bytes = match decode_base64url(parts[0]) {
-        Ok(b) => {
-            println!("数据解码成功，长度: {}", b.len());
-            b
+    // Base32 解码 (Crockford)
+    let combined = match BASE32_NOPAD.decode(clean.as_bytes()) {
+        Ok(v) => {
+            println!("Base32解码成功，长度: {}", v.len());
+            v
         },
         Err(e) => {
-            println!("数据解码失败: {:?}", e);
-            return Err("数据解码失败".to_string());
-        }
-    };
-    
-    let sign_bytes = match decode_base64url(parts[1]) {
-        Ok(b) => {
-            println!("签名解码成功，长度: {}", b.len());
-            b
-        },
-        Err(e) => {
-            println!("签名解码失败: {:?}", e);
-            return Err("签名解码失败".to_string());
+            println!("Base32解码失败: {:?}", e);
+            return Err("激活码格式错误，请检查是否复制完整".to_string());
         }
     };
 
+    // 检查最小长度 (签名6字节 + 机器码4字节 + 用户名1字节 = 11字节)
+    if combined.len() < SIGN_BYTES + 5 {
+        println!("激活码太短: {} 字节", combined.len());
+        return Err("激活码格式错误，长度不足".to_string());
+    }
+
+    // 分离签名和payload
+    let sign_bytes = &combined[..SIGN_BYTES];
+    let payload_bytes = &combined[SIGN_BYTES..];
+    println!("签名长度: {}, Payload长度: {}", sign_bytes.len(), payload_bytes.len());
+
+    // 验证 HMAC
     type HmacSha256 = Hmac<Sha256>;
     let mut mac = HmacSha256::new_from_slice(SECRET_KEY)
         .map_err(|_| "密钥初始化失败".to_string())?;
-    // ✅ 正确：用原始的base64url字符串（parts[0]）计算HMAC！
-    mac.update(parts[0].as_bytes()); 
+    mac.update(payload_bytes);
     let expected_sign = mac.finalize().into_bytes();
-    println!("预期签名长度: {}，实际签名长度: {}", expected_sign.len(), sign_bytes.len());
     
-    // 打印字节对比
-    println!("实际签名字节: {:?}", sign_bytes);
-    println!("预期签名字节: {:?}", expected_sign);
-    
-    if !constant_time_eq(&sign_bytes, &expected_sign) {
-        println!("签名不匹配！验证失败");
-        return Err("激活码无效".to_string());
+    println!("预期签名: {:?}", &expected_sign[..SIGN_BYTES]);
+    println!("实际签名: {:?}", sign_bytes);
+
+    if !constant_time_eq(sign_bytes, &expected_sign[..SIGN_BYTES]) {
+        println!("签名验证失败！");
+        return Err("激活码无效或已被篡改".to_string());
     }
     println!("签名验证通过！");
 
-    let payload: LicenseInfo = match serde_json::from_slice(&data_bytes) {
-        Ok(p) => {
-            println!("反序列化成功: {:?}", p);
-            p
-        },
-        Err(e) => {
-            println!("反序列化失败: {:?}", e);
-            return Err("授权数据损坏".to_string());
-        }
+    // 解析 payload
+    // 格式: [机器码4字节][用户名1字节][过期时间4字节(可选)]
+    if payload_bytes.len() < 5 {
+        return Err("激活码数据损坏".to_string());
+    }
+
+    let mid_bytes = &payload_bytes[..4];
+    let name_byte = payload_bytes[4];
+    let has_exp = payload_bytes.len() >= 9;
+
+    // 机器码转十六进制 (4字节 = 8个十六进制字符)
+    let mid = hex::encode(mid_bytes).to_uppercase();
+    // 格式化为 XXXX-XXXX 形式 (前4位-后4位)
+    let formatted_mid = if mid.len() >= 8 {
+        format!("{}-{}", &mid[..4], &mid[4..8])
+    } else {
+        format!("{}-XXXX", &mid) // 备用格式
     };
 
+    // 用户名（单字符转字符串）
+    let name = String::from_utf8(vec![name_byte])
+        .unwrap_or_else(|_| "用户".to_string());
+
+    // 过期时间
+    let exp = if has_exp {
+        let exp_bytes = &payload_bytes[5..9];
+        let exp_time = u32::from_be_bytes([exp_bytes[0], exp_bytes[1], exp_bytes[2], exp_bytes[3]]) as u64;
+        Some(exp_time)
+    } else {
+        None
+    };
+
+    println!("解析结果: mid={}, name={}, exp={:?}", formatted_mid, name, exp);
+
+    // 机器码匹配检查
     let current_mid = get_machine_id()?;
     println!("当前机器码: {}", current_mid);
-    println!("激活码中的机器码: {}", payload.mid);
-    
-    let stored_mid = payload.mid.replace('-', "").replace(' ', "");
-    let current_mid_clean = current_mid.replace('-', "").replace(' ', "");
-    println!("清洗后当前: {}，清洗后存储: {}", current_mid_clean, stored_mid);
-    
-    if stored_mid != current_mid_clean {
+    println!("激活码机器码: {}", formatted_mid);
+
+    if !fuzzy_match(&formatted_mid, &current_mid) {
         println!("机器码不匹配！");
-        return Err("激活码与当前电脑不匹配".to_string());
+        return Err(format!(
+            "激活码与当前电脑不匹配\n当前机器码: {}\n激活码绑定: {}",
+            current_mid, formatted_mid
+        ));
     }
     println!("机器码匹配！");
 
-    if let Some(exp) = payload.exp {
+    // 过期检查
+    if let Some(exp_time) = exp {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        println!("当前时间: {}，过期时间: {}", now, exp);
-        if now > exp {
+        println!("当前时间: {}, 过期时间: {}", now, exp_time);
+        if now > exp_time {
             println!("已过期！");
             return Err("激活码已过期".to_string());
         }
     }
 
     println!("--- 验证成功 ---");
-    Ok(payload)
+    Ok(LicenseInfo {
+        mid: formatted_mid,
+        name,
+        exp,
+    })
 }
 
 /// 保存激活信息到本地
@@ -222,7 +320,8 @@ pub fn save_license(app: AppHandle, license_code: String) -> Result<(), String> 
             "name": info.name,
             "exp": info.exp
         },
-        "activated_at": chrono::Utc::now().to_rfc3339()
+        "activated_at": chrono::Utc::now().to_rfc3339(),
+        "version": 2  // 标记为新版本格式
     });
 
     let path = app_data.join("license.json");

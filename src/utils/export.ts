@@ -161,11 +161,12 @@ export async function exportToExcel(records: Record[], eventName: string = '电�
 export async function exportToPDF(
   records: Record[],
   eventName: string = '电子礼金簿',
-  theme: 'red' | 'gray' = 'red',
+  theme: 'red' | 'gray' | 'golden' = 'red',
   eventDate?: string,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  layout: 'h' | 'v' = 'h'
 ): Promise<void> {
-  const result = await exportToPDFWithSave(records, eventName, theme, eventDate, onProgress)
+  const result = await exportToPDFWithSave(records, eventName, theme, eventDate, onProgress, layout)
   
   if (!result.success) {
     if (result.error !== '用户取消保存') {

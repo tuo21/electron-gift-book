@@ -167,7 +167,17 @@ export interface PDFTemplateConfig {
   themeColors: {
     red: ThemeColors
     gray: ThemeColors
+    golden: ThemeColors
   }
+}
+
+// 布局类型
+export type LayoutType = 'h' | 'v'
+
+// 布局配置映射
+export interface LayoutConfigMap {
+  h: PDFTemplateConfig // 紧凑型布局
+  v: PDFTemplateConfig // 大字完整版布局
 }
 
 export interface ThemeColors {
@@ -191,10 +201,12 @@ const A4_HEIGHT_PX = Math.round(A4_HEIGHT_MM * MM_TO_PX) // 2480px
 // 缩放系数（从设计稿 300 DPI 到实际渲染）
 const SCALE = 1.0
 
-/**
- * PDF 模板配置 - 基于实际测量数据
- */
-export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
+// A4 竖版尺寸 (210mm × 297mm) @ 300 DPI
+const A4_VERTICAL_WIDTH_PX = A4_HEIGHT_PX // 2480px
+const A4_VERTICAL_HEIGHT_PX = A4_WIDTH_PX // 3508px
+
+// 紧凑型布局配置
+const COMPACT_LAYOUT_CONFIG: PDFTemplateConfig = {
   pageSize: {
     width: A4_WIDTH_PX,
     height: A4_HEIGHT_PX
@@ -203,7 +215,7 @@ export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
   
   // ========== 封面配置 ==========
   cover: {
-    backgroundImage: '/templates/{theme}/cover.jpg',
+    backgroundImage: '/templates/original/{theme}/{theme}-h/{theme}-h-cover.jpg',
     textArea: {
       left: Math.round(251 * SCALE),
       top: Math.round(461 * SCALE),
@@ -252,7 +264,7 @@ export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
   
   // ========== 内容页配置 ==========
   content: {
-    backgroundImage: '/templates/{theme}/content.jpg',
+    backgroundImage: '/templates/original/{theme}/{theme}-h/{theme}-h-content.jpg',
     header: {
       region: {
         left: Math.round(41 * SCALE),
@@ -465,7 +477,7 @@ export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
   
   // ========== 统计页配置 ==========
   statistics: {
-    backgroundImage: '/templates/{theme}/statistics.jpg',
+    backgroundImage: '/templates/original/{theme}/{theme}-h/{theme}-h-statistics.jpg',
     header: {
       region: {
         left: Math.round(37 * SCALE),
@@ -514,7 +526,7 @@ export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
   
   // ========== 封底配置 ==========
   backCover: {
-    backgroundImage: '/templates/{theme}/backcover.jpg',
+    backgroundImage: '/templates/original/{theme}/{theme}-h/{theme}-h-backcover.jpg',
     text1: {
       region: {
         left: Math.round(307 * SCALE),
@@ -570,8 +582,411 @@ export const PDF_TEMPLATE_CONFIG: PDFTemplateConfig = {
       text: '#333333',
       paper: '#e8e8e8',
       border: '#999999'
+    },
+    golden: {
+      primary: '#d4a574',
+      accent: '#ffd700',
+      text: '#ffd700',
+      paper: '#f5f0e8',
+      border: '#d4a574'
     }
   }
+}
+
+// 大字完整版布局配置
+const FULL_LAYOUT_CONFIG: PDFTemplateConfig = {
+  pageSize: {
+    width: A4_VERTICAL_WIDTH_PX,
+    height: A4_VERTICAL_HEIGHT_PX
+  },
+  dpi: DPI,
+  
+  // ========== 封面配置 ==========
+  cover: {
+    backgroundImage: '/templates/original/{theme}/{theme}-v/{theme}-v-cover.jpg',
+    textArea: {
+      left: Math.round(800 * SCALE),
+      top: Math.round(800 * SCALE),
+      width: Math.round(880 * SCALE),
+      height: Math.round(120 * SCALE)
+    },
+    title: {
+      region: {
+        left: Math.round(800 * SCALE),
+        top: Math.round(800 * SCALE),
+        width: Math.round(880 * SCALE),
+        height: Math.round(60 * SCALE)
+      },
+      style: {
+        fontSize: Math.round(32 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 45 * SCALE,
+        color: 'rgba(255, 102, 102, 1)',
+        textAlign: 'center',
+        verticalAlign: 'top',
+        fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+      },
+      content: '{appName}'
+    },
+    date: {
+      region: {
+        left: Math.round(800 * SCALE),
+        top: Math.round(860 * SCALE),
+        width: Math.round(880 * SCALE),
+        height: Math.round(40 * SCALE)
+      },
+      style: {
+        fontSize: Math.round(16 * SCALE),
+        fontWeight: 400,
+        letterSpacing: 0,
+        lineHeight: 24 * SCALE,
+        color: 'rgba(255, 102, 102, 1)',
+        textAlign: 'center',
+        verticalAlign: 'top',
+        fontFamily: 'SimSun, STSong, serif'
+      },
+      content: '{date}'
+    }
+  },
+  
+  // ========== 内容页配置 ==========
+  content: {
+    backgroundImage: '/templates/original/{theme}/{theme}-v/{theme}-v-content.jpg',
+    header: {
+      region: {
+        left: Math.round(60 * SCALE),
+        top: Math.round(40 * SCALE),
+        width: Math.round(2360 * SCALE),
+        height: Math.round(50 * SCALE)
+      },
+      name: {
+        region: {
+          left: 0,
+          top: 0,
+          width: Math.round(200 * SCALE),
+          height: Math.round(50 * SCALE)
+        },
+        style: {
+          fontSize: Math.round(28 * SCALE),
+          fontWeight: 900,
+          letterSpacing: 0,
+          lineHeight: 40 * SCALE,
+          color: 'rgba(255, 102, 102, 1)',
+          textAlign: 'left',
+          verticalAlign: 'top',
+          fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+        }
+      },
+      date: {
+        region: {
+          left: Math.round(2000 * SCALE),
+          top: Math.round(5 * SCALE),
+          width: Math.round(360 * SCALE),
+          height: Math.round(40 * SCALE)
+        },
+        style: {
+          fontSize: Math.round(16 * SCALE),
+          fontWeight: 300,
+          letterSpacing: 0,
+          lineHeight: 40 * SCALE,
+          color: 'rgba(0, 0, 0, 1)',
+          textAlign: 'left',
+          verticalAlign: 'top',
+          fontFamily: 'SimSun, STSong, serif'
+        }
+      }
+    },
+    list: {
+      region: {
+        left: Math.round(60 * SCALE),
+        top: Math.round(150 * SCALE),
+        width: Math.round(2360 * SCALE),
+        height: Math.round(3000 * SCALE)
+      },
+      column: {
+        width: Math.round(2360 * SCALE),
+        height: Math.round(300 * SCALE),
+        gap: Math.round(20 * SCALE),
+        columnsPerPage: 10,
+        elements: {
+          name: {
+            left: Math.round(100 * SCALE),
+            top: 0,
+            width: Math.round(600 * SCALE),
+            height: Math.round(300 * SCALE)
+          },
+          remark: {
+            left: Math.round(750 * SCALE),
+            top: Math.round(120 * SCALE),
+            width: Math.round(200 * SCALE),
+            height: Math.round(60 * SCALE)
+          },
+          amount: {
+            left: Math.round(1000 * SCALE),
+            top: 0,
+            width: Math.round(800 * SCALE),
+            height: Math.round(300 * SCALE)
+          },
+          payment: {
+            left: Math.round(1900 * SCALE),
+            top: Math.round(120 * SCALE),
+            width: Math.round(400 * SCALE),
+            height: Math.round(60 * SCALE)
+          }
+        },
+        styles: {
+          name: {
+            fontSize: 120,
+            fontWeight: 900,
+            letterSpacing: 10,
+            lineHeight: 130,
+            color: 'inherit',
+            textAlign: 'left',
+            verticalAlign: 'middle',
+            fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+          },
+          remark: {
+            fontSize: 36,
+            fontWeight: 400,
+            letterSpacing: 0,
+            lineHeight: 45,
+            color: '#666666',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            fontFamily: 'KaiTi, STKaiti, serif'
+          },
+          amount: {
+            fontSize: 120,
+            fontWeight: 900,
+            letterSpacing: 8,
+            lineHeight: 130,
+            color: 'inherit',
+            textAlign: 'left',
+            verticalAlign: 'middle',
+            fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+          },
+          itemDescription: {
+            fontSize: 45,
+            fontWeight: 400,
+            letterSpacing: 2,
+            lineHeight: 55,
+            color: '#666666',
+            textAlign: 'center',
+            verticalAlign: 'top',
+            fontFamily: 'KaiTi, STKaiti, serif'
+          },
+          payment: {
+            fontSize: 32,
+            fontWeight: 700,
+            letterSpacing: 0,
+            lineHeight: 40,
+            color: '#c44a3d',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            fontFamily: 'SimSun, STSong, serif'
+          },
+          amountNumber: {
+            fontSize: 32,
+            fontWeight: 400,
+            letterSpacing: 0,
+            lineHeight: 40,
+            color: '#666666',
+            textAlign: 'center',
+            verticalAlign: 'middle',
+            fontFamily: 'SimSun, STSong, serif'
+          }
+        }
+      }
+    },
+    footer: {
+      region: {
+        left: Math.round(60 * SCALE),
+        top: Math.round(3200 * SCALE),
+        width: Math.round(2360 * SCALE),
+        height: Math.round(40 * SCALE)
+      },
+      recordCount: {
+        region: {
+          left: 0,
+          top: 0,
+          width: Math.round(200 * SCALE),
+          height: Math.round(40 * SCALE)
+        },
+        style: {
+          fontSize: 56,
+          fontWeight: 400,
+          letterSpacing: 0,
+          lineHeight: 65,
+          color: '#333333',
+          textAlign: 'left',
+          verticalAlign: 'middle',
+          fontFamily: 'SimSun, STSong, serif'
+        }
+      },
+      pageInfo: {
+        region: {
+          left: Math.round(1000 * SCALE),
+          top: 0,
+          width: Math.round(480 * SCALE),
+          height: Math.round(40 * SCALE)
+        },
+        style: {
+          fontSize: 56,
+          fontWeight: 400,
+          letterSpacing: 0,
+          lineHeight: 65,
+          color: '#333333',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          fontFamily: 'SimSun, STSong, serif'
+        }
+      },
+      pageSubtotal: {
+        region: {
+          left: Math.round(1800 * SCALE),
+          top: 0,
+          width: Math.round(560 * SCALE),
+          height: Math.round(40 * SCALE)
+        },
+        style: {
+          fontSize: 56,
+          fontWeight: 400,
+          letterSpacing: 0,
+          lineHeight: 65,
+          color: '#333333',
+          textAlign: 'right',
+          verticalAlign: 'middle',
+          fontFamily: 'SimSun, STSong, serif'
+        }
+      }
+    }
+  },
+  
+  // ========== 统计页配置 ==========
+  statistics: {
+    backgroundImage: '/templates/original/{theme}/{theme}-v/{theme}-v-statistics.jpg',
+    header: {
+      region: {
+        left: Math.round(60 * SCALE),
+        top: Math.round(40 * SCALE),
+        width: Math.round(2360 * SCALE),
+        height: Math.round(50 * SCALE)
+      }
+    },
+    title: {
+      region: {
+        left: Math.round(900 * SCALE),
+        top: Math.round(300 * SCALE),
+        width: Math.round(680 * SCALE),
+        height: Math.round(50 * SCALE)
+      },
+      style: {
+        fontSize: Math.round(24 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 40 * SCALE,
+        color: 'rgba(255, 102, 102, 1)',
+        textAlign: 'center',
+        verticalAlign: 'middle',
+        fontFamily: 'SimSun, STSong, serif'
+      },
+      content: '礼金簿统计'
+    },
+    content: {
+      region: {
+        left: Math.round(600 * SCALE),
+        top: Math.round(450 * SCALE),
+        width: Math.round(1280 * SCALE),
+        height: Math.round(1000 * SCALE)
+      },
+      items: []
+    },
+    footer: {
+      region: {
+        left: Math.round(60 * SCALE),
+        top: Math.round(3200 * SCALE),
+        width: Math.round(2360 * SCALE),
+        height: Math.round(40 * SCALE)
+      }
+    }
+  },
+  
+  // ========== 封底配置 ==========
+  backCover: {
+    backgroundImage: '/templates/original/{theme}/{theme}-v/{theme}-v-backcover.jpg',
+    text1: {
+      region: {
+        left: Math.round(800 * SCALE),
+        top: Math.round(1500 * SCALE),
+        width: Math.round(880 * SCALE),
+        height: Math.round(50 * SCALE)
+      },
+      style: {
+        fontSize: Math.round(28 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 40 * SCALE,
+        color: 'rgba(255, 211, 145, 1)',
+        textAlign: 'center',
+        verticalAlign: 'top',
+        fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+      },
+      content: '做一款好用的电子礼金簿'
+    },
+    text2: {
+      region: {
+        left: Math.round(900 * SCALE),
+        top: Math.round(1580 * SCALE),
+        width: Math.round(680 * SCALE),
+        height: Math.round(40 * SCALE)
+      },
+      style: {
+        fontSize: Math.round(24 * SCALE),
+        fontWeight: 900,
+        letterSpacing: 0,
+        lineHeight: 35 * SCALE,
+        color: 'rgba(255, 211, 145, 1)',
+        textAlign: 'center',
+        verticalAlign: 'top',
+        fontFamily: '演示春风楷，KaiTi, STKaiti, serif'
+      },
+      content: '微信公众号：说自'
+    }
+  },
+  
+  // ========== 主题颜色配置 ==========
+  themeColors: {
+    red: {
+      primary: '#c44a3d',
+      accent: '#ff6666',
+      text: '#ff6666',
+      paper: '#f5f0e8',
+      border: '#d4a574'
+    },
+    gray: {
+      primary: '#4a4a4a',
+      accent: '#666666',
+      text: '#333333',
+      paper: '#e8e8e8',
+      border: '#999999'
+    },
+    golden: {
+      primary: '#d4a574',
+      accent: '#ffd700',
+      text: '#ffd700',
+      paper: '#f5f0e8',
+      border: '#d4a574'
+    }
+  }
+}
+
+/**
+ * PDF 模板配置 - 基于实际测量数据
+ */
+export const PDF_TEMPLATE_CONFIG: LayoutConfigMap = {
+  h: COMPACT_LAYOUT_CONFIG, // 紧凑型布局
+  v: FULL_LAYOUT_CONFIG     // 大字完整版布局
 }
 
 /**
@@ -599,10 +1014,11 @@ export function getAdaptiveFontSize(
  * 获取模板图片路径
  * @param type 模板类型
  * @param theme 主题
+ * @param layout 布局类型 (h: 紧凑型, v: 大字完整版)
  */
-export function getTemplateImagePath(type: string, theme: string): string {
+export function getTemplateImagePath(type: string, theme: string, layout: 'h' | 'v' = 'h'): string {
   const fileName = type === 'backCover' ? 'backcover' : type
-  return `/templates/${theme}/${fileName}.jpg`
+  return `/templates/original/${theme}/${theme}-${layout}/${theme}-${layout}-${fileName}.jpg`
 }
 
 /**

@@ -21,26 +21,113 @@ import ExportModal from './components/business/ExportModal.vue';
 import StyleCustomizeDialog from './components/StyleCustomizeDialog.vue';
 import IconSvg from './components/IconSvg.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
+import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
+import { voiceService } from './services/voiceService';
+import { AmountConverter } from './utils/amountConverter';
+import { useRecordsStore } from './stores/useRecordsStore';
 
 // ==================== 激活相关 ====================
 const { checkActivation } = useActivation();
 const showActivateModal = ref(false);
 
+// 激活状态改变时重新检查
+const handleActivationChanged = async () => {
+  await checkActivation();
+};
+
 // ==================== 启动页和配置 ====================
 const { setTheme, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig, setDisplayStyle, setCustomFont, setEventDate } = useAppConfig();
 
-// 重命名数据库后更新最近列表
-const renameRecentBook = (oldPath: string, newName: string, newPath: string) => {
-  // 先移除旧路径
-  removeFromRecentBooks(oldPath);
-  // 添加新路径
-  addToRecentBooks(newName, newPath);
-};
+// 重命名数据库后更新最近列表（预留功能）
+// const renameRecentBook = (oldPath: string, newName: string, newPath: string) => {
+//   // 先移除旧路径
+//   removeFromRecentBooks(oldPath);
+//   // 添加新路径
+//   addToRecentBooks(newName, newPath);
+// };
 const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
 
 // Toast 组件引用
 const toastRef = ref<InstanceType<typeof Toast> | null>(null);
+
+// ==================== 语音设置相关 ====================
+const showVoiceSettings = ref(false);
+const voiceEnabled = ref(true);
+const voiceRate = ref(0.9);
+const voiceVolume = ref(1);
+const voicePitch = ref(1);
+const voiceVoice = ref('');
+const availableVoices = ref<SpeechSynthesisVoice[]>([]);
+
+// 初始化语音列表
+const initVoiceList = () => {
+  if (voiceService.isSupported()) {
+    const voices = voiceService.getVoices();
+    availableVoices.value = voices.filter(voice => voice.lang.includes('zh'));
+    
+    // 设置默认音色
+    if (availableVoices.value.length > 0 && !voiceVoice.value) {
+      voiceVoice.value = availableVoices.value[0].voiceURI;
+      voiceService.setVoice(voiceVoice.value);
+    }
+  }
+};
+
+// 监听语音加载完成事件
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  window.speechSynthesis.onvoiceschanged = initVoiceList;
+}
+
+// 初始化时加载语音列表
+initVoiceList();
+
+// 显示语音设置弹窗
+const handleShowVoiceSettings = () => {
+  showVoiceSettings.value = true;
+};
+
+// 关闭语音设置弹窗
+const handleCloseVoiceSettings = () => {
+  showVoiceSettings.value = false;
+};
+
+// 处理语音开关变化
+const handleVoiceEnabledChange = (value: boolean) => {
+  voiceEnabled.value = value;
+  voiceService.setEnabled(value);
+};
+
+// 处理语速变化
+const handleVoiceRateChange = (value: number) => {
+  voiceRate.value = value;
+  voiceService.setRate(value);
+};
+
+// 处理音量变化
+const handleVoiceVolumeChange = (value: number) => {
+  voiceVolume.value = value;
+  voiceService.setVolume(value);
+};
+
+// 处理音调变化
+const handleVoicePitchChange = (value: number) => {
+  voicePitch.value = value;
+  voiceService.setPitch(value);
+};
+
+// 处理语音类型变化
+const handleVoiceVoiceChange = (value: string) => {
+  voiceVoice.value = value;
+  voiceService.setVoice(value);
+};
+
+// 测试语音
+const handleTestVoice = () => {
+  if (voiceService.isSupported()) {
+    voiceService.speak('测试语音播报，张三，贰佰元');
+  }
+};
 
 // ConfirmDialog 组件引用
 const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null);
@@ -66,6 +153,9 @@ const confirmDialog = (message: string, options?: { title?: string, confirmText?
 const showSplashScreen = ref(true);
 const isAppReady = ref(false);
 
+// Records Store - 用于同步 totalRecords 到 ExportModal
+const recordsStore = useRecordsStore();
+
 // ==================== 数据状态 ====================
 // 使用 shallowRef 优化性能，避免深层响应式导致的过度渲染
 const records = shallowRef<Record[]>([]);
@@ -78,8 +168,7 @@ const statistics = ref<Statistics>({
 });
 const recordListRef = shallowRef<InstanceType<typeof RecordList>>();
 const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>();
-const appName = ref('电子礼金簿');
-const isEditingName = ref(false);
+const bookName = ref('电子礼金簿');
 const lunarDate = ref(getLunarDisplay());
 const intervalId = ref<number | null>(null);
 const showStatisticsModal = ref(false);
@@ -171,6 +260,9 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
         records.value = newRecords;
       }
       
+      // 同步更新 recordsStore 的 totalRecords（用于 ExportModal）
+      recordsStore.totalRecords = records.value.length;
+      
       // 加载记录后，默认跳转到最后一页（显示最新的数据）
       // 如果 keepCurrentPage 为 true，则保持当前页码（用于添加记录后）
       if (!keepCurrentPage) {
@@ -189,6 +281,9 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
   } catch (error) {
     console.error('加载记录失败:', error);
     alert('加载记录失败，请检查数据库连接');
+  } finally {
+    // 确保 totalRecords 被同步，即使加载失败或没有数据
+    recordsStore.totalRecords = records.value.length;
   }
 };
 
@@ -339,6 +434,12 @@ const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTi
       await addRecordIncrementally(newRecordId);
       // 提交后清空预览
       clearPreview();
+      
+      // 语音播报
+      if (voiceService.isSupported()) {
+        const amountChinese = record.amountChinese || AmountConverter.toChinese(record.amount);
+        voiceService.speakGiftInfo(record.guestName, record.amount, amountChinese);
+      }
     } else {
       alert('保存失败: ' + (response.error || '未知错误'));
     }
@@ -633,11 +734,11 @@ const closeExportModal = () => {
 };
 
 // 处理导出格式选择
-const handleExportFormat = async (format: 'excel' | 'pdf') => {
+const handleExportFormat = async (format: 'excel' | 'pdf', options?: { theme?: 'red' | 'gray' | 'golden'; layout?: 'h' | 'v' }) => {
   if (format === 'excel') {
     await handleExportExcel();
   } else {
-    await handleExportPDF();
+    await handleExportPDF(options?.theme, options?.layout);
   }
 };
 
@@ -652,7 +753,7 @@ const handleExportExcel = async () => {
   try {
     // 使用事务名称和日期作为文件名
     const eventDate = config.value.eventDate || undefined;
-    await exportToExcel(records.value, appName.value, eventDate);
+    await exportToExcel(records.value, bookName.value, eventDate);
     closeExportModal();
     toastRef.value?.success('Excel 导出成功！', 3000);
   } catch (error) {
@@ -669,7 +770,7 @@ const handleExportExcel = async () => {
 const exportProgress = ref(0);
 
 // 导出为 PDF（使用 iframe 打印方案，与 Electron 版本一致）
-const handleExportPDF = async () => {
+const handleExportPDF = async (theme?: 'red' | 'gray' | 'golden', layout?: 'h' | 'v') => {
   if (records.value.length === 0) {
     alert('没有可导出的记录');
     return;
@@ -679,19 +780,16 @@ const handleExportPDF = async () => {
   exportProgress.value = 0;
 
   try {
-    // 模拟进度：准备阶段 0% -> 30%
     exportProgress.value = 10;
     await new Promise(resolve => setTimeout(resolve, 100));
 
-    // 获取当前主题类型（red/gray/golden）
-    const themeType = currentTheme.value === 'gray' ? 'gray' : currentTheme.value === 'golden' ? 'red' : 'red';
+    const themeType = theme || (currentTheme.value === 'gray' ? 'gray' : currentTheme.value === 'golden' ? 'golden' : 'red');
+    const layoutType = layout || 'h';
     exportProgress.value = 30;
 
-    // 获取事务日期
     const eventDate = config.value.eventDate || undefined;
 
-    // 使用 iframe 打印方案导出 PDF
-    await exportToPDF(records.value, appName.value, themeType, eventDate);
+    await exportToPDF(records.value, bookName.value, themeType, eventDate, undefined, layoutType);
     exportProgress.value = 100;
 
     closeExportModal();
@@ -800,7 +898,7 @@ const handleCreateBookFromHome = async (data: { eventName: string; eventDate: st
     config.value.theme = data.theme;
 
     // 设置事务名称
-    appName.value = data.eventName;
+    bookName.value = data.eventName;
     setEventName(data.eventName);
 
     // 设置事务日期
@@ -982,7 +1080,7 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
       
       // 使用提取的名称或传入的名称
       const finalEventName = eventName || extractedEventName || '电子礼金簿';
-      appName.value = finalEventName;
+      bookName.value = finalEventName;
       await setEventName(finalEventName);
       await setCurrentDbPath(filePath);
       await addToRecentBooks(finalEventName, filePath);
@@ -1011,52 +1109,6 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
 };
 
 
-
-// 处理名称编辑完成
-const handleNameEditComplete = async () => {
-  isEditingName.value = false;
-
-  const newName = appName.value.trim();
-  const oldName = config.value.eventName;
-
-  // 如果名称为空或没有变化，不处理
-  if (!newName || newName === oldName) {
-    if (!newName) {
-      appName.value = oldName || '电子礼金簿';
-    }
-    return;
-  }
-
-  try {
-    // 保存到配置
-    await setEventName(newName);
-
-    // 如果有当前数据库，重命名数据库文件
-    if (config.value.currentDbPath) {
-      const newFileName = await generateFileName(newName);
-      const response = await window.electronAPI.renameDatabase(config.value.currentDbPath, newFileName);
-
-      if (response.success && response.data?.newPath) {
-        // 获取旧路径
-        const oldPath = config.value.currentDbPath;
-        // 更新当前数据库路径
-        await setCurrentDbPath(response.data.newPath);
-        // 更新最近打开列表（先移除旧路径，再添加新路径）
-        if (oldPath) {
-          // renameRecentBook 函数可能也需要更新为异步
-          // 暂时保持不变，后续再处理
-          renameRecentBook(oldPath, newName, response.data.newPath);
-        } else {
-          await addToRecentBooks(newName, response.data.newPath);
-        }
-      } else {
-        console.error('重命名数据库失败:', response.error);
-      }
-    }
-  } catch (error) {
-    console.error('修改名称失败:', error);
-  }
-};
 
 // 返回启动页
 const handleBackToSplash = async () => {
@@ -1188,12 +1240,8 @@ onUnmounted(() => {
       <div class="header-left">
         <img src="/images/logo.png" alt="Logo" class="app-logo" @click="handleBackToSplash" />
         <div class="app-name-wrapper">
-          <input v-if="isEditingName" v-model="appName" 
-                 @blur="handleNameEditComplete" 
-                 @keyup.enter="handleNameEditComplete" 
-                 class="app-name-input" type="text" />
-          <h1 v-else class="app-name" @click="isEditingName = true" title="点击修改">
-            {{ appName }}
+          <h1 class="app-name">
+            {{ bookName }}
           </h1>
         </div>
       </div>
@@ -1231,6 +1279,10 @@ onUnmounted(() => {
         <button class="func-btn" @click="handleSyncToMiniApp" title="小程序">
           <IconSvg name="wechat" :size="20" />
           <span class="btn-text">微信小程序</span>
+        </button>
+        <button class="func-btn" @click="handleShowVoiceSettings" title="语音设置">
+          <IconSvg name="mic" :size="20" />
+          <span class="btn-text">语音</span>
         </button>
       </div>
 
@@ -1347,6 +1399,25 @@ onUnmounted(() => {
     <ActivateModal
       :show="showActivateModal"
       @update:show="showActivateModal = $event"
+      @activation-changed="handleActivationChanged"
+    />
+
+    <!-- 语音设置弹窗 -->
+    <VoiceSettingsDialog
+      :visible="showVoiceSettings"
+      :voice-enabled="voiceEnabled"
+      :voice-rate="voiceRate"
+      :voice-volume="voiceVolume"
+      :voice-pitch="voicePitch"
+      :voice-voice="voiceVoice"
+      :available-voices="availableVoices"
+      @close="handleCloseVoiceSettings"
+      @update:voice-enabled="handleVoiceEnabledChange"
+      @update:voice-rate="handleVoiceRateChange"
+      @update:voice-volume="handleVoiceVolumeChange"
+      @update:voice-pitch="handleVoicePitchChange"
+      @update:voice-voice="handleVoiceVoiceChange"
+      @test-voice="handleTestVoice"
     />
 
     <!-- 样式自定义弹窗 -->

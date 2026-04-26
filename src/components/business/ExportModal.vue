@@ -15,11 +15,13 @@
           <p class="export-description">
             选择导出格式，共 {{ totalRecords }} 条记录
           </p>
+          
+          <!-- 导出选项 -->
           <div class="export-options">
             <button
               class="export-option-btn"
-              @click="emit('export', 'excel')"
-              :disabled="isExporting || totalRecords === 0"
+              @click="handleExcelExport"
+              :disabled="isExporting"
             >
               <IconSvg name="table" :size="32" />
               <span class="export-label">导出为 Excel</span>
@@ -27,14 +29,59 @@
             </button>
             <button
               class="export-option-btn"
-              @click="emit('export', 'pdf')"
-              :disabled="isExporting || totalRecords === 0"
+              @click="showPdfTemplateSelect = true"
+              :disabled="isExporting"
             >
               <IconSvg name="file-text" :size="32" />
               <span class="export-label">导出为 PDF</span>
               <span class="export-desc">礼金簿样式，适合打印存档</span>
             </button>
           </div>
+          
+          <!-- PDF 模板选择 -->
+          <div v-if="showPdfTemplateSelect" class="pdf-template-select">
+            <h4 class="template-select-title">选择 PDF 模板</h4>
+            
+            <!-- 主题选择 -->
+            <div class="template-option-group">
+              <label class="option-label">主题</label>
+              <div class="option-buttons">
+                <button
+                  v-for="theme in themes"
+                  :key="theme.value"
+                  class="theme-btn"
+                  :class="{ active: selectedTheme === theme.value }"
+                  @click="selectedTheme = theme.value"
+                >
+                  {{ theme.label }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- 布局选择 -->
+            <div class="template-option-group">
+              <label class="option-label">布局</label>
+              <div class="option-buttons">
+                <button
+                  v-for="layout in layouts"
+                  :key="layout.value"
+                  class="layout-btn"
+                  :class="{ active: selectedLayout === layout.value }"
+                  @click="selectedLayout = layout.value"
+                >
+                  {{ layout.label }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="template-actions">
+              <button class="action-btn cancel" @click="showPdfTemplateSelect = false">取消</button>
+              <button class="action-btn confirm" @click="handlePdfExport" :disabled="isExporting">确认导出</button>
+            </div>
+          </div>
+          
+          <!-- 加载状态 -->
           <div v-if="isExporting" class="export-loading">
             <span class="loading-text">正在导出，请稍候...</span>
           </div>
@@ -47,6 +94,7 @@
 <script setup lang="ts">
 import { useRecordsStore } from '../../stores/useRecordsStore'
 import { storeToRefs } from 'pinia'
+import { ref } from 'vue'
 import IconSvg from '../IconSvg.vue'
 
 interface Props {
@@ -56,7 +104,7 @@ interface Props {
 
 interface Emits {
   (e: 'close'): void
-  (e: 'export', format: 'excel' | 'pdf'): void
+  (e: 'export', format: 'excel' | 'pdf', options?: any): void
 }
 
 defineProps<Props>()
@@ -65,8 +113,47 @@ const emit = defineEmits<Emits>()
 const recordsStore = useRecordsStore()
 const { totalRecords } = storeToRefs(recordsStore)
 
+// PDF 模板选择相关
+const showPdfTemplateSelect = ref(false)
+const selectedTheme = ref<'red' | 'gray' | 'golden'>('red')
+const selectedLayout = ref<'h' | 'v'>('h')
+
+// 主题选项
+const themes = [
+  { label: '喜庆红', value: 'red' as const },
+  { label: '肃穆灰', value: 'gray' as const },
+  { label: '寿宴金', value: 'golden' as const }
+]
+
+// 布局选项
+const layouts = [
+  { label: '紧凑型', value: 'h' as const },
+  { label: '大字完整版', value: 'v' as const }
+]
+
 const handleClose = () => {
   emit('close')
+  showPdfTemplateSelect.value = false
+}
+
+const handleExcelExport = () => {
+  if (totalRecords.value === 0) {
+    alert('没有可导出的记录')
+    return
+  }
+  emit('export', 'excel')
+}
+
+const handlePdfExport = () => {
+  if (totalRecords.value === 0) {
+    alert('没有可导出的记录')
+    return
+  }
+  emit('export', 'pdf', {
+    theme: selectedTheme.value,
+    layout: selectedLayout.value
+  })
+  showPdfTemplateSelect.value = false
 }
 </script>
 
@@ -241,6 +328,112 @@ const handleClose = () => {
 .footer-btn.cancel:hover {
   background: rgba(var(--theme-primary-rgb), 0.04);
   color: var(--theme-text-primary);
+}
+
+/* PDF 模板选择 */
+.pdf-template-select {
+  margin-top: 24px;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: var(--theme-border-radius);
+  border: 1px solid var(--theme-border);
+}
+
+.template-select-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--theme-text-primary);
+  margin: 0 0 16px 0;
+  text-align: center;
+}
+
+.template-option-group {
+  margin-bottom: 20px;
+}
+
+.option-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--theme-text-secondary);
+  margin-bottom: 8px;
+}
+
+.option-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.theme-btn,
+.layout-btn {
+  padding: 8px 16px;
+  border: 2px solid var(--theme-border);
+  border-radius: var(--theme-border-radius-sm);
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  transition: all 0.2s;
+}
+
+.theme-btn:hover,
+.layout-btn:hover {
+  border-color: var(--theme-accent);
+  background: rgba(var(--theme-primary-rgb), 0.05);
+}
+
+.theme-btn.active,
+.layout-btn.active {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent);
+  color: white;
+}
+
+.template-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.action-btn {
+  padding: 10px 24px;
+  border-radius: var(--theme-border-radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  border: none;
+}
+
+.action-btn.cancel {
+  background: transparent;
+  color: var(--theme-text-secondary);
+  border: 1px solid var(--theme-border);
+}
+
+.action-btn.cancel:hover {
+  background: rgba(var(--theme-primary-rgb), 0.04);
+  color: var(--theme-text-primary);
+}
+
+.action-btn.confirm {
+  background: var(--theme-accent);
+  color: white;
+}
+
+.action-btn.confirm:hover:not(:disabled) {
+  background: var(--theme-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--theme-shadow-sm);
+}
+
+.action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 滚动条 */

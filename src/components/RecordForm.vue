@@ -185,7 +185,7 @@ const itemInput = ref<HTMLInputElement>();
 const isValid = computed(() => {
   return formData.value.guestName.trim() !== '' &&
          formData.value.amount !== '' &&
-         isValidAmount(formData.value.amount);
+         isValidAmount(parseFloat(formData.value.amount));
 });
 
 // 金额失去焦点时转换大写（避免在输入过程中频繁转换）
@@ -193,8 +193,9 @@ const onAmountBlurHandler = () => {
   // 触发清空预览
   onInputBlur();
   // 转换大写金额
-  if (formData.value.amount && isValidAmount(formData.value.amount)) {
-    amountChinese.value = numberToChinese(formData.value.amount);
+  const amount = parseFloat(formData.value.amount);
+  if (formData.value.amount && isValidAmount(amount)) {
+    amountChinese.value = numberToChinese(amount);
   } else {
     amountChinese.value = '';
   }

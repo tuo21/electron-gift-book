@@ -7,6 +7,7 @@ import SettingsPage from './SettingsPage.vue';
 import AboutPage from './AboutPage.vue';
 import IconSvg from '../IconSvg.vue';
 import { useActivation } from '../../composables/useActivation';
+import { getVersion } from '@tauri-apps/api/app';
 
 // ==================== 类型定义 ====================
 interface RecentBook {
@@ -53,8 +54,10 @@ const editingBook = ref<{
 } | null>(null);
 
 // 激活相关
-const { checkActivation } = useActivation();
-const isActivated = ref(false);
+const { checkActivation, isActivated } = useActivation();
+
+// 应用版本号
+const appVersion = ref('');
 
 // 导航菜单
 const navItems: NavItem[] = [
@@ -205,9 +208,18 @@ const handleNavClick = (navId: string) => {
 };
 
 // ==================== 生命周期 ====================
-onMounted(() => {
+onMounted(async () => {
   loadRecentBooks();
   checkIsActivated();
+  
+  // 获取应用版本号
+  try {
+    const version = await getVersion();
+    appVersion.value = `v${version}`;
+  } catch (error) {
+    console.error('获取版本号失败:', error);
+    appVersion.value = '';
+  }
 });
 </script>
 
@@ -223,7 +235,7 @@ onMounted(() => {
         <img src="/images/logo.png" alt="礼簿管理系统" class="logo-image" />
         <div class="app-info">
           <span class="app-name">礼簿管理系统</span>
-          <span class="app-version">v1.0.0</span>
+          <span class="app-version">{{ appVersion || '电子礼金簿' }}</span>
         </div>
       </div>
       
@@ -251,7 +263,7 @@ onMounted(() => {
         </div>
         <p class="activation-desc">您当前使用的是{{ isActivated ? '已' : '未' }}激活版本</p>
         <button v-if="!isActivated" class="activate-btn" @click="handleShowActivate">
-          输入激活码
+          去激活
         </button>
       </div>
     </aside>

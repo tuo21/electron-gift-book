@@ -9,6 +9,7 @@ defineProps<{
 
 const emit = defineEmits<{
   (e: 'update:show', value: boolean): void;
+  (e: 'activation-changed'): void;
 }>();
 
 // ==================== 响应式状态 ====================
@@ -105,6 +106,7 @@ const confirmClearLicense = async () => {
     activationStatus.value = 'inactive';
     licenseInfo.value = null;
     successMessage.value = '激活信息已清除！';
+    emit('activation-changed');
     setTimeout(() => {
       successMessage.value = '';
     }, 2000);

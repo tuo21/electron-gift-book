@@ -1,6 +1,7 @@
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile, readFile } from '@tauri-apps/plugin-fs'
 import type { Record } from '../types/database'
+import { getTemplateImagePath, LayoutType } from '../utils/pdfTemplateConfig'
 
 const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
 const CN_UNITS = ['', '拾', '佰', '仟']
@@ -141,27 +142,28 @@ async function loadFileAsBase64(filePath: string): Promise<string> {
 interface PDFExportOptions {
   records: Record[]
   eventName: string
-  theme: 'red' | 'gray'
+  theme: 'red' | 'gray' | 'golden'
+  layout: LayoutType
 }
 
 export class PDFExportService {
   private async generateHTML(options: PDFExportOptions): Promise<string> {
-    const { records, eventName, theme } = options
+    const { records, eventName, theme, layout } = options
     const eventDate = getEventDate(records)
     const exportDate = `${eventDate.getFullYear()}年${eventDate.getMonth() + 1}月${eventDate.getDate()}日`
     const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
 
-    const coverImage = await loadFileAsBase64(`/templates/${theme}/cover.jpg`)
-    const contentImage = await loadFileAsBase64(`/templates/${theme}/content.jpg`)
-    const statisticsImage = await loadFileAsBase64(`/templates/${theme}/statistics.jpg`)
-    const backcoverImage = await loadFileAsBase64(`/templates/${theme}/backcover.jpg`)
+    const coverImage = await loadFileAsBase64(getTemplateImagePath('cover', theme, layout))
+    const contentImage = await loadFileAsBase64(getTemplateImagePath('content', theme, layout))
+    const statisticsImage = await loadFileAsBase64(getTemplateImagePath('statistics', theme, layout))
+    const backcoverImage = await loadFileAsBase64(getTemplateImagePath('backCover', theme, layout))
     const fontBase64 = await loadFileAsBase64('/fonts/演示春风楷.ttf')
 
     const pages: string[] = []
 
-    pages.push(this.generateCoverPage(eventName, exportDate, theme, coverImage))
+    pages.push(this.generateCoverPage(eventName, exportDate, theme, coverImage, layout))
 
-    const columnsPerPage = 15
+    const columnsPerPage = layout === 'h' ? 15 : 10
     const totalContentPages = Math.ceil(records.length / columnsPerPage)
 
     for (let i = 0; i < totalContentPages; i++) {
@@ -179,30 +181,42 @@ export class PDFExportService {
         records.length,
         pageAmount,
         theme,
-        contentImage
+        contentImage,
+        layout
       ))
     }
 
-    pages.push(this.generateStatisticsPage(records.length, totalAmount, theme, statisticsImage))
+    pages.push(this.generateStatisticsPage(records.length, totalAmount, theme, statisticsImage, layout))
 
-    pages.push(this.generateBackCoverPage(theme, backcoverImage))
+    pages.push(this.generateBackCoverPage(theme, backcoverImage, layout))
 
     return this.generateFullHTML(pages, theme, fontBase64)
   }
 
-  private generateCoverPage(appName: string, exportDate: string, theme: string, bgImage: string): string {
+  private generateCoverPage(appName: string, exportDate: string, theme: string, bgImage: string, layout: LayoutType): string {
     const isGrayTheme = theme === 'gray'
     const titleColor = isGrayTheme ? '#FFFFFF' : 'rgba(255, 102, 102, 1)'
     const dateColor = isGrayTheme ? '#FFFFFF' : 'rgba(255, 102, 102, 1)'
 
-    return `
-      <div class="page cover-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
-        <div class="cover-content" style="left: 251px; top: 461px; width: 341px; height: 77px;">
-          <div class="cover-title" style="font-size: 24px; color: ${titleColor};">${appName || '礼金簿'}</div>
-          <div class="cover-date" style="font-size: 14px; color: ${dateColor};">${exportDate}</div>
+    if (layout === 'h') {
+      return `
+        <div class="page cover-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="cover-content" style="left: 251px; top: 461px; width: 341px; height: 77px;">
+            <div class="cover-title" style="font-size: 24px; color: ${titleColor};">${appName || '礼金簿'}</div>
+            <div class="cover-date" style="font-size: 14px; color: ${dateColor};">${exportDate}</div>
+          </div>
         </div>
-      </div>
-    `
+      `
+    } else {
+      return `
+        <div class="page cover-page vertical" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="cover-content" style="left: 800px; top: 800px; width: 880px; height: 120px;">
+            <div class="cover-title" style="font-size: 32px; color: ${titleColor};">${appName || '礼金簿'}</div>
+            <div class="cover-date" style="font-size: 16px; color: ${dateColor};">${exportDate}</div>
+          </div>
+        </div>
+      `
+    }
   }
 
   private generateContentPage(
@@ -214,7 +228,8 @@ export class PDFExportService {
     totalRecords: number,
     pageAmount: number,
     theme: string,
-    bgImage: string
+    bgImage: string,
+    layout: LayoutType
   ): string {
     const isGrayTheme = theme === 'gray'
     const headerColor = isGrayTheme ? 'rgba(0, 0, 0, 0.6)' : 'rgba(255, 102, 102, 1)'
@@ -222,94 +237,174 @@ export class PDFExportService {
     const footerColor = isGrayTheme ? 'rgba(0, 0, 0, 0.6)' : '#333'
 
     let columnsHtml = ''
-    records.forEach((record, index) => {
-      const columnX = 41 + index * (46 + 5)
-      const amountChinese = numberToChinese(record.amount)
-      const nameFontSize = getAdaptiveFontSize(record.guestName, true)
-      const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
+    
+    if (layout === 'h') {
+      // 紧凑型布局
+      records.forEach((record, index) => {
+        const columnX = 41 + index * (46 + 5)
+        const amountChinese = numberToChinese(record.amount)
+        const nameFontSize = getAdaptiveFontSize(record.guestName, true)
+        const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
 
-      columnsHtml += `
-        <div class="record-column" style="left: ${columnX}px; top: 98px; width: 46px; height: 401px;">
-          <div class="column-name" style="height: 139px;">
-            <span class="vertical-text name-text" style="font-size: ${nameFontSize}px;">${record.guestName}</span>
-          </div>
-          <div class="column-remark" style="top: 152px;">
-            <span>${record.remark || ''}</span>
-          </div>
-          <div class="column-amount" style="top: 218px; height: 153px;">
-            <div class="amount-content">
-              <span class="vertical-text amount-text" style="font-size: ${amountFontSize}px;">${amountChinese}</span>
-              ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ''}
+        columnsHtml += `
+          <div class="record-column" style="left: ${columnX}px; top: 98px; width: 46px; height: 401px;">
+            <div class="column-name" style="height: 139px;">
+              <span class="vertical-text name-text" style="font-size: ${nameFontSize}px;">${record.guestName}</span>
+            </div>
+            <div class="column-remark" style="top: 152px;">
+              <span>${record.remark || ''}</span>
+            </div>
+            <div class="column-amount" style="top: 218px; height: 153px;">
+              <div class="amount-content">
+                <span class="vertical-text amount-text" style="font-size: ${amountFontSize}px;">${amountChinese}</span>
+                ${record.itemDescription ? `<span class="item-description">${record.itemDescription}</span>` : ''}
+              </div>
+            </div>
+            <div class="column-payment" style="top: 371px;">
+              <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
+              <span class="amount-number">¥${formatAmount(record.amount)}</span>
             </div>
           </div>
-          <div class="column-payment" style="top: 371px;">
-            <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
-            <span class="amount-number">¥${formatAmount(record.amount)}</span>
+        `
+      })
+    } else {
+      // 大字完整版布局
+      records.forEach((record, index) => {
+        const columnY = 150 + index * (300 + 20)
+        const amountChinese = numberToChinese(record.amount)
+        const nameFontSize = getAdaptiveFontSize(record.guestName, true)
+        const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription)
+
+        columnsHtml += `
+          <div class="record-row" style="left: 60px; top: ${columnY}px; width: 2360px; height: 300px;">
+            <div class="row-name" style="left: 100px; top: 0px; width: 600px; height: 300px;">
+              <span class="horizontal-text name-text" style="font-size: ${nameFontSize}px;">${record.guestName}</span>
+            </div>
+            <div class="row-remark" style="left: 750px; top: 120px; width: 200px; height: 60px;">
+              <span>${record.remark || ''}</span>
+            </div>
+            <div class="row-amount" style="left: 1000px; top: 0px; width: 800px; height: 300px;">
+              <div class="amount-content">
+                <span class="horizontal-text amount-text" style="font-size: ${amountFontSize}px;">${amountChinese}</span>
+                ${record.itemDescription ? `<span class="item-description horizontal">${record.itemDescription}</span>` : ''}
+              </div>
+            </div>
+            <div class="row-payment" style="left: 1900px; top: 120px; width: 400px; height: 60px;">
+              <span class="payment-type">${getPaymentTypeText(record.paymentType)}</span>
+              <span class="amount-number">¥${formatAmount(record.amount)}</span>
+            </div>
+          </div>
+        `
+      })
+    }
+
+    if (layout === 'h') {
+      return `
+        <div class="page content-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="page-header" style="left: 41px; top: 21px; width: 760px; height: 35px;">
+            <span class="header-name" style="font-size: 24px; color: ${headerColor};">${appName || '礼金簿'}</span>
+            <span class="header-date" style="left: 633px; top: 2.5px; font-size: 13px; color: ${dateColor};">${exportDate}</span>
+          </div>
+          <div class="page-list">
+            ${columnsHtml}
+          </div>
+          <div class="page-footer" style="left: 41px; top: 518px; width: 760px; height: 30px; color: ${footerColor};">
+            <span class="footer-records" style="left: 0px;">共 ${totalRecords} 条记录</span>
+            <span class="footer-page" style="left: 306.5px;">第 ${pageNum} 页 / 共 ${totalPages} 页</span>
+            <span class="footer-subtotal" style="left: 630px;">本页小计：¥${formatAmount(pageAmount)}</span>
           </div>
         </div>
       `
-    })
-
-    return `
-      <div class="page content-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
-        <div class="page-header" style="left: 41px; top: 21px; width: 760px; height: 35px;">
-          <span class="header-name" style="font-size: 24px; color: ${headerColor};">${appName || '礼金簿'}</span>
-          <span class="header-date" style="left: 633px; top: 2.5px; font-size: 13px; color: ${dateColor};">${exportDate}</span>
+    } else {
+      return `
+        <div class="page content-page vertical" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="page-header" style="left: 60px; top: 40px; width: 2360px; height: 50px;">
+            <span class="header-name" style="font-size: 28px; color: ${headerColor};">${appName || '礼金簿'}</span>
+            <span class="header-date" style="left: 2000px; top: 5px; font-size: 16px; color: ${dateColor};">${exportDate}</span>
+          </div>
+          <div class="page-list">
+            ${columnsHtml}
+          </div>
+          <div class="page-footer" style="left: 60px; top: 3200px; width: 2360px; height: 40px; color: ${footerColor};">
+            <span class="footer-records" style="left: 0px;">共 ${totalRecords} 条记录</span>
+            <span class="footer-page" style="left: 1000px;">第 ${pageNum} 页 / 共 ${totalPages} 页</span>
+            <span class="footer-subtotal" style="left: 1800px;">本页小计：¥${formatAmount(pageAmount)}</span>
+          </div>
         </div>
-        <div class="page-list">
-          ${columnsHtml}
-        </div>
-        <div class="page-footer" style="left: 41px; top: 518px; width: 760px; height: 30px; color: ${footerColor};">
-          <span class="footer-records" style="left: 0px;">共 ${totalRecords} 条记录</span>
-          <span class="footer-page" style="left: 306.5px;">第 ${pageNum} 页 / 共 ${totalPages} 页</span>
-          <span class="footer-subtotal" style="left: 630px;">本页小计：¥${formatAmount(pageAmount)}</span>
-        </div>
-      </div>
-    `
+      `
+    }
   }
 
-  private generateStatisticsPage(totalRecords: number, totalAmount: number, theme: string, bgImage: string): string {
+  private generateStatisticsPage(totalRecords: number, totalAmount: number, theme: string, bgImage: string, layout: LayoutType): string {
     const isGrayTheme = theme === 'gray'
     const titleColor = isGrayTheme ? '#000000' : 'rgba(255, 102, 102, 1)'
     const textColor = isGrayTheme ? '#000000' : '#333'
 
-    return `
-      <div class="page statistics-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
-        <div class="stats-title" style="left: 361px; top: 137px; width: 120px; height: 35px; font-size: 18px; color: ${titleColor};">
-          礼金簿统计
+    if (layout === 'h') {
+      return `
+        <div class="page statistics-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="stats-title" style="left: 361px; top: 137px; width: 120px; height: 35px; font-size: 18px; color: ${titleColor};">
+            礼金簿统计
+          </div>
+          <div class="stats-content" style="left: 270px; top: 193px; width: 302px; height: 230px; color: ${textColor};">
+            <div class="stat-item" style="color: ${textColor};">总人数：${totalRecords} 人</div>
+            <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount)}</div>
+            <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount)}</div>
+          </div>
+          <div class="stats-footer" style="left: 37px; top: 518px; width: 760px; height: 30px;">
+            <span class="footer-page" style="left: 306.5px; top: 0px; text-align: center;"></span>
+          </div>
         </div>
-        <div class="stats-content" style="left: 270px; top: 193px; width: 302px; height: 230px; color: ${textColor};">
-          <div class="stat-item" style="color: ${textColor};">总人数：${totalRecords} 人</div>
-          <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount)}</div>
-          <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount)}</div>
+      `
+    } else {
+      return `
+        <div class="page statistics-page vertical" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="stats-title" style="left: 900px; top: 300px; width: 680px; height: 50px; font-size: 24px; color: ${titleColor};">
+            礼金簿统计
+          </div>
+          <div class="stats-content" style="left: 600px; top: 450px; width: 1280px; height: 1000px; color: ${textColor};">
+            <div class="stat-item" style="color: ${textColor};">总人数：${totalRecords} 人</div>
+            <div class="stat-item" style="color: ${textColor};">总金额：¥${formatAmount(totalAmount)}</div>
+            <div class="stat-item" style="color: ${textColor};">大写金额：${numberToChinese(totalAmount)}</div>
+          </div>
+          <div class="stats-footer" style="left: 60px; top: 3200px; width: 2360px; height: 40px;">
+            <span class="footer-page" style="left: 1000px; top: 0px; text-align: center;"></span>
+          </div>
         </div>
-        <div class="stats-footer" style="left: 37px; top: 518px; width: 760px; height: 30px;">
-          <span class="footer-page" style="left: 306.5px; top: 0px; text-align: center;"></span>
-        </div>
-      </div>
-    `
+      `
+    }
   }
 
-  private generateBackCoverPage(theme: string, bgImage: string): string {
+  private generateBackCoverPage(theme: string, bgImage: string, layout: LayoutType): string {
     const isGrayTheme = theme === 'gray'
     const textColor = isGrayTheme ? '#FFFFFF' : 'rgba(255, 211, 145, 1)'
 
-    return `
-      <div class="page backcover-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
-        <div class="backcover-text1" style="left: 307px; top: 263px; font-size: 24px; color: ${textColor};">
-          做一款好用的电子礼金簿
+    if (layout === 'h') {
+      return `
+        <div class="page backcover-page" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="backcover-text1" style="left: 307px; top: 263px; font-size: 24px; color: ${textColor};">
+            做一款好用的电子礼金簿
+          </div>
+          <div class="backcover-text2" style="left: 364px; top: 310px; font-size: 20px; color: ${textColor};">
+            微信公众号：说自
+          </div>
         </div>
-        <div class="backcover-text2" style="left: 364px; top: 310px; font-size: 20px; color: ${textColor};">
-          微信公众号：说自
+      `
+    } else {
+      return `
+        <div class="page backcover-page vertical" ${bgImage ? `style="background-image: url('${bgImage}');"` : ''}>
+          <div class="backcover-text1" style="left: 800px; top: 1500px; font-size: 28px; color: ${textColor};">
+            做一款好用的电子礼金簿
+          </div>
+          <div class="backcover-text2" style="left: 900px; top: 1580px; font-size: 24px; color: ${textColor};">
+            微信公众号：说自
+          </div>
         </div>
-      </div>
-    `
+      `
+    }
   }
 
   private generateFullHTML(pages: string[], _theme: string, fontBase64: string): string {
-    const pageWidth = 842
-    const pageHeight = 595
-
     return `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -333,7 +428,7 @@ export class PDFExportService {
     }
 
     @page {
-      size: ${pageWidth}px ${pageHeight}px;
+      size: A4;
       margin: 0;
     }
 
@@ -344,13 +439,21 @@ export class PDFExportService {
     }
 
     .page {
-      width: ${pageWidth}px;
-      height: ${pageHeight}px;
       position: relative;
       background-size: cover;
       background-position: center;
       background-repeat: no-repeat;
       page-break-after: always;
+    }
+
+    .page.vertical {
+      width: 210mm;
+      height: 297mm;
+    }
+
+    .page:not(.vertical) {
+      width: 297mm;
+      height: 210mm;
     }
 
     .page:last-child {
@@ -399,14 +502,23 @@ export class PDFExportService {
       align-items: center;
     }
 
-    .column-name {
+    .record-row {
+      position: absolute;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .column-name,
+    .row-name {
       display: flex;
       align-items: flex-start;
       justify-content: center;
       width: 100%;
     }
 
-    .column-remark {
+    .column-remark,
+    .row-remark {
       position: absolute;
       width: 100%;
       display: flex;
@@ -420,7 +532,8 @@ export class PDFExportService {
       font-family: 'KaiTi', 'STKaiti', serif;
     }
 
-    .column-amount {
+    .column-amount,
+    .row-amount {
       position: absolute;
       width: 100%;
       display: flex;
@@ -448,7 +561,14 @@ export class PDFExportService {
       font-family: 'KaiTi', 'STKaiti', serif;
     }
 
-    .column-payment {
+    .item-description.horizontal {
+      writing-mode: horizontal-tb;
+      text-orientation: mixed;
+      letter-spacing: 2px;
+    }
+
+    .column-payment,
+    .row-payment {
       position: absolute;
       width: 100%;
       display: flex;
@@ -473,6 +593,12 @@ export class PDFExportService {
       writing-mode: vertical-rl;
       text-orientation: upright;
       letter-spacing: 14px;
+    }
+
+    .horizontal-text {
+      writing-mode: horizontal-tb;
+      text-orientation: mixed;
+      letter-spacing: 10px;
     }
 
     .name-text {

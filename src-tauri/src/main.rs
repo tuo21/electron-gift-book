@@ -20,6 +20,9 @@ fn main() {
                 std::fs::create_dir_all(&data_dir).expect("Failed to create data directory");
             }
 
+            // 初始化自定义数据路径
+            commands::init_custom_data_path(&app.handle());
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

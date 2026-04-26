@@ -41,6 +41,7 @@ font-kit = { version = "0.14" }
 sha2 = "0.10"
 hex = "0.4"
 hmac = "0.12"
+data-encoding = "2.4"
 
 # Windows 7 兼容性配置
 [target.'cfg(windows)'.dependencies]
