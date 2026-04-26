@@ -6,7 +6,6 @@ import HomeView from './components/home/HomeView.vue';
 import SyncQRDialog from './components/SyncQRDialog.vue';
 import ActivateModal from './components/home/ActivateModal.vue';
 import type { Record, RecordHistory } from './types/database';
-import type { ThemeType } from './types/theme';
 import { getLunarDisplay } from './utils/lunarCalendar';
 import { useTheme } from './composables/useTheme';
 import { useAppConfig } from './composables/useAppConfig';
@@ -27,8 +26,8 @@ import { useSearch } from './composables/useSearch';
 import { useEditHistory } from './composables/useEditHistory';
 import { useExport } from './composables/useExport';
 import { useRecordOperations } from './composables/useRecordOperations';
+import { useBookManagement } from './composables/useBookManagement';
 import { useAppState } from './composables/useAppState';
-import { logger } from './utils/logger';
 
 // ==================== 激活相关 ====================
 const { checkActivation } = useActivation();
@@ -127,276 +126,15 @@ const handleEditClick = async () => {
   openEditHistoryModal();
 };
 
-// ==================== 同步到小程序功能 ====================
-
-// 处理同步到小程序
-const handleSyncToMiniApp = () => {
-  syncDialogVisible.value = true;
-};
-
-// ==================== 首页处理函数 ====================
-
-// 处理首页创建礼薄
-const handleCreateBookFromHome = async (data: { eventName: string; eventDate: string; theme: ThemeType }) => {
-  try {
-    // 设置主题
-    setTheme(data.theme, true);
-    // 同步更新 appConfig 中的 theme
-    config.value.theme = data.theme;
-
-    // 设置事务名称
-    bookName.value = data.eventName;
-    setEventName(data.eventName);
-
-    // 设置事务日期
-    setEventDate(data.eventDate);
-
-    // 新建礼金簿
-    await handleCreateNewBook(data.eventName, data.theme, data.eventDate);
-
-    // 隐藏首页，显示主应用
-    showSplashScreen.value = false;
-    isAppReady.value = true;
-
-    // 加载数据
-    await loadRecords();
-    await loadStatistics();
-  } catch (error) {
-    logger.error('App', '创建礼薄失败:', error);
-    alert('创建礼薄失败，请重试');
-  }
-};
-
-// 处理首页打开礼薄
-const handleOpenBookFromHome = async (path: string) => {
-  try {
-    logger.debug('Theme', '开始打开礼薄:', path);
-    
-    // 读取礼簿的主题色
-    let themeToApply: ThemeType | undefined;
-    logger.debug('Theme', '调用 getDatabaseTheme...');
-    const themeResponse = await window.electronAPI.getDatabaseTheme(path);
-    logger.debug('Theme', 'getDatabaseTheme 响应:', themeResponse);
-    
-    if (themeResponse.success && themeResponse.data) {
-      themeToApply = themeResponse.data as ThemeType;
-      logger.debug('Theme', '读取到主题:', themeToApply);
-    } else {
-      logger.debug('Theme', '未读取到主题或读取失败');
-    }
-
-    logger.debug('Theme', '调用 handleOpenExistingBook, theme:', themeToApply);
-    await handleOpenExistingBook(path, '', themeToApply);
-    
-    logger.debug('Theme', 'handleOpenExistingBook 完成');
-
-    // 隐藏首页，显示主应用
-    showSplashScreen.value = false;
-    isAppReady.value = true;
-
-    // 加载数据
-    await loadRecords();
-    await loadStatistics();
-  } catch (error) {
-    logger.error('App', '打开礼薄失败:', error);
-    alert('打开礼薄失败，请重试');
-  }
-};
-
-// 处理首页编辑礼薄
-const handleEditBookFromHome = async (data: { path: string; name: string; eventDate: string; theme: ThemeType }) => {
-  try {
-    // 更新主题
-    await window.electronAPI.updateDatabaseTheme(data.path, data.theme);
-    
-    // 同步应用主题
-    setTheme(data.theme, true);
-    config.value.theme = data.theme;
-    
-    // 更新事件日期
-    await window.electronAPI.updateDatabaseEventDate(data.path, data.eventDate);
-    
-    // 如果名称有变化，重命名数据库文件
-    if (data.name) {
-      const newFileName = await generateFileName(data.name);
-      const response = await window.electronAPI.renameDatabase(data.path, newFileName);
-      if (response.success && response.data?.newPath) {
-        // 更新最近打开列表
-        await removeFromRecentBooks(data.path);
-        await addToRecentBooks(data.name, response.data.newPath);
-      }
-    }
-    
-    // 重新加载礼薄列表
-    await scanDataDirectory();
-    
-    alert('编辑成功！');
-  } catch (error) {
-    logger.error('App', '编辑礼薄失败:', error);
-    alert('编辑礼薄失败，请重试');
-  }
-};
-
-// 处理首页导入
-const handleImportFromHome = () => {
-  // TODO: 实现导入功能
-  logger.info('App', '导入功能开发中');
-};
-
-// 处理首页打开文件
-const handleOpenFileFromHome = () => {
-  // TODO: 实现打开文件功能
-  logger.info('App', '打开文件功能开发中');
-};
-
-// 处理窗口最小化
-const handleMinimizeWindow = () => {
-  // TODO: 调用 Tauri API 最小化窗口
-  logger.debug('App', '最小化窗口');
-};
-
-// 处理窗口关闭
-const handleCloseWindow = () => {
-  // TODO: 调用 Tauri API 关闭窗口
-  logger.debug('App', '关闭窗口');
-};
-
-// ==================== 启动页处理函数（保留用于兼容） ====================
-
-
-
-// 新建礼金簿
-const handleCreateNewBook = async (eventName: string, theme?: ThemeType, eventDate?: string) => {
-  try {
-    // 如果有当前数据，先保存
-    if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = await generateFileName(config.value.eventName);
-      // 重命名当前数据库文件
-      await window.electronAPI.saveCurrentDatabase(currentFileName);
-      await addToRecentBooks(config.value.eventName, config.value.currentDbPath);
-    }
-    
-    // 生成新文件名
-    const newFileName = await generateFileName(eventName);
-    
-    // 创建新的数据库
-    const response = await window.electronAPI.createNewDatabase(newFileName, theme, eventName, eventDate);
-    if (response.success && response.data?.filePath) {
-      await setCurrentDbPath(response.data.filePath);
-      await addToRecentBooks(eventName, response.data.filePath);
-      records.value = [];
-      statistics.value = {
-        totalCount: 0,
-        totalAmount: 0,
-        cashAmount: 0,
-        wechatAmount: 0,
-        internalAmount: 0,
-      };
-    } else {
-      const errorMsg = '创建新数据库失败: ' + (response.error || '未知错误');
-      alert(errorMsg);
-      throw new Error(errorMsg); // 抛出错误，让上级处理
-    }
-  } catch (error) {
-    logger.error('App', '新建礼金簿失败:', error);
-    const errorMsg = '新建礼金簿失败，请重试';
-    alert(errorMsg);
-    throw new Error(errorMsg); // 抛出错误，让上级处理
-  }
-};
-
-// 打开已有数据
-const handleOpenExistingBook = async (filePath: string, eventName: string, theme?: ThemeType) => {
-  try {
-    logger.debug('Theme', 'handleOpenExistingBook 被调用, theme:', theme);
-    
-    // 先保存当前数据（如果有）
-    if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = await generateFileName(config.value.eventName);
-      await window.electronAPI.saveCurrentDatabase(currentFileName);
-    }
-    
-    // 切换到选中的数据库
-    const response = await window.electronAPI.switchDatabase(filePath);
-    logger.debug('Theme', 'switchDatabase 响应:', response.success);
-    
-    if (response.success) {
-      // 从文件名中提取事务名称
-      const fileName = filePath.split(/[\\/]/).pop() || '';
-      const extractedEventName = fileName.replace(/\.db$/i, '');
-      
-      // 使用提取的名称或传入的名称
-      const finalEventName = eventName || extractedEventName || '电子礼金簿';
-      bookName.value = finalEventName;
-      await setEventName(finalEventName);
-      await setCurrentDbPath(filePath);
-      await addToRecentBooks(finalEventName, filePath);
-      
-      // 应用主题（如果有传入的主题参数）
-      if (theme) {
-        logger.debug('Theme', '开始应用主题:', theme);
-        setTheme(theme, true);
-        // 同步更新 appConfig 中的 theme
-        config.value.theme = theme;
-        logger.debug('Theme', 'setTheme 调用完成');
-      } else {
-        logger.debug('Theme', '没有传入主题参数，跳过应用');
-      }
-    } else {
-      const errorMsg = '打开数据库失败：' + (response.error || '未知错误');
-      alert(errorMsg);
-      throw new Error(errorMsg); // 抛出错误，让上级处理
-    }
-  } catch (error) {
-    logger.error('App', '打开已有数据失败:', error);
-    const errorMsg = '打开已有数据失败，请重试';
-    alert(errorMsg);
-    throw new Error(errorMsg); // 抛出错误，让上级处理
-  }
-};
-
-
-
-// 返回启动页
-const handleBackToSplash = async () => {
-  try {
-    // 保存当前数据（如果有）
-    if (records.value.length > 0 && config.value.currentDbPath) {
-      const currentFileName = await generateFileName(config.value.eventName);
-      await window.electronAPI.saveCurrentDatabase(currentFileName);
-    }
-    
-    // 重置状态
-    isAppReady.value = false;
-    showSplashScreen.value = true;
-    records.value = [];
-    statistics.value = {
-      totalCount: 0,
-      totalAmount: 0,
-      cashAmount: 0,
-      wechatAmount: 0,
-      internalAmount: 0,
-    };
-  } catch (error) {
-    logger.error('App', '返回启动页失败:', error);
-    alert('返回启动页失败，请重试');
-  }
-};
-
-
-
-// 扫描 data 目录获取文件列表
-const scanDataDirectory = async () => {
-  try {
-    const response = await window.electronAPI.getRecentDatabases();
-    if (response.success && response.data?.recentDatabases) {
-      // 更新最近列表
-      config.value.recentBooks = response.data.recentDatabases;
-    }
-  } catch (error) {
-    logger.error('App', '扫描数据目录失败:', error);
-  }
-};
+// ==================== 礼薄管理相关 ====================
+const bookMgmt = useBookManagement(
+  setTheme, config, showSplashScreen, isAppReady, syncDialogVisible,
+  bookName, records, statistics,
+  setEventName, setEventDate, setCurrentDbPath,
+  generateFileName, addToRecentBooks, removeFromRecentBooks,
+  loadRecords, loadStatistics,
+)
+const { handleSyncToMiniApp, handleCreateBookFromHome, handleOpenBookFromHome, handleEditBookFromHome, handleImportFromHome, handleOpenFileFromHome, handleMinimizeWindow, handleCloseWindow, handleBackToSplash, scanDataDirectory } = bookMgmt
 
 onMounted(async () => {
   // 初始化配置
@@ -425,9 +163,6 @@ onMounted(async () => {
   intervalId.value = window.setInterval(() => {
     lunarDate.value = getLunarDisplay();
   }, 60000);
-
-  // 初始化全屏缩放功能
-  initFullscreenScale();
 });
 
 onUnmounted(() => {
