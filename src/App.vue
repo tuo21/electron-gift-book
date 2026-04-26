@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, shallowRef } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import HomeView from './components/home/HomeView.vue';
@@ -21,17 +21,14 @@ import StyleCustomizeDialog from './components/StyleCustomizeDialog.vue';
 import IconSvg from './components/IconSvg.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
-import { voiceService } from './services/voiceService';
 import { useVoice } from './composables/useVoice';
 import { useStyleCustomization } from './composables/useStyleCustomization';
 import { useSearch } from './composables/useSearch';
 import { useEditHistory } from './composables/useEditHistory';
 import { useExport } from './composables/useExport';
-import { AmountConverter } from './utils/amountConverter';
-import { logger } from './utils/logger';
+import { useRecordOperations } from './composables/useRecordOperations';
 import { useAppState } from './composables/useAppState';
-import { DEFAULT_PAGE_SIZE } from './constants';
-import { mapApiRecord, mapApiRecords } from './utils/recordMapper';
+import { logger } from './utils/logger';
 
 // ==================== 激活相关 ====================
 const { checkActivation } = useActivation();
@@ -94,281 +91,13 @@ const search = useSearch(
 )
 const { handleSearch, closeSearchModal, performSearch, handleSearchResultClick } = search
 
-// ==================== 方法函数 ====================
-const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: number) => {
-  try {
-    const response = await window.db.getAllRecords();
-    if (response.success && response.data) {
-      const newRecords = mapApiRecords(response.data);
-
-      const currentRecords = records.value;
-      
-      // 如果是添加新记录后的加载，尝试增量更新
-      if (newRecordId && currentRecords.length > 0) {
-        const existingIds = new Set(currentRecords.map(r => r.id));
-        const addedRecords = newRecords.filter((r: Record) => !existingIds.has(r.id));
-        
-        if (addedRecords.length > 0) {
-          // 只添加新记录，保留现有记录引用
-          records.value = [...currentRecords, ...addedRecords];
-        } else if (newRecords.length !== currentRecords.length) {
-          // 如果记录数量变化但没有找到新记录，可能是删除或批量操作
-          records.value = newRecords;
-        } else {
-          // 记录数量相同，可能是更新操作，强制刷新
-          records.value = newRecords;
-        }
-      } else {
-        // 首次加载或强制刷新
-        records.value = newRecords;
-      }
-      
-      // 同步更新 recordsStore 的 totalRecords（用于 ExportModal）
-      recordsStore.totalRecords = records.value.length;
-      
-      // 加载记录后，默认跳转到最后一页（显示最新的数据）
-      // 如果 keepCurrentPage 为 true，则保持当前页码（用于添加记录后）
-      if (!keepCurrentPage) {
-        const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
-        currentPage.value = totalPages;
-      } else {
-        // 保持当前页码，但确保不超过总页数
-        const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
-        if (currentPage.value > totalPages) {
-          currentPage.value = totalPages;
-        }
-      }
-    } else if (!response.success) {
-      alert('加载记录失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '加载记录失败:', error);
-    alert('加载记录失败，请检查数据库连接');
-  } finally {
-    // 确保 totalRecords 被同步，即使加载失败或没有数据
-    recordsStore.totalRecords = records.value.length;
-  }
-};
-
-const loadStatistics = async () => {
-  try {
-    const response = await window.db.getStatistics();
-    if (response.success && response.data) {
-      statistics.value = response.data;
-    } else if (!response.success) {
-      logger.error('App', '加载统计失败:', response.error);
-    }
-  } catch (error) {
-    logger.error('App', '加载统计失败:', error);
-  }
-};
-
-// ==================== 增量更新函数 ====================
-
-/**
- * 新增记录增量更新
- * 添加新记录到数组末尾，并跳转到新记录所在页面
- */
-const addRecordIncrementally = async (newRecordId: number) => {
-  try {
-    const response = await window.db.getRecordById(newRecordId);
-    if (response.success && response.data) {
-      const newRecord = mapApiRecord(response.data as any);
-      
-      records.value = [...records.value, newRecord];
-      
-      await loadStatistics();
-      
-      // 跳转到新记录所在的页面（新记录在数组末尾，即最后一页）
-      const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
-      currentPage.value = totalPages;
-      
-      await nextTick();
-      recordListRef.value?.markNewRecord(newRecordId);
-    }
-  } catch (error) {
-    logger.error('App', '增量添加记录失败:', error);
-    await loadRecords(true);
-  }
-};
-
-/**
- * 修改记录增量更新
- * 只更新对应记录，保持当前页码和显示位置
- */
-const updateRecordIncrementally = async (updatedRecordId: number) => {
-  try {
-    const response = await window.db.getRecordById(updatedRecordId);
-    if (response.success && response.data) {
-      const updatedRecord = mapApiRecord(response.data as any);
-      
-      const index = records.value.findIndex(r => r.id === updatedRecordId);
-      
-      if (index !== -1) {
-        const newRecords = [...records.value];
-        newRecords[index] = updatedRecord;
-        records.value = newRecords;
-      } else {
-        await loadRecords(true);
-      }
-      
-      await loadStatistics();
-    } else {
-      await loadRecords(true);
-    }
-  } catch (error) {
-    logger.error('App', '增量更新记录失败:', error);
-    await loadRecords(true);
-  }
-};
-
-/**
- * 删除记录增量更新
- * 从数组中移除已删除的记录，保持当前页码
- */
-const deleteRecordIncrementally = async (deletedRecordId: number) => {
-  try {
-    const oldLength = records.value.length;
-    records.value = records.value.filter(r => r.id !== deletedRecordId);
-    
-    if (records.value.length < oldLength) {
-      const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
-      if (currentPage.value > totalPages) {
-        currentPage.value = totalPages;
-      }
-    }
-    
-    await loadStatistics();
-  } catch (error) {
-    logger.error('App', '增量删除记录失败:', error);
-    await loadRecords(true);
-  }
-};
-
-// 处理输入预览
-const handleInputPreview = (field: string, value: string) => {
-  currentPreview.value = { field, value };
-};
-
-// 清空预览
-const clearPreview = () => {
-  currentPreview.value = { field: '', value: '' };
-};
-
-const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) => {
-  try {
-    const dbRecord = {
-      guestName: record.guestName.trim(),
-      amount: record.amount,
-      amountChinese: record.amountChinese || null,
-      itemDescription: record.itemDescription?.trim() || null,
-      paymentType: record.paymentType,
-      remark: record.remark?.trim() || null,
-      isDeleted: 0,
-    };
-    const response = await window.db.insertRecord(dbRecord as any);
-    if (response.success && response.data) {
-      const newRecordId = response.data.id;
-      // 使用增量更新，只添加新记录，保持当前显示位置
-      await addRecordIncrementally(newRecordId);
-      // 提交后清空预览
-      clearPreview();
-      
-      // 语音播报
-      if (voiceService.isSupported()) {
-        const amountChinese = record.amountChinese || AmountConverter.toChinese(record.amount);
-        voiceService.speakGiftInfo(record.guestName, record.amount, amountChinese);
-      }
-    } else {
-      alert('保存失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '保存记录失败:', error);
-    alert('保存失败，请重试');
-  }
-};
-
-// 编辑记录 - 将数据填充到录入表单
-const handleEdit = (record: Record) => {
-  // 调用 RecordForm 的 enterEditMode 方法
-  recordFormRef.value?.enterEditMode(record);
-};
-
-// 更新记录
-const handleUpdate = async (record: Record) => {
-  try {
-    const dbRecord = {
-      id: record.id,
-      guestName: record.guestName.trim(),
-      amount: record.amount,
-      amountChinese: record.amountChinese || null,
-      itemDescription: record.itemDescription?.trim() || null,
-      paymentType: record.paymentType,
-      remark: record.remark?.trim() || null,
-      isDeleted: record.isDeleted,
-    };
-
-    const response = await window.db.updateRecord(dbRecord as any);
-    if (response.success) {
-      // 使用增量更新，只更新修改的记录，保持当前显示位置
-      // record.id 可能为 0，需要使用 !== null 和 !== undefined 判断
-      if (record.id !== null && record.id !== undefined) {
-        await updateRecordIncrementally(record.id);
-      } else {
-        // 如果record.id不存在，回退到全量刷新
-        await loadRecords(true);
-      }
-    } else {
-      alert('更新失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '更新记录失败:', error);
-    alert('更新失败，请重试');
-  }
-};
-
-const handleDelete = async (id: number) => {
-  try {
-    const response = await window.db.softDeleteRecord(id);
-    if (response.success) {
-      await deleteRecordIncrementally(id);
-    } else {
-      alert('删除失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '删除记录失败:', error);
-    alert('删除失败，请重试');
-  }
-};
-
-const formatMoney = (amount: number | undefined) => {
-  if (amount === undefined || amount === null || isNaN(amount)) {
-    return '0.00';
-  }
-  return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-};
-
-// 计算当前页面的金额小计
-const currentPageAmount = computed(() => {
-  const start = (currentPage.value - 1) * DEFAULT_PAGE_SIZE;
-  const end = start + DEFAULT_PAGE_SIZE;
-  const pageRecords = records.value.slice(start, end);
-  const total = pageRecords.reduce((sum, record) => sum + (record.amount || 0), 0);
-  return formatMoney(total);
-});
-
-const openStatisticsModal = async () => {
-  const isActivated = await checkActivation();
-  if (!isActivated) {
-    showActivateModal.value = true;
-    return;
-  }
-  showStatisticsModal.value = true;
-};
-
-const closeStatisticsModal = () => {
-  showStatisticsModal.value = false;
-};
+// ==================== 记录操作相关 ====================
+const recordsOps = useRecordOperations(
+  records, recordsStore, currentPage, statistics, currentPreview,
+  showStatisticsModal, showActivateModal,
+  recordListRef, recordFormRef, checkActivation,
+)
+const { loadRecords, loadStatistics, handleSubmit, handleEdit, handleUpdate, handleDelete, handleInputPreview, clearPreview, currentPageAmount, openStatisticsModal, closeStatisticsModal } = recordsOps
 
 // ==================== 样式自定义相关 ====================
 const style = useStyleCustomization(setDisplayStyle, setCustomFont, toastRef)
