@@ -707,7 +707,7 @@ const handleRestoreDeletedRecord = async (history: RecordHistory) => {
 };
 
 // 功能处理函数
-const handleSave = () => { alert('数据已自动保存'); };
+const handleSave = () => { logger.info('App', '数据已自动保存'); };
 
 // TODO: 导入导出功能待实现
 // const handleImport = () => { alert('导入功能开发中...'); };
@@ -987,13 +987,13 @@ const handleEditBookFromHome = async (data: { path: string; name: string; eventD
 // 处理首页导入
 const handleImportFromHome = () => {
   // TODO: 实现导入功能
-  alert('导入功能开发中！');
+  logger.info('App', '导入功能开发中');
 };
 
 // 处理首页打开文件
 const handleOpenFileFromHome = () => {
   // TODO: 实现打开文件功能
-  alert('打开文件功能开发中！');
+  logger.info('App', '打开文件功能开发中');
 };
 
 // 处理窗口最小化
