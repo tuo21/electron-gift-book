@@ -1,5 +1,5 @@
 ﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick, watch } from 'vue';
+import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import HomeView from './components/home/HomeView.vue';
@@ -24,6 +24,8 @@ import ConfirmDialog from './components/ConfirmDialog.vue';
 import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
 import { voiceService } from './services/voiceService';
 import { useVoice } from './composables/useVoice';
+import { useStyleCustomization } from './composables/useStyleCustomization';
+import { useSearch } from './composables/useSearch';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useAppState } from './composables/useAppState';
@@ -81,25 +83,17 @@ const {
   showStyleDialog, syncDialogVisible,
 } = state
 
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
 const exportProgress = ref(0)
 
 const recordListRef = shallowRef<InstanceType<typeof RecordList>>()
 const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>()
 
-// 搜索关键词自动搜索（防抖）
-watch(searchKeyword, (newKeyword) => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout);
-  }
-  searchTimeout = setTimeout(() => {
-    if (newKeyword.trim()) {
-      performSearch();
-    } else {
-      searchResults.value = [];
-    }
-  }, 300);
-});
+// ==================== 搜索相关 ====================
+const search = useSearch(
+  showSearchModal, searchKeyword, searchResults, isSearching,
+  showActivateModal, checkActivation, recordListRef
+)
+const { handleSearch, closeSearchModal, performSearch, handleSearchResultClick } = search
 
 // ==================== 方法函数 ====================
 const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: number) => {
@@ -378,48 +372,8 @@ const closeStatisticsModal = () => {
 };
 
 // ==================== 样式自定义相关 ====================
-/**
- * 处理样式设置确认
- */
-const handleStyleConfirm = (style: 'full' | 'compact') => {
-  setDisplayStyle(style);
-};
-
-/**
- * 处理选择字体（CSS 字体名称）
- */
-const handleSelectFont = (fontCssName: string) => {
-  setCustomFont(fontCssName);
-  // 应用自定义字体
-  applyCustomFont(fontCssName);
-  toastRef.value?.success('字体已应用');
-};
-
-/**
- * 处理重置字体
- */
-const handleResetFont = () => {
-  setCustomFont(null);
-  // 移除自定义字体
-  removeCustomFont();
-  toastRef.value?.success('已恢复默认字体');
-};
-
-/**
- * 应用自定义字体（设置 CSS 变量）
- */
-const applyCustomFont = (fontCssName: string) => {
-  // 更新 CSS 变量中的字体
-  document.documentElement.style.setProperty('--font-name-amount', `'${fontCssName}', 'SimSun', 'KaiTi', serif`);
-};
-
-/**
- * 移除自定义字体
- */
-const removeCustomFont = () => {
-  // 恢复默认字体（演示春风楷）
-  document.documentElement.style.setProperty('--font-name-amount', "'演示春风楷', 'KaiTi', 'SimSun', serif");
-};
+const style = useStyleCustomization(setDisplayStyle, setCustomFont, toastRef)
+const { applyCustomFont, handleStyleConfirm, handleSelectFont, handleResetFont } = style
 
 const openEditHistoryModal = async () => {
   try {
@@ -655,61 +609,6 @@ const handleEditClick = async () => {
     return;
   }
   openEditHistoryModal();
-};
-
-// 打开搜索弹窗
-const handleSearch = async () => {
-  const isActivated = await checkActivation();
-  if (!isActivated) {
-    showActivateModal.value = true;
-    return;
-  }
-  showSearchModal.value = true;
-  searchKeyword.value = '';
-  searchResults.value = [];
-};
-
-// 关闭搜索弹窗
-const closeSearchModal = () => {
-  showSearchModal.value = false;
-  searchKeyword.value = '';
-  searchResults.value = [];
-};
-
-// 执行搜索
-const performSearch = async (keyword?: string) => {
-  const searchTerm = keyword || searchKeyword.value;
-  if (!searchTerm.trim()) {
-    alert('请输入搜索关键词');
-    return;
-  }
-
-  isSearching.value = true;
-  try {
-    const response = await window.db.searchRecords(searchTerm.trim());
-    if (response.success && response.data) {
-      searchResults.value = mapApiRecords(response.data);
-    } else {
-      alert('搜索失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '搜索失败:', error);
-    alert('搜索失败，请重试');
-  } finally {
-    isSearching.value = false;
-  }
-};
-
-// 点击搜索结果跳转到对应记录
-const handleSearchResultClick = (record: Record) => {
-  closeSearchModal();
-  // 使用 nextTick 确保弹窗关闭后再跳转
-  setTimeout(() => {
-    const success = recordListRef.value?.goToRecord(record.id || 0);
-    if (!success) {
-      alert('未找到该记录，可能已被删除');
-    }
-  }, 100);
 };
 
 // ==================== 同步到小程序功能 ====================
