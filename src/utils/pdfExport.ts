@@ -2,6 +2,9 @@ import { jsPDF } from 'jspdf'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
 import type { Record } from '../types/database'
+import { numberToChinese, formatAmount } from './amountConverter'
+import { getPaymentTypeText } from '../constants'
+import { getAdaptiveFontSize } from './adaptiveFont'
 
 const SCALE = 4.167
 const PAGE_WIDTH_PT = Math.round(842 * SCALE)
@@ -11,85 +14,6 @@ const VERTICAL_PAGE_HEIGHT_PT = Math.round(842 * SCALE)
 
 type ThemeType = 'red' | 'gray' | 'golden'
 type LayoutType = 'h' | 'v'
-
-const CN_NUMBERS = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
-const CN_UNITS = ['', '拾', '佰', '仟']
-const CN_BIG_UNITS = ['', '万', '亿', '万亿']
-
-function numberToChinese(amount: number): string {
-  if (isNaN(amount) || amount < 0) return ''
-  if (amount >= 1e16) return '金额过大'
-
-  const integerPart = Math.floor(amount)
-  const decimalPart = Math.round((amount - integerPart) * 100)
-
-  let result = integerToChinese(integerPart)
-  if (result === '') result = '零元'
-  else result += '元'
-
-  if (decimalPart > 0) {
-    const jiao = Math.floor(decimalPart / 10)
-    const fen = decimalPart % 10
-    if (jiao > 0) result += CN_NUMBERS[jiao] + '角'
-    else if (integerPart > 0) result += '零'
-    if (fen > 0) result += CN_NUMBERS[fen] + '分'
-  }
-
-  return result
-}
-
-function integerToChinese(num: number): string {
-  if (num === 0) return ''
-  let result = ''
-  let bigUnitIndex = 0
-
-  while (num > 0) {
-    const segment = num % 10000
-    if (segment !== 0) {
-      const segmentStr = segmentToChinese(segment)
-      result = segmentStr + CN_BIG_UNITS[bigUnitIndex] + result
-    } else if (result !== '' && !result.startsWith('零')) {
-      result = '零' + result
-    }
-    num = Math.floor(num / 10000)
-    bigUnitIndex++
-  }
-
-  result = result.replace(/零+/g, '零').replace(/零$/, '')
-  return result
-}
-
-function segmentToChinese(num: number): string {
-  if (num === 0) return ''
-  let result = ''
-  let zeroFlag = false
-
-  for (let i = 3; i >= 0; i--) {
-    const divisor = Math.pow(10, i)
-    const digit = Math.floor(num / divisor)
-    if (digit > 0) {
-      if (zeroFlag) {
-        result += '零'
-        zeroFlag = false
-      }
-      result += CN_NUMBERS[digit] + CN_UNITS[i]
-    } else if (result !== '') {
-      zeroFlag = true
-    }
-    num %= divisor
-  }
-  return result
-}
-
-function formatAmount(amount: number): string {
-  if (isNaN(amount)) return '0.00'
-  return amount.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
-function getPaymentTypeText(type: number): string {
-  const map: { [key: number]: string } = { 0: '现金', 1: '微信', 2: '内收' }
-  return map[type] || '未知'
-}
 
 function getEventDate(records: Record[]): Date {
   if (records.length === 0) {
@@ -188,19 +112,6 @@ async function loadTemplateImage(theme: ThemeType, pageType: string, layout: Lay
     console.error('加载模板图片失败:', error)
     return null
   }
-}
-
-function getAdaptiveFontSize(text: string, isName: boolean = false, hasItem: boolean = false): number {
-  const maxSize = 34
-  const minSize = 10
-  const maxLength = isName ? 3 : (hasItem ? 2 : 3)
-
-  if (!text || text.length <= maxLength) {
-    return maxSize
-  }
-
-  const reduceSize = (text.length - maxLength) * 25
-  return Math.max(minSize, maxSize - reduceSize)
 }
 
 async function createChinesePDF(layout: LayoutType = 'h'): Promise<{ pdf: jsPDF; fonts: LoadedFonts }> {
@@ -388,8 +299,8 @@ async function addContentPage(
     records.forEach((record, index) => {
       const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
       const amountChinese = numberToChinese(record.amount)
-      const nameFontSize = getAdaptiveFontSize(record.guestName, true) * SCALE
-      const amountFontSize = getAdaptiveFontSize(amountChinese, false, !!record.itemDescription) * SCALE
+      const nameFontSize = getAdaptiveFontSize(record.guestName, 3, 34, 10) * SCALE
+      const amountFontSize = getAdaptiveFontSize(amountChinese, record.itemDescription ? 2 : 3, 34, 10) * SCALE
 
       setFont(pdf, fonts, 'XuandongKaishu')
       pdf.setFontSize(nameFontSize)
