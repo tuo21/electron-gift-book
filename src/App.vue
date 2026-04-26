@@ -24,6 +24,7 @@ import ConfirmDialog from './components/ConfirmDialog.vue';
 import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
 import { voiceService } from './services/voiceService';
 import { AmountConverter } from './utils/amountConverter';
+import { logger } from './utils/logger';
 import { useRecordsStore } from './stores/useRecordsStore';
 
 // ==================== 激活相关 ====================
@@ -38,14 +39,6 @@ const handleActivationChanged = async () => {
 // ==================== 启动页和配置 ====================
 const { setTheme, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig, setDisplayStyle, setCustomFont, setEventDate } = useAppConfig();
-
-// 重命名数据库后更新最近列表（预留功能）
-// const renameRecentBook = (oldPath: string, newName: string, newPath: string) => {
-//   // 先移除旧路径
-//   removeFromRecentBooks(oldPath);
-//   // 添加新路径
-//   addToRecentBooks(newName, newPath);
-// };
 const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
 
 // Toast 组件引用
@@ -279,7 +272,7 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
       alert('加载记录失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('加载记录失败:', error);
+    logger.error('App', '加载记录失败:', error);
     alert('加载记录失败，请检查数据库连接');
   } finally {
     // 确保 totalRecords 被同步，即使加载失败或没有数据
@@ -293,10 +286,10 @@ const loadStatistics = async () => {
     if (response.success && response.data) {
       statistics.value = response.data;
     } else if (!response.success) {
-      console.error('加载统计失败:', response.error);
+      logger.error('App', '加载统计失败:', response.error);
     }
   } catch (error) {
-    console.error('加载统计失败:', error);
+    logger.error('App', '加载统计失败:', error);
   }
 };
 
@@ -336,7 +329,7 @@ const addRecordIncrementally = async (newRecordId: number) => {
       recordListRef.value?.markNewRecord(newRecordId);
     }
   } catch (error) {
-    console.error('增量添加记录失败:', error);
+    logger.error('App', '增量添加记录失败:', error);
     await loadRecords(true);
   }
 };
@@ -378,7 +371,7 @@ const updateRecordIncrementally = async (updatedRecordId: number) => {
       await loadRecords(true);
     }
   } catch (error) {
-    console.error('增量更新记录失败:', error);
+    logger.error('App', '增量更新记录失败:', error);
     await loadRecords(true);
   }
 };
@@ -401,7 +394,7 @@ const deleteRecordIncrementally = async (deletedRecordId: number) => {
     
     await loadStatistics();
   } catch (error) {
-    console.error('增量删除记录失败:', error);
+    logger.error('App', '增量删除记录失败:', error);
     await loadRecords(true);
   }
 };
@@ -444,7 +437,7 @@ const handleSubmit = async (record: Omit<Record, 'id' | 'createTime' | 'updateTi
       alert('保存失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('保存记录失败:', error);
+    logger.error('App', '保存记录失败:', error);
     alert('保存失败，请重试');
   }
 };
@@ -483,7 +476,7 @@ const handleUpdate = async (record: Record) => {
       alert('更新失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('更新记录失败:', error);
+    logger.error('App', '更新记录失败:', error);
     alert('更新失败，请重试');
   }
 };
@@ -497,7 +490,7 @@ const handleDelete = async (id: number) => {
       alert('删除失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('删除记录失败:', error);
+    logger.error('App', '删除记录失败:', error);
     alert('删除失败，请重试');
   }
 };
@@ -585,7 +578,7 @@ const openEditHistoryModal = async () => {
       alert('加载修改记录失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('加载修改记录失败:', error);
+    logger.error('App', '加载修改记录失败:', error);
     alert('加载修改记录失败');
   }
 };
@@ -615,7 +608,7 @@ const handleLocateRecord = async (recordId: number) => {
       toastRef.value?.error('无法定位到该记录，可能已被删除');
     }
   } catch (error) {
-    console.error('定位记录失败:', error);
+    logger.error('App', '定位记录失败:', error);
     toastRef.value?.error('定位记录失败');
   }
 };
@@ -668,7 +661,7 @@ const handleRevertRecord = async (history: RecordHistory) => {
       throw new Error(response.error || '还原失败');
     }
   } catch (error) {
-    console.error('还原修改失败:', error);
+    logger.error('App', '还原修改失败:', error);
     toastRef.value?.error('还原修改失败，请重试');
   }
 };
@@ -707,7 +700,7 @@ const handleRestoreDeletedRecord = async (history: RecordHistory) => {
       throw new Error(response.error || '还原失败');
     }
   } catch (error) {
-    console.error('还原数据失败:', error);
+    logger.error('App', '还原数据失败:', error);
     toastRef.value?.error('还原数据失败，请重试');
   }
 };
@@ -757,7 +750,7 @@ const handleExportExcel = async () => {
     closeExportModal();
     toastRef.value?.success('Excel 导出成功！', 3000);
   } catch (error) {
-    console.error('导出 Excel 失败:', error);
+    logger.error('App', '导出 Excel 失败:', error);
     if ((error as Error).message !== '用户取消保存') {
       toastRef.value?.error('导出 Excel 失败，请重试');
     }
@@ -795,7 +788,7 @@ const handleExportPDF = async (theme?: 'red' | 'gray' | 'golden', layout?: 'h' |
     closeExportModal();
     toastRef.value?.success('PDF 导出成功！请使用浏览器打印功能保存为 PDF。', 5000);
   } catch (error) {
-    console.error('导出 PDF 失败:', error);
+    logger.error('App', '导出 PDF 失败:', error);
     if ((error as Error).message !== '用户取消保存') {
       toastRef.value?.error('导出 PDF 失败，请重试');
     }
@@ -861,7 +854,7 @@ const performSearch = async (keyword?: string) => {
       alert('搜索失败: ' + (response.error || '未知错误'));
     }
   } catch (error) {
-    console.error('搜索失败:', error);
+    logger.error('App', '搜索失败:', error);
     alert('搜索失败，请重试');
   } finally {
     isSearching.value = false;
@@ -915,7 +908,7 @@ const handleCreateBookFromHome = async (data: { eventName: string; eventDate: st
     await loadRecords();
     await loadStatistics();
   } catch (error) {
-    console.error('创建礼薄失败:', error);
+    logger.error('App', '创建礼薄失败:', error);
     alert('创建礼薄失败，请重试');
   }
 };
@@ -923,25 +916,25 @@ const handleCreateBookFromHome = async (data: { eventName: string; eventDate: st
 // 处理首页打开礼薄
 const handleOpenBookFromHome = async (path: string) => {
   try {
-    console.log('[Theme Debug] 开始打开礼薄:', path);
+    logger.debug('Theme', '开始打开礼薄:', path);
     
     // 读取礼簿的主题色
     let themeToApply: ThemeType | undefined;
-    console.log('[Theme Debug] 调用 getDatabaseTheme...');
+    logger.debug('Theme', '调用 getDatabaseTheme...');
     const themeResponse = await window.electronAPI.getDatabaseTheme(path);
-    console.log('[Theme Debug] getDatabaseTheme 响应:', themeResponse);
+    logger.debug('Theme', 'getDatabaseTheme 响应:', themeResponse);
     
     if (themeResponse.success && themeResponse.data) {
       themeToApply = themeResponse.data as ThemeType;
-      console.log('[Theme Debug] 读取到主题:', themeToApply);
+      logger.debug('Theme', '读取到主题:', themeToApply);
     } else {
-      console.log('[Theme Debug] 未读取到主题或读取失败');
+      logger.debug('Theme', '未读取到主题或读取失败');
     }
 
-    console.log('[Theme Debug] 调用 handleOpenExistingBook, theme:', themeToApply);
+    logger.debug('Theme', '调用 handleOpenExistingBook, theme:', themeToApply);
     await handleOpenExistingBook(path, '', themeToApply);
     
-    console.log('[Theme Debug] handleOpenExistingBook 完成');
+    logger.debug('Theme', 'handleOpenExistingBook 完成');
 
     // 隐藏首页，显示主应用
     showSplashScreen.value = false;
@@ -951,7 +944,7 @@ const handleOpenBookFromHome = async (path: string) => {
     await loadRecords();
     await loadStatistics();
   } catch (error) {
-    console.error('打开礼薄失败:', error);
+    logger.error('App', '打开礼薄失败:', error);
     alert('打开礼薄失败，请重试');
   }
 };
@@ -985,7 +978,7 @@ const handleEditBookFromHome = async (data: { path: string; name: string; eventD
     
     alert('编辑成功！');
   } catch (error) {
-    console.error('编辑礼薄失败:', error);
+    logger.error('App', '编辑礼薄失败:', error);
     alert('编辑礼薄失败，请重试');
   }
 };
@@ -1005,13 +998,13 @@ const handleOpenFileFromHome = () => {
 // 处理窗口最小化
 const handleMinimizeWindow = () => {
   // TODO: 调用 Tauri API 最小化窗口
-  console.log('最小化窗口');
+  logger.debug('App', '最小化窗口');
 };
 
 // 处理窗口关闭
 const handleCloseWindow = () => {
   // TODO: 调用 Tauri API 关闭窗口
-  console.log('关闭窗口');
+  logger.debug('App', '关闭窗口');
 };
 
 // ==================== 启动页处理函数（保留用于兼容） ====================
@@ -1051,7 +1044,7 @@ const handleCreateNewBook = async (eventName: string, theme?: ThemeType, eventDa
       throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
-    console.error('新建礼金簿失败:', error);
+    logger.error('App', '新建礼金簿失败:', error);
     const errorMsg = '新建礼金簿失败，请重试';
     alert(errorMsg);
     throw new Error(errorMsg); // 抛出错误，让上级处理
@@ -1061,7 +1054,7 @@ const handleCreateNewBook = async (eventName: string, theme?: ThemeType, eventDa
 // 打开已有数据
 const handleOpenExistingBook = async (filePath: string, eventName: string, theme?: ThemeType) => {
   try {
-    console.log('[Theme Debug] handleOpenExistingBook 被调用, theme:', theme);
+    logger.debug('Theme', 'handleOpenExistingBook 被调用, theme:', theme);
     
     // 先保存当前数据（如果有）
     if (records.value.length > 0 && config.value.currentDbPath) {
@@ -1071,7 +1064,7 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
     
     // 切换到选中的数据库
     const response = await window.electronAPI.switchDatabase(filePath);
-    console.log('[Theme Debug] switchDatabase 响应:', response.success);
+    logger.debug('Theme', 'switchDatabase 响应:', response.success);
     
     if (response.success) {
       // 从文件名中提取事务名称
@@ -1087,13 +1080,13 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
       
       // 应用主题（如果有传入的主题参数）
       if (theme) {
-        console.log('[Theme Debug] 开始应用主题:', theme);
+        logger.debug('Theme', '开始应用主题:', theme);
         setTheme(theme, true);
         // 同步更新 appConfig 中的 theme
         config.value.theme = theme;
-        console.log('[Theme Debug] setTheme 调用完成');
+        logger.debug('Theme', 'setTheme 调用完成');
       } else {
-        console.log('[Theme Debug] 没有传入主题参数，跳过应用');
+        logger.debug('Theme', '没有传入主题参数，跳过应用');
       }
     } else {
       const errorMsg = '打开数据库失败：' + (response.error || '未知错误');
@@ -1101,7 +1094,7 @@ const handleOpenExistingBook = async (filePath: string, eventName: string, theme
       throw new Error(errorMsg); // 抛出错误，让上级处理
     }
   } catch (error) {
-    console.error('打开已有数据失败:', error);
+    logger.error('App', '打开已有数据失败:', error);
     const errorMsg = '打开已有数据失败，请重试';
     alert(errorMsg);
     throw new Error(errorMsg); // 抛出错误，让上级处理
@@ -1131,7 +1124,7 @@ const handleBackToSplash = async () => {
       internalAmount: 0,
     };
   } catch (error) {
-    console.error('返回启动页失败:', error);
+    logger.error('App', '返回启动页失败:', error);
     alert('返回启动页失败，请重试');
   }
 };
@@ -1147,7 +1140,7 @@ const scanDataDirectory = async () => {
       config.value.recentBooks = response.data.recentDatabases;
     }
   } catch (error) {
-    console.error('扫描数据目录失败:', error);
+    logger.error('App', '扫描数据目录失败:', error);
   }
 };
 

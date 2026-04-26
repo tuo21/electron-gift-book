@@ -295,6 +295,7 @@ import IconSvg from './IconSvg.vue';
 import '../types/database';
 import type { Record } from '../types/database';
 import { numberToChinese, formatAmount } from '../utils/amountConverter';
+import { logger } from '../utils/logger';
 import { getPaymentTypeText } from '../constants';
 
 // ==================== 动画相关 ====================
@@ -398,28 +399,28 @@ const handleEditClick = () => {
 
 // 点击删除
 const handleDeleteClick = async () => {
-  console.log('handleDeleteClick 被调用');
+  logger.debug('RecordList', 'handleDeleteClick 被调用');
   
   if (!contextMenu.value.record) {
-    console.log('没有选中记录，隐藏菜单');
+    logger.debug('RecordList', '没有选中记录，隐藏菜单');
     hideContextMenu();
     return;
   }
   
   const record = contextMenu.value.record;
-  console.log('选中记录:', record);
+  logger.debug('RecordList', '选中记录:', record);
   
   hideContextMenu();
-  console.log('菜单已隐藏');
+  logger.debug('RecordList', '菜单已隐藏');
   
   const confirmed = await window.confirmDialog(`确定要删除 ${record.guestName} 的记录吗？`);
-  console.log('用户确认结果:', confirmed);
+  logger.debug('RecordList', '用户确认结果:', confirmed);
   
   if (confirmed) {
-    console.log('用户确认删除，emit delete 事件');
+    logger.debug('RecordList', '用户确认删除，emit delete 事件');
     emit('delete', record.id || 0);
   } else {
-    console.log('用户取消删除');
+    logger.debug('RecordList', '用户取消删除');
   }
 };
 

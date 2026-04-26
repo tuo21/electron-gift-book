@@ -27,38 +27,3 @@ export const pageSizeOptions = [10, 15, 20, 50] as const
 
 // 默认分页大小
 export const DEFAULT_PAGE_SIZE = 15
-
-// 表单验证规则
-export const validationRules = {
-  guestName: {
-    maxLength: 50,
-    required: true,
-  },
-  amount: {
-    min: 0,
-    max: 99999999.99,
-    decimalPlaces: 2,
-  },
-  remark: {
-    maxLength: 200,
-  },
-  itemDescription: {
-    maxLength: 100,
-  },
-} as const
-
-// 日期格式化选项
-export const dateFormatOptions: Intl.DateTimeFormatOptions = {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  hour: '2-digit',
-  minute: '2-digit',
-}
-
-// 应用配置
-export const appConfig = {
-  name: '电子礼金簿',
-  version: '1.10.2',
-  defaultAppName: '电子礼金簿',
-} as const
