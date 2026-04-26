@@ -5,7 +5,7 @@ import RecordList from './components/RecordList.vue';
 import HomeView from './components/home/HomeView.vue';
 import SyncQRDialog from './components/SyncQRDialog.vue';
 import ActivateModal from './components/home/ActivateModal.vue';
-import type { Record, Statistics, RecordHistory } from './types/database';
+import type { Record, RecordHistory } from './types/database';
 import type { ThemeType } from './types/theme';
 import { getLunarDisplay } from './utils/lunarCalendar';
 import { exportToExcel, exportToPDF } from './utils/export';
@@ -25,7 +25,7 @@ import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
 import { voiceService } from './services/voiceService';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
-import { useRecordsStore } from './stores/useRecordsStore';
+import { useAppState } from './composables/useAppState';
 import { DEFAULT_PAGE_SIZE } from './constants';
 import { mapApiRecord, mapApiRecords } from './utils/recordMapper';
 
@@ -144,62 +144,22 @@ const confirmDialog = (message: string, options?: { title?: string, confirmText?
 // 暴露到全局
 (window as any).confirmDialog = confirmDialog;
 
-// 启动页状态
-const showSplashScreen = ref(true);
-const isAppReady = ref(false);
+const state = useAppState()
+const {
+  showSplashScreen, isAppReady, recordsStore,
+  records, statistics, bookName, lunarDate, intervalId,
+  showStatisticsModal, showEditHistoryModal, editHistoryList,
+  currentPreview, previewText, currentPage,
+  showSearchModal, searchKeyword, searchResults, isSearching,
+  showExportModal, isExporting,
+  showStyleDialog, syncDialogVisible,
+} = state
 
-// Records Store - 用于同步 totalRecords 到 ExportModal
-const recordsStore = useRecordsStore();
+let searchTimeout: ReturnType<typeof setTimeout> | null = null
+const exportProgress = ref(0)
 
-// ==================== 数据状态 ====================
-// 使用 shallowRef 优化性能，避免深层响应式导致的过度渲染
-const records = shallowRef<Record[]>([]);
-const statistics = ref<Statistics>({
-  totalCount: 0,
-  totalAmount: 0,
-  cashAmount: 0,
-  wechatAmount: 0,
-  internalAmount: 0,
-});
-const recordListRef = shallowRef<InstanceType<typeof RecordList>>();
-const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>();
-const bookName = ref('电子礼金簿');
-const lunarDate = ref(getLunarDisplay());
-const intervalId = ref<number | null>(null);
-const showStatisticsModal = ref(false);
-const showEditHistoryModal = ref(false);
-const editHistoryList = ref<RecordHistory[]>([]);
-
-// 当前预览状态（单字段模式）
-const currentPreview = ref({
-  field: '',  // 当前字段名
-  value: ''   // 当前值
-});
-
-// 计算预览显示文本
-const previewText = computed(() => {
-  return currentPreview.value.value || '\u00A0';
-});
-
-// 分页状态
-const currentPage = ref(1);
-
-// 搜索弹窗状态
-const showSearchModal = ref(false);
-const searchKeyword = ref('');
-const searchResults = ref<Record[]>([]);
-const isSearching = ref(false);
-let searchTimeout: ReturnType<typeof setTimeout> | null = null;
-
-// 导出弹窗状态
-const showExportModal = ref(false);
-const isExporting = ref(false);
-
-// 样式自定义弹窗状态
-const showStyleDialog = ref(false);
-
-// 同步到小程序弹窗状态
-const syncDialogVisible = ref(false);
+const recordListRef = shallowRef<InstanceType<typeof RecordList>>()
+const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>()
 
 // 搜索关键词自动搜索（防抖）
 watch(searchKeyword, (newKeyword) => {
@@ -725,9 +685,6 @@ const handleExportExcel = async () => {
     isExporting.value = false;
   }
 };
-
-// 导出进度
-const exportProgress = ref(0);
 
 // 导出为 PDF（使用 iframe 打印方案，与 Electron 版本一致）
 const handleExportPDF = async (theme?: 'red' | 'gray' | 'golden', layout?: 'h' | 'v') => {
