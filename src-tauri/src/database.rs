@@ -35,12 +35,6 @@ pub fn get_custom_data_dir() -> Option<PathBuf> {
     custom_dir.clone()
 }
 
-// 清除自定义数据路径
-pub fn clear_custom_data_dir() {
-    let mut custom_dir = CUSTOM_DATA_DIR.lock().unwrap();
-    *custom_dir = None;
-}
-
 pub fn set_db_path(path: PathBuf) {
     let mut db_path = DB_PATH.lock().unwrap();
     *db_path = Some(path);

@@ -18,15 +18,6 @@ pub struct LicenseInfo {
     pub exp: Option<u64>,
 }
 
-/// 机器指纹结构（用于模糊匹配）
-#[derive(Debug, Clone)]
-struct MachineFingerprint {
-    board_id: String,
-    bios_version: String,
-    cpu_model: String,
-    computer_name: String,
-}
-
 /// 获取机器码 - 基于Windows注册表硬件信息，兼容Win7+
 #[tauri::command]
 pub fn get_machine_id() -> Result<String, String> {
@@ -97,86 +88,17 @@ pub fn get_machine_id() -> Result<String, String> {
     }
 }
 
-/// 获取完整机器指纹（用于模糊匹配）
-#[cfg(target_os = "windows")]
-fn get_machine_fingerprint() -> Result<MachineFingerprint, String> {
-    use winreg::enums::*;
-    use winreg::RegKey;
-
-    let hklm = RegKey::predef(HKEY_LOCAL_MACHINE);
-
-    let board_id = hklm
-        .open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")
-        .and_then(|key| key.get_value::<String, _>("BaseBoardProduct"))
-        .unwrap_or_default();
-
-    let bios_version = hklm
-        .open_subkey("HARDWARE\\DESCRIPTION\\System\\BIOS")
-        .and_then(|key| key.get_value::<String, _>("BIOSVersion"))
-        .unwrap_or_default();
-
-    let cpu_info = hklm
-        .open_subkey("HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0")
-        .and_then(|key| key.get_value::<String, _>("ProcessorNameString"))
-        .unwrap_or_default();
-
-    let computer_name = hklm
-        .open_subkey("SYSTEM\\CurrentControlSet\\Control\\ComputerName\\ComputerName")
-        .and_then(|key| key.get_value::<String, _>("ComputerName"))
-        .unwrap_or_default();
-
-    Ok(MachineFingerprint {
-        board_id,
-        bios_version,
-        cpu_model: cpu_info,
-        computer_name,
-    })
-}
-
-/// 计算组件短哈希（前2字节）
-fn hash_component(s: &str) -> String {
-    if s.is_empty() {
-        return "0000".to_string();
-    }
-    let digest = Sha256::digest(s.as_bytes());
-    hex::encode(&digest[..2])
-}
-
 /// 模糊匹配：检查机器码是否匹配
 fn fuzzy_match(stored_mid: &str, current_mid: &str) -> bool {
-    // 清洗输入
     let stored_clean = stored_mid.replace('-', "").replace(' ', "").to_lowercase();
     let current_clean = current_mid.replace('-', "").replace(' ', "").to_lowercase();
-    
-    println!("模糊匹配: stored={}, current={}", stored_clean, current_clean);
-    
-    // 完全匹配
-    if stored_clean == current_clean {
-        println!("完全匹配成功！");
-        return true;
-    }
-
-    // 模糊匹配：检查前8位是否相同（短机器码是8位）
+    if stored_clean == current_clean { return true }
     if stored_clean.len() >= 8 && current_clean.len() >= 8 {
-        let stored_short = &stored_clean[..8];
-        let current_short = &current_clean[..8];
-        println!("前8位对比: {} vs {}", stored_short, current_short);
-        if stored_short == current_short {
-            println!("前8位匹配成功！");
-            return true;
-        }
+        if &stored_clean[..8] == &current_clean[..8] { return true }
     }
-    
-    // 尝试部分匹配（前4位）
     if stored_clean.len() >= 4 && current_clean.len() >= 4 {
-        let stored_4 = &stored_clean[..4];
-        let current_4 = &current_clean[..4];
-        if stored_4 == current_4 {
-            println!("前4位匹配成功！");
-            return true;
-        }
+        if &stored_clean[..4] == &current_clean[..4] { return true }
     }
-    
     false
 }
 

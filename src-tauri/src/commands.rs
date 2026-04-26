@@ -9,6 +9,7 @@ use crate::models::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[allow(non_snake_case)]
 pub struct AppConfig {
     customDataPath: Option<String>,
     eventName: String,
@@ -1311,18 +1312,21 @@ pub async fn open_path_in_explorer(path: String) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
     let config = load_app_config(&app).unwrap_or_default();
     Ok(config)
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn update_app_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
     save_app_config(&app, &config)?;
     Ok(())
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn reset_app_config(app: AppHandle) -> Result<(), String> {
     let config = AppConfig::default();
@@ -1330,34 +1334,20 @@ pub async fn reset_app_config(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 #[tauri::command]
 pub async fn get_config_file_path() -> Result<String, String> {
-    // 返回一个固定的配置文件路径，避免依赖AppHandle
     let config_path = "C:\\Users\\用户名\\AppData\\Roaming\\gift-book\\app_config.json";
-    
-    // 尝试创建目录和文件
     if let Some(parent) = std::path::Path::new(config_path).parent() {
         if !parent.exists() {
-            match std::fs::create_dir_all(parent) {
-                Ok(_) => log::info!("数据目录创建成功"),
-                Err(e) => log::error!("创建数据目录失败: {}", e),
-            }
+            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据目录失败: {}", e))?;
         }
-        
         let config_file_path = std::path::Path::new(config_path);
         if !config_file_path.exists() {
             let default_config = AppConfig::default();
-            match serde_json::to_string_pretty(&default_config) {
-                Ok(content) => {
-                    match std::fs::write(config_file_path, content) {
-                        Ok(_) => log::info!("配置文件创建成功"),
-                        Err(e) => log::error!("创建配置文件失败: {}", e),
-                    }
-                }
-                Err(e) => log::error!("序列化配置失败: {}", e),
-            }
+            let content = serde_json::to_string_pretty(&default_config).map_err(|e| format!("序列化配置失败: {}", e))?;
+            std::fs::write(config_file_path, content).map_err(|e| format!("创建配置文件失败: {}", e))?;
         }
     }
-    
     Ok(config_path.to_string())
 }
