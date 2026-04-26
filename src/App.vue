@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, shallowRef, nextTick, watch } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
@@ -26,6 +26,7 @@ import { voiceService } from './services/voiceService';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useRecordsStore } from './stores/useRecordsStore';
+import { DEFAULT_PAGE_SIZE } from './constants';
 
 // ==================== 激活相关 ====================
 const { checkActivation } = useActivation();
@@ -259,11 +260,11 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
       // 加载记录后，默认跳转到最后一页（显示最新的数据）
       // 如果 keepCurrentPage 为 true，则保持当前页码（用于添加记录后）
       if (!keepCurrentPage) {
-        const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+        const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
         currentPage.value = totalPages;
       } else {
         // 保持当前页码，但确保不超过总页数
-        const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+        const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
         if (currentPage.value > totalPages) {
           currentPage.value = totalPages;
         }
@@ -322,7 +323,7 @@ const addRecordIncrementally = async (newRecordId: number) => {
       await loadStatistics();
       
       // 跳转到新记录所在的页面（新记录在数组末尾，即最后一页）
-      const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+      const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
       currentPage.value = totalPages;
       
       await nextTick();
@@ -386,7 +387,7 @@ const deleteRecordIncrementally = async (deletedRecordId: number) => {
     records.value = records.value.filter(r => r.id !== deletedRecordId);
     
     if (records.value.length < oldLength) {
-      const totalPages = Math.max(1, Math.ceil(records.value.length / 15));
+      const totalPages = Math.max(1, Math.ceil(records.value.length / DEFAULT_PAGE_SIZE));
       if (currentPage.value > totalPages) {
         currentPage.value = totalPages;
       }
@@ -504,8 +505,8 @@ const formatMoney = (amount: number | undefined) => {
 
 // 计算当前页面的金额小计
 const currentPageAmount = computed(() => {
-  const start = (currentPage.value - 1) * 15;
-  const end = start + 15;
+  const start = (currentPage.value - 1) * DEFAULT_PAGE_SIZE;
+  const end = start + DEFAULT_PAGE_SIZE;
   const pageRecords = records.value.slice(start, end);
   const total = pageRecords.reduce((sum, record) => sum + (record.amount || 0), 0);
   return formatMoney(total);
