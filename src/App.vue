@@ -26,6 +26,7 @@ import { voiceService } from './services/voiceService';
 import { useVoice } from './composables/useVoice';
 import { useStyleCustomization } from './composables/useStyleCustomization';
 import { useSearch } from './composables/useSearch';
+import { useEditHistory } from './composables/useEditHistory';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useAppState } from './composables/useAppState';
@@ -375,142 +376,13 @@ const closeStatisticsModal = () => {
 const style = useStyleCustomization(setDisplayStyle, setCustomFont, toastRef)
 const { applyCustomFont, handleStyleConfirm, handleSelectFont, handleResetFont } = style
 
-const openEditHistoryModal = async () => {
-  try {
-    const response = await window.db.getAllRecordHistory();
-    if (response.success && response.data) {
-      editHistoryList.value = response.data;
-      showEditHistoryModal.value = true;
-    } else {
-      alert('加载修改记录失败: ' + (response.error || '未知错误'));
-    }
-  } catch (error) {
-    logger.error('App', '加载修改记录失败:', error);
-    alert('加载修改记录失败');
-  }
-};
-
-const closeEditHistoryModal = () => {
-  showEditHistoryModal.value = false;
-};
-
-// 定位到指定记录
-const handleLocateRecord = async (recordId: number) => {
-  // 关闭修改记录弹窗
-  closeEditHistoryModal();
-
-  try {
-    // 查找记录所在页码
-    const response = await window.db.getRecordPage(recordId, 15);
-    if (response.success && response.data) {
-      // 设置当前页码
-      currentPage.value = response.data;
-
-      // 等待页面渲染完成后高亮记录
-      setTimeout(() => {
-        recordListRef.value?.highlightRecord(recordId);
-      }, 300);
-    } else {
-      // 记录可能已被删除或不存在
-      toastRef.value?.error('无法定位到该记录，可能已被删除');
-    }
-  } catch (error) {
-    logger.error('App', '定位记录失败:', error);
-    toastRef.value?.error('定位记录失败');
-  }
-};
-
-// 还原修改
-const handleRevertRecord = async (history: RecordHistory) => {
-  // 关闭修改记录弹窗
-  closeEditHistoryModal();
-
-  try {
-    // 先获取当前记录数据（包含已删除的）
-    const currentRecordResponse = await window.db.getRecordById(history.recordId);
-    if (!currentRecordResponse.success) {
-      throw new Error('无法获取当前记录');
-    }
-
-    // 构建还原后的记录数据
-    const revertedRecord = {
-      id: history.recordId,
-      guestName: history.guestName || '',
-      amount: history.amount || 0,
-      amountChinese: currentRecordResponse.data?.amountChinese || null,
-      itemDescription: history.itemDescription || null,
-      paymentType: history.paymentType || 1,
-      remark: history.remark || null,
-      isDeleted: 0, // 还原时恢复为未删除状态
-    };
-
-    // 更新记录
-    const response = await window.db.updateRecord(revertedRecord as any);
-    if (response.success) {
-      // 重新加载记录
-      await loadRecords();
-      await loadStatistics();
-
-      // 显示成功提示
-      toastRef.value?.success('还原成功！', 3000);
-
-      // 查找记录所在页码并跳转
-      const pageResponse = await window.db.getRecordPage(history.recordId, 15);
-      if (pageResponse.success && pageResponse.data) {
-        currentPage.value = pageResponse.data;
-
-        // 等待页面渲染完成后高亮记录
-        setTimeout(() => {
-          recordListRef.value?.highlightRecord(history.recordId);
-        }, 300);
-      }
-    } else {
-      throw new Error(response.error || '还原失败');
-    }
-  } catch (error) {
-    logger.error('App', '还原修改失败:', error);
-    toastRef.value?.error('还原修改失败，请重试');
-  }
-};
-
-// 还原已删除的记录（创建新记录）
-const handleRestoreDeletedRecord = async (history: RecordHistory) => {
-  // 关闭修改记录弹窗
-  closeEditHistoryModal();
-
-  try {
-    // 调用 API 创建新记录
-    const response = await window.db.restoreDeletedRecord(history);
-
-    if (response.success && response.data) {
-      const newRecordId = response.data.id;
-
-      // 重新加载记录
-      await loadRecords();
-      await loadStatistics();
-
-      // 显示成功提示
-      toastRef.value?.success('数据还原成功！', 3000);
-
-      // 跳转到最后一页（新记录在最后）
-      const pageResponse = await window.db.getRecordPage(newRecordId, 15);
-      
-      if (pageResponse.success && pageResponse.data) {
-        currentPage.value = pageResponse.data;
-
-        // 等待页面渲染完成后高亮记录
-        setTimeout(() => {
-          recordListRef.value?.highlightRecord(newRecordId);
-        }, 300);
-      }
-    } else {
-      throw new Error(response.error || '还原失败');
-    }
-  } catch (error) {
-    logger.error('App', '还原数据失败:', error);
-    toastRef.value?.error('还原数据失败，请重试');
-  }
-};
+// ==================== 修改历史相关 ====================
+const editHistory = useEditHistory(
+  editHistoryList, showEditHistoryModal, currentPage,
+  recordListRef, toastRef,
+  loadRecords, loadStatistics,
+)
+const { openEditHistoryModal, closeEditHistoryModal, handleLocateRecord, handleRevertRecord, handleRestoreDeletedRecord } = editHistory
 
 // 功能处理函数
 const handleSave = () => { logger.info('App', '数据已自动保存'); };
