@@ -5,7 +5,7 @@ import { useRecordsStore } from '../stores/useRecordsStore'
 
 const showSplashScreen = ref(true)
 const isAppReady = ref(false)
-const recordsStore = useRecordsStore()
+let _recordsStore: ReturnType<typeof useRecordsStore> | null = null
 
 const records = shallowRef<Record[]>([])
 const statistics = ref<Statistics>({
@@ -40,10 +40,13 @@ const showStyleDialog = ref(false)
 const syncDialogVisible = ref(false)
 
 export function useAppState() {
+  if (!_recordsStore) {
+    _recordsStore = useRecordsStore()
+  }
   return {
     showSplashScreen,
     isAppReady,
-    recordsStore,
+    recordsStore: _recordsStore,
     records,
     statistics,
     bookName,
