@@ -1,4 +1,23 @@
-import type { Record as DbRecord } from '../types/database';
+import type { Record } from '../types/database'
+
+export function mapApiRecord(apiRecord: any): Record {
+  return {
+    id: apiRecord.id,
+    guestName: apiRecord.guestName,
+    amount: apiRecord.amount,
+    amountChinese: apiRecord.amountChinese,
+    itemDescription: apiRecord.itemDescription,
+    paymentType: apiRecord.paymentType,
+    remark: apiRecord.remark,
+    createTime: apiRecord.createTime,
+    updateTime: apiRecord.updateTime,
+    isDeleted: apiRecord.isDeleted,
+  }
+}
+
+export function mapApiRecords(apiRecords: any[]): Record[] {
+  return apiRecords.map(mapApiRecord)
+}
 
 export interface DatabaseRecord {
   Id?: number
@@ -13,7 +32,7 @@ export interface DatabaseRecord {
   IsDeleted?: number
 }
 
-export function recordToDbRecord(record: DbRecord): DatabaseRecord {
+export function recordToDbRecord(record: Record): DatabaseRecord {
   return {
     Id: record.id,
     GuestName: record.guestName,
@@ -23,10 +42,10 @@ export function recordToDbRecord(record: DbRecord): DatabaseRecord {
     PaymentType: record.paymentType,
     Remark: record.remark || undefined,
     IsDeleted: record.isDeleted ?? 0,
-  };
+  }
 }
 
-export function dbRecordToRecord(dbRecord: DatabaseRecord): DbRecord {
+export function dbRecordToRecord(dbRecord: DatabaseRecord): Record {
   return {
     id: dbRecord.Id,
     guestName: dbRecord.GuestName,
@@ -38,9 +57,9 @@ export function dbRecordToRecord(dbRecord: DatabaseRecord): DbRecord {
     createTime: dbRecord.CreateTime,
     updateTime: dbRecord.UpdateTime,
     isDeleted: dbRecord.IsDeleted,
-  };
+  }
 }
 
-export function dbRecordListToRecordList(dbRecords: DatabaseRecord[]): DbRecord[] {
-  return dbRecords.map(dbRecordToRecord);
+export function dbRecordListToRecordList(dbRecords: DatabaseRecord[]): Record[] {
+  return dbRecords.map(dbRecordToRecord)
 }

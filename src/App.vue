@@ -27,6 +27,7 @@ import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useRecordsStore } from './stores/useRecordsStore';
 import { DEFAULT_PAGE_SIZE } from './constants';
+import { mapApiRecord, mapApiRecords } from './utils/recordMapper';
 
 // ==================== 激活相关 ====================
 const { checkActivation } = useActivation();
@@ -219,19 +220,8 @@ const loadRecords = async (keepCurrentPage: boolean = false, newRecordId?: numbe
   try {
     const response = await window.db.getAllRecords();
     if (response.success && response.data) {
-      const newRecords = response.data.map((record: any) => ({
-        id: record.id,
-        guestName: record.guestName,
-        amount: record.amount,
-        amountChinese: record.amountChinese,
-        itemDescription: record.itemDescription,
-        paymentType: record.paymentType,
-        remark: record.remark,
-        createTime: record.createTime,
-        updateTime: record.updateTime,
-        isDeleted: record.isDeleted,
-      }));
-      
+      const newRecords = mapApiRecords(response.data);
+
       const currentRecords = records.value;
       
       // 如果是添加新记录后的加载，尝试增量更新
@@ -304,19 +294,7 @@ const addRecordIncrementally = async (newRecordId: number) => {
   try {
     const response = await window.db.getRecordById(newRecordId);
     if (response.success && response.data) {
-      const dbRecord = response.data as any;
-      const newRecord = {
-        id: dbRecord.id,
-        guestName: dbRecord.guestName,
-        amount: dbRecord.amount,
-        amountChinese: dbRecord.amountChinese,
-        itemDescription: dbRecord.itemDescription,
-        paymentType: dbRecord.paymentType,
-        remark: dbRecord.remark,
-        createTime: dbRecord.createTime,
-        updateTime: dbRecord.updateTime,
-        isDeleted: dbRecord.isDeleted,
-      };
+      const newRecord = mapApiRecord(response.data as any);
       
       records.value = [...records.value, newRecord];
       
@@ -343,19 +321,7 @@ const updateRecordIncrementally = async (updatedRecordId: number) => {
   try {
     const response = await window.db.getRecordById(updatedRecordId);
     if (response.success && response.data) {
-      const dbRecord = response.data as any;
-      const updatedRecord = {
-        id: dbRecord.id,
-        guestName: dbRecord.guestName,
-        amount: dbRecord.amount,
-        amountChinese: dbRecord.amountChinese,
-        itemDescription: dbRecord.itemDescription,
-        paymentType: dbRecord.paymentType,
-        remark: dbRecord.remark,
-        createTime: dbRecord.createTime,
-        updateTime: dbRecord.updateTime,
-        isDeleted: dbRecord.isDeleted,
-      };
+      const updatedRecord = mapApiRecord(response.data as any);
       
       const index = records.value.findIndex(r => r.id === updatedRecordId);
       
@@ -839,18 +805,7 @@ const performSearch = async (keyword?: string) => {
   try {
     const response = await window.db.searchRecords(searchTerm.trim());
     if (response.success && response.data) {
-      searchResults.value = response.data.map((record: any) => ({
-        id: record.id,
-        guestName: record.guestName,
-        amount: record.amount,
-        amountChinese: record.amountChinese,
-        itemDescription: record.itemDescription,
-        paymentType: record.paymentType,
-        remark: record.remark,
-        createTime: record.createTime,
-        updateTime: record.updateTime,
-        isDeleted: record.isDeleted,
-      }));
+      searchResults.value = mapApiRecords(response.data);
     } else {
       alert('搜索失败: ' + (response.error || '未知错误'));
     }
