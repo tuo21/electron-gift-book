@@ -23,6 +23,7 @@ import IconSvg from './components/IconSvg.vue';
 import ConfirmDialog from './components/ConfirmDialog.vue';
 import VoiceSettingsDialog from './components/VoiceSettingsDialog.vue';
 import { voiceService } from './services/voiceService';
+import { useVoice } from './composables/useVoice';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useAppState } from './composables/useAppState';
@@ -47,82 +48,7 @@ const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
 const toastRef = ref<InstanceType<typeof Toast> | null>(null);
 
 // ==================== 语音设置相关 ====================
-const showVoiceSettings = ref(false);
-const voiceEnabled = ref(true);
-const voiceRate = ref(0.9);
-const voiceVolume = ref(1);
-const voicePitch = ref(1);
-const voiceVoice = ref('');
-const availableVoices = ref<SpeechSynthesisVoice[]>([]);
-
-// 初始化语音列表
-const initVoiceList = () => {
-  if (voiceService.isSupported()) {
-    const voices = voiceService.getVoices();
-    availableVoices.value = voices.filter(voice => voice.lang.includes('zh'));
-    
-    // 设置默认音色
-    if (availableVoices.value.length > 0 && !voiceVoice.value) {
-      voiceVoice.value = availableVoices.value[0].voiceURI;
-      voiceService.setVoice(voiceVoice.value);
-    }
-  }
-};
-
-// 监听语音加载完成事件
-if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-  window.speechSynthesis.onvoiceschanged = initVoiceList;
-}
-
-// 初始化时加载语音列表
-initVoiceList();
-
-// 显示语音设置弹窗
-const handleShowVoiceSettings = () => {
-  showVoiceSettings.value = true;
-};
-
-// 关闭语音设置弹窗
-const handleCloseVoiceSettings = () => {
-  showVoiceSettings.value = false;
-};
-
-// 处理语音开关变化
-const handleVoiceEnabledChange = (value: boolean) => {
-  voiceEnabled.value = value;
-  voiceService.setEnabled(value);
-};
-
-// 处理语速变化
-const handleVoiceRateChange = (value: number) => {
-  voiceRate.value = value;
-  voiceService.setRate(value);
-};
-
-// 处理音量变化
-const handleVoiceVolumeChange = (value: number) => {
-  voiceVolume.value = value;
-  voiceService.setVolume(value);
-};
-
-// 处理音调变化
-const handleVoicePitchChange = (value: number) => {
-  voicePitch.value = value;
-  voiceService.setPitch(value);
-};
-
-// 处理语音类型变化
-const handleVoiceVoiceChange = (value: string) => {
-  voiceVoice.value = value;
-  voiceService.setVoice(value);
-};
-
-// 测试语音
-const handleTestVoice = () => {
-  if (voiceService.isSupported()) {
-    voiceService.speak('测试语音播报，张三，贰佰元');
-  }
-};
+const voice = useVoice()
 
 // ConfirmDialog 组件引用
 const confirmDialogRef = ref<InstanceType<typeof ConfirmDialog> | null>(null);
@@ -1186,7 +1112,7 @@ onUnmounted(() => {
           <IconSvg name="wechat" :size="20" />
           <span class="btn-text">微信小程序</span>
         </button>
-        <button class="func-btn" @click="handleShowVoiceSettings" title="语音设置">
+        <button class="func-btn" @click="voice.handleShowVoiceSettings" title="语音设置">
           <IconSvg name="mic" :size="20" />
           <span class="btn-text">语音</span>
         </button>
@@ -1310,20 +1236,20 @@ onUnmounted(() => {
 
     <!-- 语音设置弹窗 -->
     <VoiceSettingsDialog
-      :visible="showVoiceSettings"
-      :voice-enabled="voiceEnabled"
-      :voice-rate="voiceRate"
-      :voice-volume="voiceVolume"
-      :voice-pitch="voicePitch"
-      :voice-voice="voiceVoice"
-      :available-voices="availableVoices"
-      @close="handleCloseVoiceSettings"
-      @update:voice-enabled="handleVoiceEnabledChange"
-      @update:voice-rate="handleVoiceRateChange"
-      @update:voice-volume="handleVoiceVolumeChange"
-      @update:voice-pitch="handleVoicePitchChange"
-      @update:voice-voice="handleVoiceVoiceChange"
-      @test-voice="handleTestVoice"
+      :visible="voice.showVoiceSettings"
+      :voice-enabled="voice.voiceEnabled"
+      :voice-rate="voice.voiceRate"
+      :voice-volume="voice.voiceVolume"
+      :voice-pitch="voice.voicePitch"
+      :voice-voice="voice.voiceVoice"
+      :available-voices="voice.availableVoices"
+      @close="voice.handleCloseVoiceSettings"
+      @update:voice-enabled="voice.handleVoiceEnabledChange"
+      @update:voice-rate="voice.handleVoiceRateChange"
+      @update:voice-volume="voice.handleVoiceVolumeChange"
+      @update:voice-pitch="voice.handleVoicePitchChange"
+      @update:voice-voice="voice.handleVoiceVoiceChange"
+      @test-voice="voice.handleTestVoice"
     />
 
     <!-- 样式自定义弹窗 -->
