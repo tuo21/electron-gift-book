@@ -8,7 +8,6 @@ import ActivateModal from './components/home/ActivateModal.vue';
 import type { Record, RecordHistory } from './types/database';
 import type { ThemeType } from './types/theme';
 import { getLunarDisplay } from './utils/lunarCalendar';
-import { exportToExcel, exportToPDF } from './utils/export';
 import { useTheme } from './composables/useTheme';
 import { useAppConfig } from './composables/useAppConfig';
 import { useFullscreenScale } from './composables/useFullscreenScale';
@@ -27,6 +26,7 @@ import { useVoice } from './composables/useVoice';
 import { useStyleCustomization } from './composables/useStyleCustomization';
 import { useSearch } from './composables/useSearch';
 import { useEditHistory } from './composables/useEditHistory';
+import { useExport } from './composables/useExport';
 import { AmountConverter } from './utils/amountConverter';
 import { logger } from './utils/logger';
 import { useAppState } from './composables/useAppState';
@@ -83,8 +83,6 @@ const {
   showExportModal, isExporting,
   showStyleDialog, syncDialogVisible,
 } = state
-
-const exportProgress = ref(0)
 
 const recordListRef = shallowRef<InstanceType<typeof RecordList>>()
 const recordFormRef = shallowRef<InstanceType<typeof RecordForm>>()
@@ -384,95 +382,12 @@ const editHistory = useEditHistory(
 )
 const { openEditHistoryModal, closeEditHistoryModal, handleLocateRecord, handleRevertRecord, handleRestoreDeletedRecord } = editHistory
 
-// 功能处理函数
-const handleSave = () => { logger.info('App', '数据已自动保存'); };
-
-// TODO: 导入导出功能待实现
-// const handleImport = () => { alert('导入功能开发中...'); };
-
-// 打开导出弹窗
-const handleExport = async () => {
-  const isActivated = await checkActivation();
-  if (!isActivated) {
-    showActivateModal.value = true;
-    return;
-  }
-  showExportModal.value = true;
-};
-
-// 关闭导出弹窗
-const closeExportModal = () => {
-  showExportModal.value = false;
-};
-
-// 处理导出格式选择
-const handleExportFormat = async (format: 'excel' | 'pdf', options?: { theme?: 'red' | 'gray' | 'golden'; layout?: 'h' | 'v' }) => {
-  if (format === 'excel') {
-    await handleExportExcel();
-  } else {
-    await handleExportPDF(options?.theme, options?.layout);
-  }
-};
-
-// 导出为 Excel
-const handleExportExcel = async () => {
-  if (records.value.length === 0) {
-    alert('没有可导出的记录');
-    return;
-  }
-
-  isExporting.value = true;
-  try {
-    // 使用事务名称和日期作为文件名
-    const eventDate = config.value.eventDate || undefined;
-    await exportToExcel(records.value, bookName.value, eventDate);
-    closeExportModal();
-    toastRef.value?.success('Excel 导出成功！', 3000);
-  } catch (error) {
-    logger.error('App', '导出 Excel 失败:', error);
-    if ((error as Error).message !== '用户取消保存') {
-      toastRef.value?.error('导出 Excel 失败，请重试');
-    }
-  } finally {
-    isExporting.value = false;
-  }
-};
-
-// 导出为 PDF（使用 iframe 打印方案，与 Electron 版本一致）
-const handleExportPDF = async (theme?: 'red' | 'gray' | 'golden', layout?: 'h' | 'v') => {
-  if (records.value.length === 0) {
-    alert('没有可导出的记录');
-    return;
-  }
-
-  isExporting.value = true;
-  exportProgress.value = 0;
-
-  try {
-    exportProgress.value = 10;
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    const themeType = theme || (currentTheme.value === 'gray' ? 'gray' : currentTheme.value === 'golden' ? 'golden' : 'red');
-    const layoutType = layout || 'h';
-    exportProgress.value = 30;
-
-    const eventDate = config.value.eventDate || undefined;
-
-    await exportToPDF(records.value, bookName.value, themeType, eventDate, undefined, layoutType);
-    exportProgress.value = 100;
-
-    closeExportModal();
-    toastRef.value?.success('PDF 导出成功！请使用浏览器打印功能保存为 PDF。', 5000);
-  } catch (error) {
-    logger.error('App', '导出 PDF 失败:', error);
-    if ((error as Error).message !== '用户取消保存') {
-      toastRef.value?.error('导出 PDF 失败，请重试');
-    }
-  } finally {
-    isExporting.value = false;
-    setTimeout(() => { exportProgress.value = 0; }, 500);
-  }
-};
+// ==================== 导出相关 ====================
+const exportModule = useExport(
+  records, bookName, showExportModal, isExporting,
+  showActivateModal, config, currentTheme, checkActivation, toastRef,
+)
+const { handleSave, handleExport, closeExportModal, handleExportFormat } = exportModule
 
 const handleEditClick = async () => {
   const isActivated = await checkActivation();
