@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+﻿﻿﻿﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, shallowRef } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
