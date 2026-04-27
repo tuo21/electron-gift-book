@@ -23,7 +23,7 @@
           @blur="onInputBlur"
           @keydown.tab.prevent="focusAmount"
           @keydown.arrow-down.prevent="focusAmount"
-          @keydown.enter.prevent="onEnterKey(focusAmount)"
+          @keydown.enter.stop.prevent="onEnterKey(focusAmount)"
         />
       </div>
 
@@ -43,7 +43,7 @@
           @keydown.tab.prevent="focusPaymentType"
           @keydown.arrow-down.prevent="focusPaymentType"
           @keydown.arrow-up.prevent="focusName"
-          @keydown.enter.prevent="onEnterKey(focusPaymentType)"
+          @keydown.enter.stop.prevent="onEnterKey(focusPaymentType)"
         />
         <div class="amount-chinese">
           {{ amountChinese || '\u00A0' }}
@@ -86,7 +86,7 @@
           @keydown.tab.prevent="focusItem"
           @keydown.arrow-down.prevent="focusItem"
           @keydown.arrow-up.prevent="focusPaymentType"
-          @keydown.enter.prevent="onEnterKey(focusItem)"
+          @keydown.enter.stop.prevent="onEnterKey(focusItem)"
         />
       </div>
 
@@ -105,7 +105,7 @@
           @keydown.tab.prevent="trySubmit"
           @keydown.arrow-down.prevent="focusName"
           @keydown.arrow-up.prevent="focusRemark"
-          @keydown.enter.prevent="onEnterKey(trySubmit)"
+          @keydown.enter.stop.prevent="onEnterKey(trySubmit)"
         />
       </div>
 
