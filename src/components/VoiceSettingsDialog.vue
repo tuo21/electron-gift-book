@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-
-const props = defineProps<{
+defineProps<{
   visible: boolean;
   voiceEnabled: boolean;
   voiceRate: number;
   voiceVolume: number;
   voicePitch: number;
-  voiceVoice: string;
-  availableVoices: SpeechSynthesisVoice[];
 }>();
 
 const emit = defineEmits<{
@@ -17,12 +13,8 @@ const emit = defineEmits<{
   (e: 'update:voiceRate', value: number): void;
   (e: 'update:voiceVolume', value: number): void;
   (e: 'update:voicePitch', value: number): void;
-  (e: 'update:voiceVoice', value: string): void;
   (e: 'test-voice'): void;
 }>();
-
-// 计算属性获取语音列表
-const voices = computed(() => props.availableVoices);
 
 const handleClose = () => {
   emit('close');
@@ -42,10 +34,6 @@ const handleVoiceVolumeChange = (value: number) => {
 
 const handleVoicePitchChange = (value: number) => {
   emit('update:voicePitch', value);
-};
-
-const handleVoiceChange = (value: string) => {
-  emit('update:voiceVoice', value);
 };
 
 const handleTestVoice = () => {
@@ -75,24 +63,6 @@ const handleTestVoice = () => {
             <span class="toggle-slider"></span>
           </label>
         </div>
-      
-      <!-- 语音选择 -->
-      <div class="setting-item">
-        <label>音色选择</label>
-        <select 
-          class="voice-select" 
-          :value="voiceVoice" 
-          @change="(e) => handleVoiceChange((e.target as HTMLSelectElement).value)"
-          :disabled="!voiceEnabled"
-        >
-          <option v-for="voice in voices" :key="voice.voiceURI" :value="voice.voiceURI">
-            {{ voice.name }}
-          </option>
-          <option v-if="voices.length === 0" value="">
-            无可用语音
-          </option>
-        </select>
-      </div>
       
       <!-- 语速 -->
       <div class="setting-item">
@@ -279,21 +249,6 @@ input:checked + .toggle-slider {
 
 input:checked + .toggle-slider:before {
   transform: translateX(26px);
-}
-
-.voice-select {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-  background: white;
-  cursor: pointer;
-}
-
-.voice-select:disabled {
-  background: #f5f5f5;
-  cursor: not-allowed;
 }
 
 input[type="range"] {

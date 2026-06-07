@@ -30,6 +30,7 @@ const emit = defineEmits<{
   (e: 'import'): void;
   (e: 'open-file'): void;
   (e: 'show-activate'): void;
+  (e: 'export-book', data: { path: string; name: string; eventDate?: string }): void;
 }>();
 
 const { checkActivation } = useActivation();
@@ -190,6 +191,21 @@ const handleEditFromMenu = async () => {
   });
 };
 
+const handleExportFromMenu = async () => {
+  const book = contextMenu.value.book;
+  if (!book) return;
+  
+  const isActivated = await checkActivation();
+  if (!isActivated) {
+    closeContextMenu();
+    emit('show-activate');
+    return;
+  }
+  
+  closeContextMenu();
+  emit('export-book', { path: book.path, name: book.name, eventDate: book.eventDate });
+};
+
 // ==================== 生命周期 ====================
 onMounted(() => {
   document.addEventListener('click', closeContextMenu);
@@ -267,7 +283,7 @@ onUnmounted(() => {
             <td class="col-date">{{ formatDate(book.lastModified) }}</td>
             <td class="col-action">
               <button class="action-btn more" @click.stop="handleContextMenu(book, $event)">
-                <IconSvg name="more" :size="16" />
+                <IconSvg name="more-vertical" :size="16" />
               </button>
             </td>
           </tr>
@@ -344,6 +360,10 @@ onUnmounted(() => {
           <div class="context-menu-item" @click="handleEditFromMenu">
             <IconSvg name="edit" :size="16" />
             <span>编辑</span>
+          </div>
+          <div class="context-menu-item" @click="handleExportFromMenu">
+            <IconSvg name="export" :size="16" />
+            <span>导出</span>
           </div>
           <div class="context-menu-item danger" @click="handleDeleteFromMenu">
             <IconSvg name="delete" :size="16" />

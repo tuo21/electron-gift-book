@@ -59,11 +59,11 @@ export interface PaginationResult<T> {
   totalPages: number
 }
 
-// 字体信息类型
+// 字体信息类型（字段名对应 Rust FontInfoDto 的 camelCase 序列化）
 export interface FontInfo {
   name: string        // 显示名称
-  css_name: string     // CSS 字体名称
-  is_default: boolean  // 是否为默认字体
+  cssName: string     // CSS 字体名称
+  isDefault: boolean  // 是否为默认字体
 }
 
 // 数据库 API 接口
@@ -131,9 +131,9 @@ export interface TauriAPI {
   setCustomDataPath: (path: string, migrate: boolean) => Promise<ApiResponse>
   openPathInExplorer: (path: string) => Promise<ApiResponse>
   // 保存文件对话框
-  saveFileDialog: (filename: string, extensions: string[]) => Promise<ApiResponse<{ filePath: string }>>,
-  // 获取配置文件路径
-  getConfigFilePath: () => Promise<ApiResponse<string>>
+  saveFileDialog: (filename: string, extensions: string[]) => Promise<ApiResponse<{ filePath: string }>>
+  // 通过路径读取数据库记录
+  getAllRecordsByPath: (path: string) => Promise<ApiResponse<Record[]>>
 }
 
 // 激活相关类型

@@ -82,13 +82,13 @@ async function loadConfig(): Promise<void> {
           const parsed = JSON.parse(localStorageConfig);
           // 迁移配置到后端
           const configToSave = {
-            event_name: parsed.eventName || DEFAULT_EVENT_NAME,
+            eventName: parsed.eventName || DEFAULT_EVENT_NAME,
             theme: parsed.theme || 'red',
-            display_style: parsed.displayStyle || 'full',
-            custom_font_css_name: parsed.customFontCssName || null,
-            event_date: parsed.eventDate || null,
-            recent_books: parsed.recentBooks || [],
-            unnamed_index: parsed.unnamedIndex || 1,
+            displayStyle: parsed.displayStyle || 'full',
+            customFontCssName: parsed.customFontCssName || null,
+            eventDate: parsed.eventDate || null,
+            recentBooks: parsed.recentBooks || [],
+            unnamedIndex: parsed.unnamedIndex || 1,
           };
           await bridge.updateAppConfig(configToSave);
           // 清除localStorage中的配置
@@ -101,14 +101,14 @@ async function loadConfig(): Promise<void> {
       
       config.value = {
         ...getDefaultConfig(),
-        eventName: response.data.event_name || DEFAULT_EVENT_NAME,
+        eventName: response.data.eventName || DEFAULT_EVENT_NAME,
         theme: response.data.theme || 'red',
         currentDbPath: null,
-        recentBooks: response.data.recent_books || [],
-        unnamedIndex: response.data.unnamed_index || 1,
-        displayStyle: response.data.display_style || 'full',
-        customFontCssName: response.data.custom_font_css_name || null,
-        eventDate: response.data.event_date || null,
+        recentBooks: response.data.recentBooks || [],
+        unnamedIndex: response.data.unnamedIndex || 1,
+        displayStyle: response.data.displayStyle || 'full',
+        customFontCssName: response.data.customFontCssName || null,
+        eventDate: response.data.eventDate || null,
       };
     }
   } catch (error) {
@@ -123,13 +123,13 @@ async function loadConfig(): Promise<void> {
 async function saveConfig(): Promise<void> {
   try {
     const configToSave = {
-      event_name: config.value.eventName,
+      eventName: config.value.eventName,
       theme: config.value.theme,
-      display_style: config.value.displayStyle,
-      custom_font_css_name: config.value.customFontCssName,
-      event_date: config.value.eventDate,
-      recent_books: config.value.recentBooks,
-      unnamed_index: config.value.unnamedIndex,
+      displayStyle: config.value.displayStyle,
+      customFontCssName: config.value.customFontCssName,
+      eventDate: config.value.eventDate,
+      recentBooks: config.value.recentBooks,
+      unnamedIndex: config.value.unnamedIndex,
     };
     await bridge.updateAppConfig(configToSave);
   } catch (error) {

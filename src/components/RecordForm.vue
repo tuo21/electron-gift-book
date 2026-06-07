@@ -112,7 +112,6 @@
       <!-- 提交按钮 -->
       <div class="form-actions">
         <button
-          ref="submitBtn"
           type="button"
           class="submit-btn"
           :disabled="!isValid"
@@ -170,7 +169,6 @@ const amountInput = ref<HTMLInputElement>();
 const paymentOptions = ref<HTMLDivElement>();
 const remarkInput = ref<HTMLInputElement>();
 const itemInput = ref<HTMLInputElement>();
-const submitBtn = ref<HTMLButtonElement>();
 
 const isValid = computed(() => {
   return formData.value.guestName.trim() !== '' &&

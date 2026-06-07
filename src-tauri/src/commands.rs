@@ -120,6 +120,41 @@ fn clean_font_name(name: &str) -> String {
     clean
 }
 
+// 获取字体的 CSS 名称
+// WebView2 只识别原始字体族名（如 SimSun、KaiTi），不识别中文别名
+fn get_css_font_name(name: &str) -> String {
+    // 中文字体名→英文字体名映射，确保 CSS 使用 WebView2 可识别的名称
+    let cn_to_en: Vec<(&str, &str)> = vec![
+        ("宋体", "SimSun"),
+        ("黑体", "SimHei"),
+        ("楷体", "KaiTi"),
+        ("仿宋", "FangSong"),
+        ("幼圆", "YouYuan"),
+        ("隶书", "LiSu"),
+        ("微软雅黑", "Microsoft YaHei"),
+        ("微软正黑", "Microsoft JhengHei"),
+        ("华文宋体", "STSong"),
+        ("华文楷体", "STKaiti"),
+        ("华文中宋", "STZhongsong"),
+        ("华文行楷", "STXingkai"),
+        ("华文新魏", "STXinwei"),
+        ("华文琥珀", "STHupo"),
+        ("华文彩云", "STCaiyun"),
+        ("华文隶书", "STLiti"),
+        ("等线", "DengXian"),
+        ("方正舒体", "FZShuTi"),
+        ("方正姚体", "FZYaoti"),
+    ];
+
+    for (cn_name, en_name) in &cn_to_en {
+        if name == *cn_name {
+            return en_name.to_string();
+        }
+    }
+
+    name.to_string()
+}
+
 #[tauri::command]
 pub async fn get_system_fonts_list() -> Result<Vec<FontInfoDto>, String> {
     let mut font_names = std::collections::HashSet::new();
@@ -192,10 +227,13 @@ pub async fn get_system_fonts_list() -> Result<Vec<FontInfoDto>, String> {
     // 创建 FontInfoDto 列表
     let mut result: Vec<FontInfoDto> = font_names_vec
         .into_iter()
-        .map(|name| FontInfoDto {
-            name: name.clone(),
-            css_name: name,
-            is_default: false,
+        .map(|name| {
+            let css_name = get_css_font_name(&name);
+            FontInfoDto {
+                name: name.clone(),
+                css_name,
+                is_default: false,
+            }
         })
         .collect();
     
@@ -868,7 +906,7 @@ pub async fn get_data_path(_app: AppHandle) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn get_default_data_path(app: AppHandle) -> Result<String, String> {
-    let data_dir = get_data_dir(&app);
+    let data_dir = app.path().app_data_dir().map_err(|e| format!("获取默认数据目录失败: {}", e))?;
     Ok(data_dir.to_string_lossy().to_string())
 }
 
@@ -1334,20 +1372,24 @@ pub async fn reset_app_config(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[allow(dead_code)]
 #[tauri::command]
-pub async fn get_config_file_path() -> Result<String, String> {
-    let config_path = "C:\\Users\\用户名\\AppData\\Roaming\\gift-book\\app_config.json";
-    if let Some(parent) = std::path::Path::new(config_path).parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("创建数据目录失败: {}", e))?;
-        }
-        let config_file_path = std::path::Path::new(config_path);
-        if !config_file_path.exists() {
-            let default_config = AppConfig::default();
-            let content = serde_json::to_string_pretty(&default_config).map_err(|e| format!("序列化配置失败: {}", e))?;
-            std::fs::write(config_file_path, content).map_err(|e| format!("创建配置文件失败: {}", e))?;
-        }
+pub async fn get_all_records_by_path(path: String) -> Result<Vec<Record>, String> {
+    use std::path::Path;
+    let db_path = Path::new(&path);
+    if !db_path.exists() {
+        return Err(format!("数据库文件不存在: {}", path));
     }
-    Ok(config_path.to_string())
+    let db_url = format!("sqlite:{}", db_path.to_string_lossy());
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .connect(&db_url)
+        .await
+        .map_err(|e| format!("连接数据库失败: {}", e))?;
+    let result: Result<Vec<Record>, sqlx::Error> = sqlx::query_as(
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC"
+    )
+    .fetch_all(&pool)
+    .await;
+    pool.close().await;
+    result.map_err(|e| e.to_string())
 }
+

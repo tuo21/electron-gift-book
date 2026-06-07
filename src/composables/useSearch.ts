@@ -8,8 +8,8 @@ export function useSearch(
   searchKeyword: Ref<string>,
   searchResults: Ref<Record[]>,
   isSearching: Ref<boolean>,
-  showActivateModal: Ref<boolean>,
-  checkActivation: () => Promise<boolean>,
+  _showActivateModal: Ref<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
+  _checkActivation: () => Promise<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
   recordListRef: Ref<{ goToRecord: (id: number) => boolean } | undefined | null>
 ) {
   let searchTimeout: ReturnType<typeof setTimeout> | null = null
@@ -26,11 +26,15 @@ export function useSearch(
   })
 
   async function handleSearch() {
+    // [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用搜索功能
+    // 如需重新启用激活检查，请恢复以下代码
+    /*
     const isActivated = await checkActivation()
     if (!isActivated) {
       showActivateModal.value = true
       return
     }
+    */
     showSearchModal.value = true
     searchKeyword.value = ''
     searchResults.value = []

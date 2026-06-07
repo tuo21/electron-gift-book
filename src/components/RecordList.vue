@@ -618,14 +618,16 @@ defineExpose({
   position: relative;
 }
 
-/* 礼金簿内容区 */
+/* 礼金簿内容区 —— 允许在极端小屏下内容区滚动，但分页栏始终固定在底部可见 */
 .giftbook-content {
-  flex: 1;
+  flex: 1 1 auto;
   position: relative;
   overflow: hidden;
   padding: var(--theme-spacing-lg);
   width: 100%;
   max-width: 1290px;
+  /* 兜底：当高度不足时，让内容区在必要时出现滚动，保证下方分页栏不被挤出 */
+  min-height: 0;
 }
 
 /* 宣纸背景 - 降低透明度，更加淡雅 */
@@ -646,11 +648,12 @@ defineExpose({
 .records-grid {
   position: relative;
   height: 100%;
+  max-height: 100%;
   display: flex;
   flex-direction: row;
   gap: 0;
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
   padding: var(--theme-spacing-md);
   width: 100%;
   max-width: 1290px;
@@ -866,6 +869,8 @@ defineExpose({
   background: var(--theme-pagination-bg);
   border-top: 1px solid rgba(255, 255, 255, 0.2);
   position: relative;
+  /* 固定高度，不被压缩，保证始终可见 */
+  flex: 0 0 auto;
 }
 
 .pagination-bar::before {
@@ -1049,7 +1054,8 @@ defineExpose({
 /* ======================================== */
 /* 布局类型: 完整型
    主要设计特点: 包含姓名、礼金、礼品、地址四个主要字段，垂直排列
-   关键尺寸参数: 记录列高度770px，姓名单元格180px，礼金单元格160px，礼品和地址单元格各120px
+   关键尺寸参数: 记录列高度770px，姓名单元格160px，礼金单元格140px，礼品和地址单元格各130px
+   高度调整说明: 从830px降至770px，确保在 windowH=1009 等矮窗口下 scale=1.0 时 grid 仍能 fit
    与其他布局的区别: 展示更多信息，布局更宽松，适合详细查看记录 */
 
 /* 完整型布局记录列高度 */
@@ -1061,8 +1067,8 @@ defineExpose({
 /* 完整型姓名单元格 */
 .record-column:not(.compact) .name-cell {
   flex: 0 0 auto;
-  height: 180px;
-  min-height: 160px;
+  height: 160px;
+  min-height: 140px;
   justify-content: space-between;
   display: flex;
   flex-direction: column;
@@ -1072,9 +1078,10 @@ defineExpose({
 /* 完整型礼品单元格 */
 .record-column:not(.compact) .gift-cell {
   flex: 0 0 auto;
-  height: 120px;
-  min-height: 100px;
-  justify-content: space-between;
+  height: 130px;
+  min-height: 110px;
+  justify-content: center;
+  padding: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1083,10 +1090,10 @@ defineExpose({
 /* 完整型地址单元格 */
 .record-column:not(.compact) .address-cell {
   flex: 0 0 auto;
-  height: 120px;
-  min-height: 100px;
-  justify-content: flex-start;
-  padding-top: var(--theme-spacing-xs);
+  height: 130px;
+  min-height: 110px;
+  justify-content: center;
+  padding: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1095,8 +1102,8 @@ defineExpose({
 /* 完整型礼金单元格 */
 .record-column:not(.compact) .amount-cell {
   flex: 0 0 auto;
-  height: 160px;
-  min-height: 140px;
+  height: 140px;
+  min-height: 120px;
   justify-content: center;
 }
 

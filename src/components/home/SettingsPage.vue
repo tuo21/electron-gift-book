@@ -7,9 +7,11 @@ interface SettingsState {
   startupWithSystem: boolean;
 }
 
-const emit = defineEmits<{
-  (e: 'show-activate'): void;
-}>();
+// [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用全部功能
+// 如需重新启用激活功能，请恢复 emit 定义和模板中的激活设置卡片
+// const emit = defineEmits<{
+//   (e: 'show-activate'): void;
+// }>();
 
 // ==================== 响应式状态 ====================
 const settings = ref<SettingsState>({
@@ -39,34 +41,39 @@ onMounted(async () => {
 // 加载数据路径
 const loadDataPath = async () => {
   isLoading.value = true;
+  console.log('--- 开始加载路径配置 ---');
   try {
     // 获取默认路径
     const defaultPathResponse = await window.electronAPI.getDefaultDataPath();
+    console.log('1. getDefaultDataPath 响应:', defaultPathResponse);
     if (defaultPathResponse.success) {
       defaultDataPath.value = defaultPathResponse.data || '';
+      console.log('   defaultDataPath 已赋值:', defaultDataPath.value);
     }
     
     // 获取当前使用的数据路径
     const response = await window.electronAPI.getDataPath();
+    console.log('2. getDataPath 响应:', response);
     if (response.success) {
       if (response.data === 'default' || !response.data) {
         currentDataPath.value = '';
       } else {
         currentDataPath.value = response.data || '';
       }
+      console.log('   currentDataPath 已赋值:', currentDataPath.value);
     }
     
-    // 获取配置文件路径
-    const configResponse = await window.electronAPI.getConfigFilePath();
-    if (configResponse.success && configResponse.data) {
-      configFilePath.value = configResponse.data;
-    } else {
-      // 如果获取失败，使用默认路径
-      configFilePath.value = 'C:\\Users\\' + (await window.electronAPI.getDefaultDataPath()).data?.split('\\')[2] + '\\AppData\\Roaming\\com.giftbook.app' || '';
-    }
+    // 配置文件目录 = app_data_dir（defaultDataPath 始终返回真正的默认目录）
+    configFilePath.value = defaultDataPath.value;
+    console.log('3. configFilePath (配置文件目录):', configFilePath.value);
   } catch (error) {
     console.error('加载数据路径失败:', error);
   } finally {
+    console.log('--- 路径加载结束 ---');
+    console.log('最终状态:');
+    console.log('  defaultDataPath:', defaultDataPath.value);
+    console.log('  currentDataPath:', currentDataPath.value);
+    console.log('  configFilePath:', configFilePath.value);
     isLoading.value = false;
   }
 };
@@ -118,15 +125,16 @@ const handleOpenDataPath = async () => {
   }
 };
 
-// 打开资源管理器 - 配置文件路径
+// 打开资源管理器 - 配置文件目录
 const handleOpenConfigPath = async () => {
-  if (!configFilePath.value) {
-    alert('配置文件路径无效');
+  const path = configFilePath.value;
+  if (!path) {
+    alert('配置文件目录暂不可用，请稍后重试');
     return;
   }
-  
+
   try {
-    const openResponse = await window.electronAPI.openPathInExplorer(configFilePath.value);
+    const openResponse = await window.electronAPI.openPathInExplorer(path);
     if (!openResponse.success) {
       alert('打开资源管理器失败: ' + (openResponse.error || '未知错误'));
     }
@@ -257,7 +265,9 @@ const handleChangePath = async () => {
       </div>
     </div>
 
-    <!-- 激活设置 -->
+    <!-- [ACTIVATION_FEATURE] 激活设置卡片 - 已被临时隐藏 -->
+    <!-- 如需重新启用激活功能，请取消以下注释 -->
+    <!--
     <div class="settings-card">
       <div class="card-header">
         <IconSvg name="key" :size="24" />
@@ -272,6 +282,7 @@ const handleChangePath = async () => {
         </button>
       </div>
     </div>
+    -->
 
     <!-- 保存提示 -->
     <Transition name="fade">

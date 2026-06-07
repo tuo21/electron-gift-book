@@ -1,94 +1,51 @@
 /**
  * 语音服务
  * 封装 Web Speech API 用于语音播报
+ *
+ * 使用系统默认语音, 每次 speak() 创建新 utterance 实例以确保稳定性。
  */
 export class VoiceService {
   private synth: SpeechSynthesis;
-  private utterance: SpeechSynthesisUtterance;
   private enabled: boolean;
+  private rate = 0.9;
+  private volume = 1;
+  private pitch = 1;
+  private lang = 'zh-CN';
 
   constructor() {
     this.synth = window.speechSynthesis;
-    this.utterance = new SpeechSynthesisUtterance();
-    this.utterance.lang = 'zh-CN';
-    this.utterance.rate = 0.9;
-    this.utterance.pitch = 1;
-    this.utterance.volume = 1;
     this.enabled = true;
   }
 
-  /**
-   * 设置语音是否启用
-   * @param enabled 是否启用
-   */
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;
   }
 
-  /**
-   * 设置语速
-   * @param rate 语速 (0.1-10)
-   */
   public setRate(rate: number): void {
-    this.utterance.rate = rate;
+    this.rate = rate;
   }
 
-  /**
-   * 设置音量
-   * @param volume 音量 (0-1)
-   */
   public setVolume(volume: number): void {
-    this.utterance.volume = volume;
+    this.volume = volume;
   }
 
-  /**
-   * 设置音调
-   * @param pitch 音调 (0-2)
-   */
   public setPitch(pitch: number): void {
-    this.utterance.pitch = pitch;
+    this.pitch = pitch;
   }
 
-  /**
-   * 设置语音类型
-   * @param voiceURI 语音 URI
-   */
-  public setVoice(voiceURI: string): void {
-    if (!this.synth) return;
-    
-    // 立即尝试设置
-    const voices = this.synth.getVoices();
-    const voice = voices.find(v => v.voiceURI === voiceURI);
-    if (voice) {
-      this.utterance.voice = voice;
-      return;
-    }
-    
-    // 如果语音还未加载完成，等待加载完成后再设置
-    const setVoiceAfterLoad = () => {
-      const voices = this.synth.getVoices();
-      const voice = voices.find(v => v.voiceURI === voiceURI);
-      if (voice) {
-        this.utterance.voice = voice;
-      }
-    };
-    
-    // 监听语音加载事件
-    this.synth.addEventListener('voiceschanged', setVoiceAfterLoad, { once: true });
-  }
-
-  /**
-   * 语音播报
-   * @param text 要播报的文本
-   */
   public speak(text: string): void {
     if (!this.synth || !this.enabled) return;
-    
-    // 取消之前的播报
+
     this.synth.cancel();
-    
-    this.utterance.text = text;
-    this.synth.speak(this.utterance);
+
+    setTimeout(() => {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = this.lang;
+      utterance.rate = this.rate;
+      utterance.volume = this.volume;
+      utterance.pitch = this.pitch;
+      this.synth.speak(utterance);
+    }, 50);
   }
 
   /**
@@ -99,7 +56,7 @@ export class VoiceService {
    */
   public speakGiftInfo(name: string, _amount: number, amountChinese: string): void {
     if (!this.enabled) return;
-    
+
     const text = `${name}，${amountChinese}`;
     this.speak(text);
   }

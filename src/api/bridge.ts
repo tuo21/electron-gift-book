@@ -19,6 +19,15 @@ export const bridge = {
     }
   },
 
+  async getAllRecordsByPath(path: string): Promise<ApiResponse<Record[]>> {
+    try {
+      const result = await invoke<Record[]>('get_all_records_by_path', { path })
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
   async getRecordsPaginated(page: number, pageSize: number): Promise<ApiResponse<PaginationResult<Record>>> {
     try {
       const result = await invoke<PaginationResult<Record>>('get_records_paginated', { page, pageSize })
@@ -357,14 +366,6 @@ export const bridge = {
     }
   },
 
-  async getConfigFilePath(): Promise<ApiResponse<string>> {
-    try {
-      const result = await invoke<string>('get_config_file_path')
-      return wrapResult(result)
-    } catch (e) {
-      return wrapError(String(e))
-    }
-  }
 }
 
 export default bridge

@@ -5,6 +5,7 @@ import DashboardPage from './DashboardPage.vue';
 import InstructionsPage from './InstructionsPage.vue';
 import SettingsPage from './SettingsPage.vue';
 import AboutPage from './AboutPage.vue';
+import MiniProgramPage from './MiniProgramPage.vue';
 import IconSvg from '../IconSvg.vue';
 import { useActivation } from '../../composables/useActivation';
 import { getVersion } from '@tauri-apps/api/app';
@@ -41,7 +42,14 @@ const emit = defineEmits<{
   (e: 'minimize'): void;
   (e: 'close'): void;
   (e: 'show-activate'): void;
+  (e: 'export-book', data: { path: string; name: string; eventDate?: string }): void;
 }>();
+
+const refreshActivation = async () => {
+  await checkActivation();
+};
+
+defineExpose({ refreshActivation });
 
 // ==================== 响应式状态 ====================
 const currentPage = ref('dashboard');
@@ -53,8 +61,11 @@ const editingBook = ref<{
   theme: ThemeType;
 } | null>(null);
 
-// 激活相关
+// 激活相关 - [ACTIVATION_FEATURE] 激活功能已被临时隐藏
+// 如需重新启用，请移除隐藏逻辑并恢复以下代码
 const { checkActivation, isActivated } = useActivation();
+// 临时隐藏激活状态显示
+const showActivationSection = ref(false);
 
 // 应用版本号
 const appVersion = ref('');
@@ -64,6 +75,7 @@ const navItems: NavItem[] = [
   { id: 'dashboard', label: '首页', icon: 'home' },
   { id: 'instructions', label: '使用说明', icon: 'help' },
   { id: 'settings', label: '设置', icon: 'settings' },
+  { id: 'mini-program', label: '小程序', icon: 'wechat' },
   { id: 'about', label: '关于', icon: 'info' },
 ];
 
@@ -202,6 +214,10 @@ const handleShowActivate = () => {
   emit('show-activate');
 };
 
+const handleExportBook = (data: { path: string; name: string; eventDate?: string }) => {
+  emit('export-book', data);
+};
+
 // 处理导航切换
 const handleNavClick = (navId: string) => {
   currentPage.value = navId;
@@ -253,8 +269,9 @@ onMounted(async () => {
         </button>
       </nav>
       
-      <!-- 底部激活状态 -->
-      <div class="activation-section">
+      <!-- 底部激活状态 - [ACTIVATION_FEATURE] 激活功能已被临时隐藏 -->
+      <!-- 如需重新启用，请取消以下注释并移除 v-if 条件 -->
+      <div v-if="showActivationSection" class="activation-section">
         <div class="activation-status" :class="{ activated: isActivated }">
           <span class="status-icon">
             <IconSvg :name="isActivated ? 'check' : 'warning'" :size="14" />
@@ -286,12 +303,14 @@ onMounted(async () => {
           @show-activate="handleShowActivate"
           @cancel-edit="handleCancelEdit"
           @save-edit="handleSaveEdit"
+          @export-book="handleExportBook"
         />
         <InstructionsPage v-else-if="currentPage === 'instructions'" />
         <SettingsPage 
           v-else-if="currentPage === 'settings'"
           @show-activate="handleShowActivate"
         />
+        <MiniProgramPage v-else-if="currentPage === 'mini-program'" />
         <AboutPage v-else-if="currentPage === 'about'" />
       </div>
     </main>

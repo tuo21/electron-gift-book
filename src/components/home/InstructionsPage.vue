@@ -34,6 +34,11 @@ const instructionItems: InstructionItem[] = [
     title: '如何导出数据',
     desc: '在打开礼簿，在工具栏中点击"导出"按钮，即可导出为PDF或Excel格式。'
   },
+    {
+    icon: 'import',
+    title: '如何将数据导入小程序',
+    desc: '将导出的数据发送到微信中，在小程序中新建一个礼金簿，选择从Excel导入数据，选择文件即可导入。'
+  },
   {
     icon: 'palette',
     title: '选择布局样式',

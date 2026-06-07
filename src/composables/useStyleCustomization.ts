@@ -6,7 +6,7 @@ export function useStyleCustomization(
   toastRef: Ref<{ success: (msg: string) => void } | null>
 ) {
   function applyCustomFont(fontCssName: string) {
-    document.documentElement.style.setProperty('--font-name-amount', `'${fontCssName}', 'SimSun', 'KaiTi', serif`)
+    document.documentElement.style.setProperty('--font-name-amount', `'${fontCssName}', 'KaiTi', 'SimSun', serif`)
   }
 
   function removeCustomFont() {

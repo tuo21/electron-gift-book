@@ -13,10 +13,10 @@ export function useRecordOperations(
   statistics: Ref<{ totalCount: number; totalAmount: number; cashAmount: number; wechatAmount: number; internalAmount: number }>,
   currentPreview: Ref<{ field: string; value: string }>,
   showStatisticsModal: Ref<boolean>,
-  showActivateModal: Ref<boolean>,
+  _showActivateModal: Ref<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
   recordListRef: Ref<{ markNewRecord: (id: number) => void } | undefined | null>,
   recordFormRef: Ref<{ enterEditMode: (record: Record) => void } | undefined | null>,
-  checkActivation: () => Promise<boolean>,
+  _checkActivation: () => Promise<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
 ) {
   async function loadRecords(keepCurrentPage: boolean = false, newRecordId?: number) {
     try {
@@ -223,8 +223,12 @@ export function useRecordOperations(
   })
 
   async function openStatisticsModal() {
+    // [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用统计功能
+    // 如需重新启用激活检查，请恢复以下代码
+    /*
     const isActivated = await checkActivation()
     if (!isActivated) { showActivateModal.value = true; return }
+    */
     showStatisticsModal.value = true
   }
 

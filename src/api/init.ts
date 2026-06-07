@@ -44,7 +44,7 @@ function initAPI() {
     setCustomDataPath: bridge.setCustomDataPath,
     openPathInExplorer: bridge.openPathInExplorer,
     saveFileDialog: bridge.saveFileDialog,
-    getConfigFilePath: bridge.getConfigFilePath,
+    getAllRecordsByPath: bridge.getAllRecordsByPath,
   }
 
   window.db = db

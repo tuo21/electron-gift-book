@@ -1,5 +1,5 @@
-﻿﻿﻿﻿<script setup lang="ts">
-import { ref, onMounted, onUnmounted, shallowRef } from 'vue';
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup lang="ts">
+import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
 import HomeView from './components/home/HomeView.vue';
@@ -27,21 +27,88 @@ import { useEditHistory } from './composables/useEditHistory';
 import { useExport } from './composables/useExport';
 import { useRecordOperations } from './composables/useRecordOperations';
 import { useBookManagement } from './composables/useBookManagement';
+import { exportToExcel, exportToPDF } from './utils/export';
 import { useAppState } from './composables/useAppState';
 
 // ==================== 激活相关 ====================
+// [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用全部功能
+// 如需重新启用，请恢复 useActivation.ts 中的 checkActivation() 逻辑
 const { checkActivation } = useActivation();
 const showActivateModal = ref(false);
+
+const homeViewRef = ref<InstanceType<typeof HomeView> | null>(null);
 
 // 激活状态改变时重新检查
 const handleActivationChanged = async () => {
   await checkActivation();
+  // 通知 HomeView 更新激活状态
+  homeViewRef.value?.refreshActivation();
+};
+
+// 从礼薄列表导出的状态
+const listExportState = ref<{
+  records: Record[]
+  bookName: string
+  eventDate?: string
+} | null>(null)
+
+// 从礼薄列表导出：读取记录后显示导出弹窗
+const handleExportBookFromList = async (data: { path: string; name: string; eventDate?: string }) => {
+  try {
+    const response = await window.electronAPI.getAllRecordsByPath(data.path);
+    if (!response.success || !response.data) {
+      toastRef.value?.error('读取礼薄数据失败: ' + (response.error || '未知错误'));
+      return;
+    }
+    const records = response.data;
+    if (records.length === 0) {
+      toastRef.value?.warning('礼薄中没有数据可导出');
+      return;
+    }
+    listExportState.value = { records, bookName: data.name, eventDate: data.eventDate };
+    showExportModal.value = true;
+  } catch (error) {
+    console.error('读取礼薄数据失败:', error);
+    toastRef.value?.error('读取礼薄数据失败: ' + (error as Error).message);
+  }
+};
+
+// 统一的导出处理：列表导出 vs 当前礼薄导出
+const handleExportFromModal = async (format: 'excel' | 'pdf', options?: { theme?: 'red' | 'gray' | 'golden'; layout?: 'h' | 'v' }) => {
+  if (listExportState.value) {
+    const { records, bookName, eventDate } = listExportState.value;
+    isExporting.value = true;
+    try {
+      if (format === 'excel') {
+        await exportToExcel(records, bookName, eventDate);
+      } else {
+        await exportToPDF(records, bookName, options?.theme || 'red', eventDate, undefined, options?.layout || 'h');
+      }
+      toastRef.value?.success(format === 'excel' ? 'Excel导出成功！' : 'PDF导出成功！');
+      showExportModal.value = false;
+      listExportState.value = null;
+    } catch (error) {
+      if ((error as Error).message !== '用户取消保存') {
+        toastRef.value?.error('导出失败');
+      }
+    } finally {
+      isExporting.value = false;
+    }
+  } else {
+    handleExportFormat(format, options);
+  }
+};
+
+// 关闭导出弹窗（清除列表导出状态）
+const handleCloseExportModal = () => {
+  listExportState.value = null;
+  closeExportModal();
 };
 
 // ==================== 启动页和配置 ====================
 const { setTheme, currentTheme } = useTheme();
 const { config, setEventName, setCurrentDbPath, generateFileName, addToRecentBooks, removeFromRecentBooks, initConfig, setDisplayStyle, setCustomFont, setEventDate } = useAppConfig();
-const { initFullscreenScale, destroyFullscreenScale } = useFullscreenScale();
+const { initFullscreenScale, destroyFullscreenScale, setDisplayStyle: setScaleDisplayStyle } = useFullscreenScale();
 
 // Toast 组件引用
 const toastRef = ref<InstanceType<typeof Toast> | null>(null);
@@ -136,12 +203,73 @@ const bookMgmt = useBookManagement(
 )
 const { handleSyncToMiniApp, handleCreateBookFromHome, handleOpenBookFromHome, handleEditBookFromHome, handleImportFromHome, handleOpenFileFromHome, handleMinimizeWindow, handleCloseWindow, handleBackToSplash, scanDataDirectory } = bookMgmt
 
+// ==================== 键盘翻页相关 ====================
+// 左右键翻页：仅在礼簿详情页且无弹窗/输入框焦点时生效
+const handlePaginationKeydown = (event: KeyboardEvent) => {
+  if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+
+  // 尚未进入礼簿详情页，不处理
+  if (showSplashScreen.value || !isAppReady.value) return;
+
+  // 有弹窗打开时，不处理（避免误操作）
+  if (
+    showSearchModal.value ||
+    showEditHistoryModal.value ||
+    showStatisticsModal.value ||
+    showExportModal.value ||
+    showStyleDialog.value ||
+    syncDialogVisible.value ||
+    showActivateModal.value ||
+    voice.showVoiceSettings.value
+  ) {
+    return;
+  }
+
+  // 在输入框/文本域/可编辑内容中不处理
+  const target = event.target as HTMLElement | null;
+  if (target) {
+    const tag = target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
+  }
+
+  // 计算总页数
+  const pageSize = 15;
+  const total = Math.max(1, Math.ceil(records.value.length / pageSize));
+
+  if (event.key === 'ArrowLeft') {
+    if (currentPage.value > 1) {
+      currentPage.value = currentPage.value - 1;
+      event.preventDefault();
+    }
+  } else if (event.key === 'ArrowRight') {
+    if (currentPage.value < total) {
+      currentPage.value = currentPage.value + 1;
+      event.preventDefault();
+    }
+  }
+};
+
+// 监听布局模式变化，同步到缩放策略，确保切换「完整大字型」/「简洁紧凑型」时
+// 能根据内容总高度重新计算缩放比例
+watch(
+  () => config.value.displayStyle,
+  (newStyle) => {
+    if (newStyle === 'full' || newStyle === 'compact') {
+      setScaleDisplayStyle(newStyle);
+    }
+  },
+);
+
 onMounted(async () => {
   // 初始化配置
   initConfig();
 
   // 初始化全屏缩放
   initFullscreenScale();
+  // 传入当前布局模式，以便根据「完整大字型」/「简洁紧凑型」选择不同基线高度
+  setScaleDisplayStyle((config.value.displayStyle as 'full' | 'compact') || 'full');
 
   // 同步 useTheme 的 currentTheme 与 appConfig 中的 theme
   if (config.value.theme) {
@@ -163,6 +291,9 @@ onMounted(async () => {
   intervalId.value = window.setInterval(() => {
     lunarDate.value = getLunarDisplay();
   }, 60000);
+
+  // 注册全局键盘翻页监听
+  window.addEventListener('keydown', handlePaginationKeydown);
 });
 
 onUnmounted(() => {
@@ -170,6 +301,7 @@ onUnmounted(() => {
     clearInterval(intervalId.value);
     intervalId.value = null;
   }
+  window.removeEventListener('keydown', handlePaginationKeydown);
   // 销毁全屏缩放功能
   destroyFullscreenScale();
 });
@@ -181,6 +313,7 @@ onUnmounted(() => {
 
   <!-- 首页 -->
   <HomeView
+    ref="homeViewRef"
     v-if="showSplashScreen"
     :default-theme="config.theme"
     @create-book="handleCreateBookFromHome"
@@ -191,6 +324,7 @@ onUnmounted(() => {
     @minimize="handleMinimizeWindow"
     @close="handleCloseWindow"
     @show-activate="showActivateModal = true"
+    @export-book="handleExportBookFromList"
   />
 
   <!-- 
@@ -373,8 +507,9 @@ onUnmounted(() => {
     <ExportModal
       :visible="showExportModal"
       :is-exporting="isExporting"
-      @close="closeExportModal"
-      @export="handleExportFormat"
+      :records-count="listExportState?.records.length"
+      @close="handleCloseExportModal"
+      @export="handleExportFromModal"
     />
 
     <!-- 激活弹窗 -->
@@ -391,14 +526,11 @@ onUnmounted(() => {
       :voice-rate="voice.voiceRate"
       :voice-volume="voice.voiceVolume"
       :voice-pitch="voice.voicePitch"
-      :voice-voice="voice.voiceVoice"
-      :available-voices="voice.availableVoices"
       @close="voice.handleCloseVoiceSettings"
       @update:voice-enabled="voice.handleVoiceEnabledChange"
       @update:voice-rate="voice.handleVoiceRateChange"
       @update:voice-volume="voice.handleVoiceVolumeChange"
       @update:voice-pitch="voice.handleVoicePitchChange"
-      @update:voice-voice="voice.handleVoiceVoiceChange"
       @test-voice="voice.handleTestVoice"
     />
 

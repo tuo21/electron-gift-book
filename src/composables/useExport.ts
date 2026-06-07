@@ -8,10 +8,10 @@ export function useExport(
   bookName: Ref<string>,
   showExportModal: Ref<boolean>,
   isExporting: Ref<boolean>,
-  showActivateModal: Ref<boolean>,
+  _showActivateModal: Ref<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
   config: Ref<{ eventDate?: string | null; eventName?: string }>,
   currentTheme: Ref<string>,
-  checkActivation: () => Promise<boolean>,
+  _checkActivation: () => Promise<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
   toastRef: Ref<{ success: (msg: string, duration?: number) => void; error: (msg: string) => void } | null>,
 ) {
   const exportProgress = ref(0)
@@ -19,11 +19,15 @@ export function useExport(
   function handleSave() { logger.info('Export', '数据已自动保存') }
 
   async function handleExport() {
+    // [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用导出功能
+    // 如需重新启用激活检查，请恢复以下代码
+    /*
     const isActivated = await checkActivation()
     if (!isActivated) {
       showActivateModal.value = true
       return
     }
+    */
     showExportModal.value = true
   }
 

@@ -68,8 +68,8 @@
             <span class="font-label">选择字体：</span>
             <select v-model="localFontCssName" class="font-select" @change="handleFontChange">
               <option value="__default__">系统默认（演示春风楷）</option>
-              <option v-for="font in systemFonts" :key="font.css_name" :value="font.css_name">
-                {{ font.name }}{{ font.is_default ? '（默认）' : '' }}
+              <option v-for="font in systemFonts" :key="font.cssName" :value="font.cssName">
+                {{ font.name }}{{ font.isDefault ? '（默认）' : '' }}
               </option>
             </select>
           </div>
@@ -133,17 +133,14 @@ const originalFontCssName = ref('__default__')
 
 // 内置字体列表（Rust 命令失败时的备用方案）
 const BUILTIN_FONTS: FontInfo[] = [
-  { name: '演示春风楷', css_name: '演示春风楷', is_default: true },
-  { name: 'KaiTi', css_name: 'KaiTi', is_default: false },
-  { name: '楷体', css_name: '楷体', is_default: false },
-  { name: 'SimSun', css_name: 'SimSun', is_default: false },
-  { name: '宋体', css_name: '宋体', is_default: false },
-  { name: 'SimHei', css_name: 'SimHei', is_default: false },
-  { name: '黑体', css_name: '黑体', is_default: false },
-  { name: 'Microsoft YaHei', css_name: '微软雅黑', is_default: false },
-  { name: '仿宋', css_name: '仿宋', is_default: false },
-  { name: '幼圆', css_name: '幼圆', is_default: false },
-  { name: '隶书', css_name: '隶书', is_default: false },
+  { name: '演示春风楷', cssName: '演示春风楷', isDefault: true },
+  { name: '楷体', cssName: 'KaiTi', isDefault: false },
+  { name: '宋体', cssName: 'SimSun', isDefault: false },
+  { name: '黑体', cssName: 'SimHei', isDefault: false },
+  { name: '微软雅黑', cssName: 'Microsoft YaHei', isDefault: false },
+  { name: '仿宋', cssName: 'FangSong', isDefault: false },
+  { name: '幼圆', cssName: 'YouYuan', isDefault: false },
+  { name: '隶书', cssName: 'LiSu', isDefault: false },
 ]
 
 // 处理字体名称，对于用 & 或其他分隔符连接的多个名称，只保留第一个
@@ -173,14 +170,14 @@ const loadSystemFonts = async () => {
     const response = await bridge.getSystemFontsList()
     if (response.success && response.data) {
       console.log('Rust 枚举到系统字体:', response.data.length, '个')
-      // 处理字体名称，同时处理name和css_name
+      // 处理字体名称，同时处理name和cssName
       systemFonts.value = response.data.map(font => {
         const processedName = processFontName(font.name)
-        const processedCssName = processFontName(font.css_name || font.name)
+        const processedCssName = processFontName(font.cssName || font.name)
         return {
           ...font,
           name: processedName,
-          css_name: processedCssName
+          cssName: processedCssName
         }
       })
     } else {
@@ -224,7 +221,7 @@ const currentFontFamily = computed(() => {
   if (localFontCssName.value === '__default__') {
     return "'演示春风楷', 'KaiTi', 'SimSun', serif"
   }
-  return `'${localFontCssName.value}', 'SimSun', 'KaiTi', serif`
+  return `'${localFontCssName.value}', 'KaiTi', 'SimSun', serif`
 })
 
 // 方法

@@ -13,7 +13,7 @@
         <!-- 内容区 -->
         <div class="dialog-body">
           <p class="export-description">
-            选择导出格式，共 {{ totalRecords }} 条记录
+            选择导出格式，共 {{ effectiveTotal }} 条记录
           </p>
           
           <!-- 导出选项 -->
@@ -94,12 +94,13 @@
 <script setup lang="ts">
 import { useRecordsStore } from '../../stores/useRecordsStore'
 import { storeToRefs } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import IconSvg from '../IconSvg.vue'
 
 interface Props {
   visible: boolean
   isExporting: boolean
+  recordsCount?: number
 }
 
 interface Emits {
@@ -107,11 +108,13 @@ interface Emits {
   (e: 'export', format: 'excel' | 'pdf', options?: any): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const recordsStore = useRecordsStore()
 const { totalRecords } = storeToRefs(recordsStore)
+
+const effectiveTotal = computed(() => props.recordsCount ?? totalRecords.value)
 
 // PDF 模板选择相关
 const showPdfTemplateSelect = ref(false)
@@ -137,7 +140,7 @@ const handleClose = () => {
 }
 
 const handleExcelExport = () => {
-  if (totalRecords.value === 0) {
+  if (effectiveTotal.value === 0) {
     alert('没有可导出的记录')
     return
   }
@@ -145,7 +148,7 @@ const handleExcelExport = () => {
 }
 
 const handlePdfExport = () => {
-  if (totalRecords.value === 0) {
+  if (effectiveTotal.value === 0) {
     alert('没有可导出的记录')
     return
   }

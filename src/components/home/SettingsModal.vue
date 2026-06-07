@@ -62,10 +62,9 @@ const loadDataPath = async () => {
       }
     }
     
-    // 显示配置文件路径（只显示文件夹路径）
-    const configFolderPath = 'C:\\Users\\bakua\\AppData\\Roaming\\com.giftbook.app';
-    configFilePath.value = configFolderPath;
-    console.log('配置文件路径:', configFolderPath);
+    // 配置文件目录 = app_data_dir（defaultDataPath 始终返回真正的默认目录）
+    configFilePath.value = defaultDataPath.value;
+    console.log('配置文件目录:', configFilePath.value);
   } catch (error) {
     console.error('加载数据路径失败:', error);
   } finally {

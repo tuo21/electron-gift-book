@@ -37,6 +37,7 @@ const emit = defineEmits<{
   (e: 'show-activate'): void;
   (e: 'cancel-edit'): void;
   (e: 'save-edit', data: { path: string; name: string; eventDate: string; theme: ThemeType }): void;
+  (e: 'export-book', data: { path: string; name: string; eventDate?: string }): void;
 }>();
 
 // ==================== 方法函数 ====================
@@ -66,6 +67,10 @@ const handleOpenFile = () => {
 
 const handleShowActivate = () => {
   emit('show-activate');
+};
+
+const handleExportBook = (data: { path: string; name: string; eventDate?: string }) => {
+  emit('export-book', data);
 };
 
 const handleCancelEdit = () => {
@@ -98,6 +103,7 @@ const handleSaveEdit = (data: { path: string; name: string; eventDate: string; t
       @import="handleImportBook"
       @open-file="handleOpenFile"
       @show-activate="handleShowActivate"
+      @export-book="handleExportBook"
     />
   </div>
 </template>

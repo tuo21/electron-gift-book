@@ -68,13 +68,13 @@ pub fn run() {
             commands::get_app_config,
             commands::update_app_config,
             commands::reset_app_config,
-            commands::get_config_file_path,
             license::get_machine_id,
             license::verify_license,
             license::save_license,
             license::get_license_status,
             license::is_activated,
             license::clear_license,
+            commands::get_all_records_by_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
