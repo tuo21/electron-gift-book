@@ -4,17 +4,15 @@ import { ref, watch } from 'vue'
 const BASELINE_WIDTH = 1650
 
 // 基准高度（根据布局模式动态选择）
-// 完整大字型：
-//   - 窗口 1920×1009 → available 747px，grid 自然 770px（record-column=770px）→ scale=1.0 刚好 fit
-//   - 窗口 2560×1369 → scale=1.244，grid=958px，available=1129px → fit
-//   - 窗口 1280×720 → scale=0.78，grid=601px，available=491px → overflow 由 max-height 滚动兜底
-// 简洁紧凑型：列高 650px → grid 自然 650px，available 更大，fit 更轻松
-const BASELINE_HEIGHT_FULL = 1100
-const BASELINE_HEIGHT_COMPACT = 1143
+// 依据：根据 1920×1009 窗口下用户实测 scale=0.84 才刚好不溢出，
+// 反推内容实际总高度 = 1009/0.84 ≈ 1200（而非之前的 1100）。
+// 简洁紧凑型列高 650 / 完整型 770 = 0.844，按比例取 1015。
+const BASELINE_HEIGHT_FULL = 1200
+const BASELINE_HEIGHT_COMPACT = 1015
 
 const MAX_SCALE = 1.5
-// 矮窗口（720p）下允许收缩的最低比例；内容在 0.78 下仍然可读
-const MIN_SCALE = 0.78
+// 矮窗口（720p）下允许收缩的最低比例，确保 scale=0.6 也能生效
+const MIN_SCALE = 0.55
 
 const displayStyle = ref<'full' | 'compact'>('full')
 const scale = ref(1)
