@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup lang="ts">
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
@@ -220,7 +220,7 @@ const handlePaginationKeydown = (event: KeyboardEvent) => {
     showStyleDialog.value ||
     syncDialogVisible.value ||
     showActivateModal.value ||
-    voice.showVoiceSettings.value
+    voice.showVoiceSettings
   ) {
     return;
   }
