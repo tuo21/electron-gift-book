@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 // 重新导出 sqlx 类型，使用 tauri-plugin-sql 中的 sqlx
 pub use sqlx::sqlite::SqlitePool;
+use sqlx::Row;
 
 static DB_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static CUSTOM_DATA_DIR: Mutex<Option<PathBuf>> = Mutex::new(None);
@@ -80,7 +81,13 @@ pub fn get_create_tables_sql() -> Vec<&'static str> {
             Remark TEXT,
             CreateTime DATETIME DEFAULT CURRENT_TIMESTAMP,
             UpdateTime DATETIME DEFAULT CURRENT_TIMESTAMP,
-            IsDeleted INTEGER DEFAULT 0
+            IsDeleted INTEGER DEFAULT 0,
+            GroupId INTEGER,
+            GroupRole TEXT,
+            GroupTotal DECIMAL(10, 2),
+            GroupExpense DECIMAL(10, 2),
+            GroupBalance DECIMAL(10, 2),
+            GroupExpenseDetail TEXT
         )
         "#,
         r#"
@@ -114,4 +121,40 @@ pub fn get_create_tables_sql() -> Vec<&'static str> {
         "CREATE INDEX IF NOT EXISTS idx_records_isdeleted ON Records(IsDeleted)",
         "CREATE INDEX IF NOT EXISTS idx_history_recordid ON Records_History(RecordId)",
     ]
+}
+
+pub async fn migrate_database(pool: &SqlitePool) -> Result<(), String> {
+    let rows = sqlx::query("PRAGMA table_info(Records)")
+        .fetch_all(pool)
+        .await
+        .map_err(|e| format!("查询表结构失败: {}", e))?;
+
+    let mut column_names = Vec::new();
+    for row in rows {
+        if let Ok(name) = row.try_get::<String, _>("name") {
+            column_names.push(name);
+        } else if let Ok(name) = row.try_get::<String, _>(1) {
+            column_names.push(name);
+        }
+    }
+
+    let migrations = vec![
+        ("GroupId", "ALTER TABLE Records ADD COLUMN GroupId INTEGER"),
+        ("GroupRole", "ALTER TABLE Records ADD COLUMN GroupRole TEXT"),
+        ("GroupTotal", "ALTER TABLE Records ADD COLUMN GroupTotal DECIMAL(10, 2)"),
+        ("GroupExpense", "ALTER TABLE Records ADD COLUMN GroupExpense DECIMAL(10, 2)"),
+        ("GroupBalance", "ALTER TABLE Records ADD COLUMN GroupBalance DECIMAL(10, 2)"),
+        ("GroupExpenseDetail", "ALTER TABLE Records ADD COLUMN GroupExpenseDetail TEXT"),
+    ];
+
+    for (name, sql) in migrations {
+        if !column_names.contains(&name.to_string()) {
+            sqlx::query(sql)
+                .execute(pool)
+                .await
+                .map_err(|e| format!("添加列 {} 失败: {}", name, e))?;
+        }
+    }
+
+    Ok(())
 }

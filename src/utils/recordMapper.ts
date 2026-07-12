@@ -12,6 +12,12 @@ export function mapApiRecord(apiRecord: any): Record {
     createTime: apiRecord.createTime,
     updateTime: apiRecord.updateTime,
     isDeleted: apiRecord.isDeleted,
+    groupId: apiRecord.groupId,
+    groupRole: apiRecord.groupRole,
+    groupTotal: apiRecord.groupTotal,
+    groupExpense: apiRecord.groupExpense,
+    groupBalance: apiRecord.groupBalance,
+    groupExpenseDetail: apiRecord.groupExpenseDetail,
   }
 }
 
@@ -30,6 +36,12 @@ export interface DatabaseRecord {
   CreateTime?: string
   UpdateTime?: string
   IsDeleted?: number
+  GroupId?: number
+  GroupRole?: string
+  GroupTotal?: number
+  GroupExpense?: number
+  GroupBalance?: number
+  GroupExpenseDetail?: string
 }
 
 export function recordToDbRecord(record: Record): DatabaseRecord {
@@ -42,6 +54,12 @@ export function recordToDbRecord(record: Record): DatabaseRecord {
     PaymentType: record.paymentType,
     Remark: record.remark || undefined,
     IsDeleted: record.isDeleted ?? 0,
+    GroupId: record.groupId || undefined,
+    GroupRole: record.groupRole || undefined,
+    GroupTotal: record.groupTotal || undefined,
+    GroupExpense: record.groupExpense || undefined,
+    GroupBalance: record.groupBalance || undefined,
+    GroupExpenseDetail: record.groupExpenseDetail || undefined,
   }
 }
 
@@ -57,6 +75,12 @@ export function dbRecordToRecord(dbRecord: DatabaseRecord): Record {
     createTime: dbRecord.CreateTime,
     updateTime: dbRecord.UpdateTime,
     isDeleted: dbRecord.IsDeleted,
+    groupId: dbRecord.GroupId,
+    groupRole: dbRecord.GroupRole as any,
+    groupTotal: dbRecord.GroupTotal,
+    groupExpense: dbRecord.GroupExpense,
+    groupBalance: dbRecord.GroupBalance,
+    groupExpenseDetail: dbRecord.GroupExpenseDetail,
   }
 }
 

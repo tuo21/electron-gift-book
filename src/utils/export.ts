@@ -110,20 +110,92 @@ function generateExportFileName(eventName: string, eventDate?: string | Date): s
   return `${cleanName}_${dateStr}`
 }
 
+function getGroupRoleText(role?: string): string {
+  const map: { [key: string]: string } = {
+    'start': '分组开始',
+    'end': '分组结束',
+    'member': '组员',
+    'summary': '小组小计',
+  }
+  return map[role || ''] || ''
+}
+
 export async function exportToExcel(records: Record[], eventName: string = '电子礼金簿', eventDate?: string): Promise<void> {
   const exportDate = eventDate || getEventDate(records)
   const defaultFileName = generateExportFileName(eventName, exportDate) + '.xlsx'
 
-  const data = records.map((record, index) => ({
-    '序号': index + 1,
-    '姓名': record.guestName,
-    '金额（元）': record.amount,
-    '金额（大写）': record.amountChinese || numberToChinese(record.amount),
-    '物品': record.itemDescription || '',
-    '支付方式': getPaymentTypeText(record.paymentType),
-    '备注': record.remark || '',
-    '创建时间': record.createTime || '',
-  }))
+  const data = records.map((record, index) => {
+    const role = record.groupRole
+    if (role === 'start') {
+      return {
+        '序号': '',
+        '姓名': '【分组开始】',
+        '金额（元）': '',
+        '金额（大写）': '',
+        '物品': '',
+        '支付方式': '',
+        '备注': '',
+        '创建时间': '',
+        '分组ID': record.groupId || '',
+        '分组角色': getGroupRoleText(role),
+        '小组总账': '',
+        '小组开支': '',
+        '小组结余': '',
+        '开支明细': '',
+      }
+    } else if (role === 'end') {
+      return {
+        '序号': '',
+        '姓名': '【分组结束】',
+        '金额（元）': '',
+        '金额（大写）': '',
+        '物品': '',
+        '支付方式': '',
+        '备注': '',
+        '创建时间': '',
+        '分组ID': record.groupId || '',
+        '分组角色': getGroupRoleText(role),
+        '小组总账': '',
+        '小组开支': '',
+        '小组结余': '',
+        '开支明细': '',
+      }
+    } else if (role === 'summary') {
+      return {
+        '序号': '',
+        '姓名': '【小组小计】',
+        '金额（元）': '',
+        '金额（大写）': '',
+        '物品': '',
+        '支付方式': '',
+        '备注': '',
+        '创建时间': '',
+        '分组ID': record.groupId || '',
+        '分组角色': getGroupRoleText(role),
+        '小组总账': record.groupTotal || '',
+        '小组开支': record.groupExpense || '',
+        '小组结余': record.groupBalance || '',
+        '开支明细': record.groupExpenseDetail || '',
+      }
+    } else {
+      return {
+        '序号': index + 1,
+        '姓名': record.guestName,
+        '金额（元）': record.amount,
+        '金额（大写）': record.amountChinese || numberToChinese(record.amount),
+        '物品': record.itemDescription || '',
+        '支付方式': getPaymentTypeText(record.paymentType),
+        '备注': record.remark || '',
+        '创建时间': record.createTime || '',
+        '分组ID': record.groupId || '',
+        '分组角色': getGroupRoleText(role),
+        '小组总账': '',
+        '小组开支': '',
+        '小组结余': '',
+        '开支明细': '',
+      }
+    }
+  })
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(data)
@@ -137,8 +209,60 @@ export async function exportToExcel(records: Record[], eventName: string = '电�
     { wch: 10 },
     { wch: 20 },
     { wch: 20 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 30 },
   ]
   ws['!cols'] = colWidths
+
+  const headerRow = ws['A1']
+  if (headerRow) {
+    headerRow.s = {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { fgColor: { rgb: '8B5A2B' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+      border: {
+        top: { style: 'thin' },
+        bottom: { style: 'thin' },
+        left: { style: 'thin' },
+        right: { style: 'thin' },
+      },
+    }
+  }
+
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+  for (let row = range.s.r; row <= range.e.r; row++) {
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })]
+      if (cell && row > 0) {
+        cell.s = {
+          alignment: { horizontal: 'center', vertical: 'center' },
+          border: {
+            top: { style: 'thin' },
+            bottom: { style: 'thin' },
+            left: { style: 'thin' },
+            right: { style: 'thin' },
+          },
+        }
+      }
+    }
+  }
+
+  for (let row = range.s.r + 1; row <= range.e.r; row++) {
+    const nameCell = ws[XLSX.utils.encode_cell({ r: row, c: 1 })]
+    if (nameCell && nameCell.v && typeof nameCell.v === 'string') {
+      if (nameCell.v.includes('【分组开始】') || nameCell.v.includes('【分组结束】') || nameCell.v.includes('【小组小计】')) {
+        nameCell.s = {
+          ...nameCell.s,
+          font: { bold: true, color: { rgb: '8B5A2B' } },
+          fill: { fgColor: { rgb: 'FFF8E7' } },
+        }
+      }
+    }
+  }
 
   XLSX.utils.book_append_sheet(wb, ws, '礼金记录')
   

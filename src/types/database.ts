@@ -12,6 +12,13 @@ export interface Record {
   createTime?: string
   updateTime?: string
   isDeleted?: number
+  groupId?: number
+  groupRole?: 'start' | 'end' | 'member' | 'summary'
+  groupTotal?: number
+  groupExpense?: number
+  groupBalance?: number
+  groupExpenseDetail?: string
+  isPendingInsert?: boolean
 }
 
 // 历史记录类型
@@ -41,6 +48,8 @@ export interface Statistics {
   cashAmount: number
   wechatAmount: number
   internalAmount: number
+  groupTotalExpense: number
+  groupTotalBalance: number
 }
 
 // 数据库 API 响应类型
@@ -134,6 +143,8 @@ export interface TauriAPI {
   saveFileDialog: (filename: string, extensions: string[]) => Promise<ApiResponse<{ filePath: string }>>
   // 通过路径读取数据库记录
   getAllRecordsByPath: (path: string) => Promise<ApiResponse<Record[]>>
+  // 获取配置文件路径
+  getConfigFilePath: () => Promise<ApiResponse<string>>
 }
 
 // 激活相关类型

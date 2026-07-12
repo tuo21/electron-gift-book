@@ -1,7 +1,11 @@
 [build]
-# 使用标准 Windows 目标
 target = "x86_64-pc-windows-msvc"
 
 [target.x86_64-pc-windows-msvc.release]
-# Release 构建使用 Windows 7 兼容的 MSVC 编译标志
 rustflags = "-C target-feature=+crt-static -C link-arg=/SUBSYSTEM:WINDOWS,6.01"
+
+[source.crates-io]
+replace-with = "rsproxy"
+
+[source.rsproxy]
+registry = "sparse+https://rsproxy.cn/index/"

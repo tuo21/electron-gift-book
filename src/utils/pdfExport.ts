@@ -296,11 +296,139 @@ async function addContentPage(
     const columnWidth = Math.round(46 * SCALE)
     const columnGap = Math.round(5 * SCALE)
 
+    const groupFirstMemberIds = new Set<number>()
+    const seenGroupsH = new Set<number>()
+    records.forEach(r => {
+      if (r.groupRole === 'member' && r.groupId && !seenGroupsH.has(r.groupId)) {
+        seenGroupsH.add(r.groupId)
+        if (r.id) groupFirstMemberIds.add(r.id)
+      }
+    })
+
     records.forEach((record, index) => {
       const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
+
+      if (record.groupRole === 'start') {
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(Math.round(24 * SCALE))
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('分组开始', x, listStartY + Math.round(85 * SCALE), { align: 'center' })
+        
+        pdf.setLineWidth(2 * SCALE)
+        pdf.setDrawColor(139, 90, 43)
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(30 * SCALE), x + columnWidth / 2, listStartY + Math.round(30 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(140 * SCALE), x + columnWidth / 2, listStartY + Math.round(140 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(30 * SCALE), x - columnWidth / 2, listStartY + Math.round(140 * SCALE))
+        
+        return
+      }
+
+      if (record.groupRole === 'end') {
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(Math.round(24 * SCALE))
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('分组结束', x, listStartY + Math.round(85 * SCALE), { align: 'center' })
+        
+        pdf.setLineWidth(2 * SCALE)
+        pdf.setDrawColor(139, 90, 43)
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(30 * SCALE), x + columnWidth / 2, listStartY + Math.round(30 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(140 * SCALE), x + columnWidth / 2, listStartY + Math.round(140 * SCALE))
+        pdf.line(x + columnWidth / 2, listStartY + Math.round(30 * SCALE), x + columnWidth / 2, listStartY + Math.round(140 * SCALE))
+        
+        return
+      }
+
+      if (record.groupRole === 'summary') {
+        const bracketSize = Math.round(28 * SCALE)
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(bracketSize)
+        pdf.setTextColor(255, 0, 0)
+        pdf.text('）', x + columnWidth / 2 + Math.round(bracketSize / 2), listStartY + Math.round(40 * SCALE), { align: 'center' })
+
+        const labelFontSize = Math.round(10 * SCALE)
+        const valueFontSize = Math.round(14 * SCALE)
+        const charHeight = valueFontSize * 1.2
+        const lineGap = Math.round(15 * SCALE)
+
+        const nameFontSizeH = getAdaptiveFontSize('测试', 3, 34, 10) * SCALE
+        const startY = listStartY + Math.round(40 * SCALE) - nameFontSizeH
+
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(labelFontSize)
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('小计', x, startY, { align: 'center' })
+
+        const subColOffset = Math.round(columnWidth / 4)
+        const totalX = x - subColOffset
+        const expenseX = x + subColOffset
+
+        let currentY = startY + Math.round(18 * SCALE)
+
+        if (record.groupTotal !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('总账', totalX, currentY, { align: 'center' })
+
+          currentY += Math.round(10 * SCALE)
+          const totalChars = formatAmount(record.groupTotal).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(0, 0, 0)
+          totalChars.forEach((char, index) => {
+            pdf.text(char, totalX, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+
+        if (record.groupExpense !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('开支', expenseX, currentY - Math.round(10 * SCALE), { align: 'center' })
+
+          const expenseChars = formatAmount(record.groupExpense).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(196, 74, 61)
+          expenseChars.forEach((char, index) => {
+            pdf.text(char, expenseX, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+
+        const totalCharsLen = record.groupTotal !== undefined ? formatAmount(record.groupTotal).split('').length : 0
+        const expenseCharsLen = record.groupExpense !== undefined ? formatAmount(record.groupExpense).split('').length : 0
+        currentY += Math.max(totalCharsLen, expenseCharsLen) * charHeight + lineGap
+
+        if (record.groupBalance !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('结余', x, currentY, { align: 'center' })
+
+          currentY += Math.round(10 * SCALE)
+          const balanceChars = formatAmount(record.groupBalance).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(0, 0, 0)
+          balanceChars.forEach((char, index) => {
+            pdf.text(char, x, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+        
+        return
+      }
+
       const amountChinese = numberToChinese(record.amount)
       const nameFontSize = getAdaptiveFontSize(record.guestName, 3, 34, 10) * SCALE
       const amountFontSize = getAdaptiveFontSize(amountChinese, record.itemDescription ? 2 : 3, 34, 10) * SCALE
+
+      if (record.id && groupFirstMemberIds.has(record.id)) {
+        const bracketSize = Math.round(28 * SCALE)
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(bracketSize)
+        pdf.setTextColor(255, 0, 0)
+        pdf.text('（', x - columnWidth / 2 - Math.round(bracketSize / 2), listStartY + Math.round(40 * SCALE), { align: 'center' })
+      }
 
       setFont(pdf, fonts, 'XuandongKaishu')
       pdf.setFontSize(nameFontSize)
@@ -387,9 +515,137 @@ async function addContentPage(
     const columnWidth = Math.round(46 * SCALE)
     const columnGap = 0
 
+    const groupFirstMemberIdsV = new Set<number>()
+    const seenGroupsV = new Set<number>()
+    records.forEach(r => {
+      if (r.groupRole === 'member' && r.groupId && !seenGroupsV.has(r.groupId)) {
+        seenGroupsV.add(r.groupId)
+        if (r.id) groupFirstMemberIdsV.add(r.id)
+      }
+    })
+
     records.forEach((record, index) => {
       const x = listStartX + index * (columnWidth + columnGap) + columnWidth / 2
+
+      if (record.groupRole === 'start') {
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(Math.round(24 * SCALE))
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('分组开始', x, listStartY + Math.round(120 * SCALE), { align: 'center' })
+        
+        pdf.setLineWidth(2 * SCALE)
+        pdf.setDrawColor(139, 90, 43)
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(40 * SCALE), x + columnWidth / 2, listStartY + Math.round(40 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(200 * SCALE), x + columnWidth / 2, listStartY + Math.round(200 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(40 * SCALE), x - columnWidth / 2, listStartY + Math.round(200 * SCALE))
+        
+        return
+      }
+
+      if (record.groupRole === 'end') {
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(Math.round(24 * SCALE))
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('分组结束', x, listStartY + Math.round(120 * SCALE), { align: 'center' })
+        
+        pdf.setLineWidth(2 * SCALE)
+        pdf.setDrawColor(139, 90, 43)
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(40 * SCALE), x + columnWidth / 2, listStartY + Math.round(40 * SCALE))
+        pdf.line(x - columnWidth / 2, listStartY + Math.round(200 * SCALE), x + columnWidth / 2, listStartY + Math.round(200 * SCALE))
+        pdf.line(x + columnWidth / 2, listStartY + Math.round(40 * SCALE), x + columnWidth / 2, listStartY + Math.round(200 * SCALE))
+        
+        return
+      }
+
+      if (record.groupRole === 'summary') {
+        const bracketSize = Math.round(28 * SCALE)
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(bracketSize)
+        pdf.setTextColor(255, 0, 0)
+        pdf.text('）', x + columnWidth / 2 + Math.round(bracketSize / 2), listStartY + Math.round(42 * SCALE), { align: 'center' })
+
+        const labelFontSize = Math.round(10 * SCALE)
+        const valueFontSize = Math.round(14 * SCALE)
+        const charHeight = valueFontSize * 1.2
+        const lineGap = Math.round(18 * SCALE)
+
+        const nameFontSizeV = Math.round(32 * SCALE)
+        const startY = listStartY + Math.round(42 * SCALE) - nameFontSizeV
+
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(labelFontSize)
+        pdf.setTextColor(139, 90, 43)
+        pdf.text('小计', x, startY, { align: 'center' })
+
+        const subColOffset = Math.round(columnWidth / 4)
+        const totalX = x - subColOffset
+        const expenseX = x + subColOffset
+
+        let currentY = startY + Math.round(18 * SCALE)
+
+        if (record.groupTotal !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('总账', totalX, currentY, { align: 'center' })
+
+          currentY += Math.round(10 * SCALE)
+          const totalChars = formatAmount(record.groupTotal).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(0, 0, 0)
+          totalChars.forEach((char, index) => {
+            pdf.text(char, totalX, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+
+        if (record.groupExpense !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('开支', expenseX, currentY - Math.round(10 * SCALE), { align: 'center' })
+
+          const expenseChars = formatAmount(record.groupExpense).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(196, 74, 61)
+          expenseChars.forEach((char, index) => {
+            pdf.text(char, expenseX, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+
+        const totalCharsLen = record.groupTotal !== undefined ? formatAmount(record.groupTotal).split('').length : 0
+        const expenseCharsLen = record.groupExpense !== undefined ? formatAmount(record.groupExpense).split('').length : 0
+        currentY += Math.max(totalCharsLen, expenseCharsLen) * charHeight + lineGap
+
+        if (record.groupBalance !== undefined) {
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(labelFontSize)
+          pdf.setTextColor(102, 102, 102)
+          pdf.text('结余', x, currentY, { align: 'center' })
+
+          currentY += Math.round(10 * SCALE)
+          const balanceChars = formatAmount(record.groupBalance).split('')
+          setFont(pdf, fonts, 'ZhiSong')
+          pdf.setFontSize(valueFontSize)
+          pdf.setTextColor(0, 0, 0)
+          balanceChars.forEach((char, index) => {
+            pdf.text(char, x, currentY + index * charHeight, { align: 'center' })
+          })
+        }
+        
+        return
+      }
+
       const amountChinese = numberToChinese(record.amount)
+
+      if (record.id && groupFirstMemberIdsV.has(record.id)) {
+        const bracketSize = Math.round(28 * SCALE)
+        setFont(pdf, fonts, 'XuandongKaishu')
+        pdf.setFontSize(bracketSize)
+        pdf.setTextColor(255, 0, 0)
+        pdf.text('（', x - columnWidth / 2 - Math.round(bracketSize / 2), listStartY + Math.round(42 * SCALE), { align: 'center' })
+      }
 
       const nameStartY = listStartY + Math.round(42 * SCALE)
       const nameEndY = listStartY + Math.round(197 * SCALE)
@@ -642,7 +898,7 @@ async function addStatisticsPage(
   ]
 
   const paymentStats = paymentTypes.map(({ type, name }) => {
-    const typeRecords = records.filter(r => r.paymentType === type)
+    const typeRecords = records.filter(r => r.paymentType === type && (!r.groupRole || r.groupRole === 'member'))
     const typeAmount = typeRecords.reduce((sum, r) => sum + r.amount, 0)
     return {
       name,
@@ -651,13 +907,19 @@ async function addStatisticsPage(
     }
   })
 
+  const summaryRecords = records.filter(r => r.groupRole === 'summary')
+  const totalGroupExpense = summaryRecords.reduce((sum, r) => sum + (r.groupExpense || 0), 0)
+  const totalGroupBalance = totalAmount - totalGroupExpense
+
   const lines = [
-    { label: '总人数：', value: `${records.length}人` },
+    { label: '总人数：', value: `${records.filter(r => !r.groupRole || r.groupRole === 'member').length}人` },
     ...paymentStats.map(stat => ({
       label: `${stat.name}：`,
       value: `${formatAmount(stat.amount)}元（${stat.count}人）`
     })),
-    { label: '总金额：', value: `${formatAmount(totalAmount)}元` },
+    { label: '共计：', value: `${formatAmount(totalAmount)}元` },
+    { label: '支出：', value: `${formatAmount(totalGroupExpense)}元` },
+    { label: '结余：', value: `${formatAmount(totalGroupBalance)}元` },
     { label: '', value: numberToChinese(totalAmount) }
   ]
 
@@ -838,7 +1100,8 @@ export async function generatePDFWithJsPDF(
 
   const exportDateObj = eventDate ? new Date(eventDate) : getEventDate(records)
   const exportDate = `${exportDateObj.getFullYear()}年${exportDateObj.getMonth() + 1}月${exportDateObj.getDate()}日`
-  const totalAmount = records.reduce((sum, r) => sum + r.amount, 0)
+  const memberRecords = records.filter(r => !r.groupRole || r.groupRole === 'member')
+  const totalAmount = memberRecords.reduce((sum, r) => sum + r.amount, 0)
 
   onProgress?.(10)
   await addCoverPage(pdf, fonts, eventName, exportDate, theme, layout)

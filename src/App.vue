@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup lang="ts">
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<script setup lang="ts">
 import { ref, onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import RecordForm from './components/RecordForm.vue';
 import RecordList from './components/RecordList.vue';
@@ -29,6 +29,7 @@ import { useRecordOperations } from './composables/useRecordOperations';
 import { useBookManagement } from './composables/useBookManagement';
 import { exportToExcel, exportToPDF } from './utils/export';
 import { useAppState } from './composables/useAppState';
+import { toggleScaleDebugger, destroyScaleDebugger } from './utils/scaleDebugger';
 
 // ==================== 激活相关 ====================
 // [ACTIVATION_FEATURE] 激活功能已被临时隐藏，所有用户均可使用全部功能
@@ -136,6 +137,27 @@ const confirmDialog = (message: string, options?: { title?: string, confirmText?
 // 暴露到全局
 (window as any).confirmDialog = confirmDialog;
 
+// ==================== 调试面板触发逻辑 ====================
+// 连续点击"回到首页"按钮5次可调出调试面板
+let homeClickCount = 0;
+let homeClickTimer: number | null = null;
+
+const handleHomeClick = () => {
+  homeClickCount++;
+  if (homeClickTimer) {
+    clearTimeout(homeClickTimer);
+  }
+  if (homeClickCount >= 5) {
+    toggleScaleDebugger();
+    homeClickCount = 0;
+  } else {
+    homeClickTimer = window.setTimeout(() => {
+      handleBackToSplash();
+      homeClickCount = 0;
+    }, 350);
+  }
+};
+
 const state = useAppState()
 const {
   showSplashScreen, isAppReady, recordsStore,
@@ -163,7 +185,7 @@ const recordsOps = useRecordOperations(
   showStatisticsModal, showActivateModal,
   recordListRef, recordFormRef, checkActivation,
 )
-const { loadRecords, loadStatistics, handleSubmit, handleEdit, handleUpdate, handleDelete, handleInputPreview, clearPreview, currentPageAmount, openStatisticsModal, closeStatisticsModal } = recordsOps
+const { loadRecords, loadStatistics, handleSubmit, handleEdit, handleUpdate, handleDelete, handleInputPreview, clearPreview, currentPageAmount, openStatisticsModal, closeStatisticsModal, groupState, currentGroupId, startGroup, pauseGroup, resumeGroup, endGroup, setInsertPosition, cancelInsert } = recordsOps
 
 // ==================== 样式自定义相关 ====================
 const style = useStyleCustomization(setDisplayStyle, setCustomFont, toastRef)
@@ -183,6 +205,20 @@ const exportModule = useExport(
   showActivateModal, config, currentTheme, checkActivation, toastRef,
 )
 const { handleSave, handleExport, closeExportModal, handleExportFormat } = exportModule
+
+const handleGroupEdit = (record: Record) => {
+  currentGroupId.value = record.groupId || currentGroupId.value;
+  recordFormRef.value?.openEndGroupModal(record);
+};
+
+const handleGroupInsert = async (record: Record) => {
+  currentGroupId.value = record.groupId || currentGroupId.value;
+  groupState.value = 'active';
+  if (record.id && record.createTime) {
+    setInsertPosition(record.id, record.createTime);
+    await loadRecords();
+  }
+};
 
 const handleEditClick = async () => {
   const isActivated = await checkActivation();
@@ -301,9 +337,13 @@ onUnmounted(() => {
     clearInterval(intervalId.value);
     intervalId.value = null;
   }
+  if (homeClickTimer) {
+    clearTimeout(homeClickTimer);
+    homeClickTimer = null;
+  }
   window.removeEventListener('keydown', handlePaginationKeydown);
-  // 销毁全屏缩放功能
   destroyFullscreenScale();
+  destroyScaleDebugger();
 });
 </script>
 
@@ -364,7 +404,7 @@ onUnmounted(() => {
 
       <!-- 中间：功能按钮 -->
       <div class="header-center">
-        <button class="func-btn" @click="handleBackToSplash">
+        <button class="func-btn" @click="handleHomeClick">
           <IconSvg name="home" :size="20" />
           <span class="btn-text">回到首页</span>
         </button>
@@ -444,7 +484,7 @@ onUnmounted(() => {
         <RecordList ref="recordListRef" :records="records" :page-size="15"
                     :display-style="config.displayStyle"
                     v-model:current-page="currentPage"
-                    @edit="handleEdit" @delete="handleDelete" />
+                    @edit="handleEdit" @delete="handleDelete" @group-edit="handleGroupEdit" @group-insert="handleGroupInsert" />
       </section>
 
       <!-- 
@@ -456,7 +496,7 @@ onUnmounted(() => {
       <aside class="sidebar-section">
         <!-- 录入表单面板 -->
         <div class="form-panel">
-          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" @input-preview="handleInputPreview" @clear-preview="clearPreview" />
+          <RecordForm ref="recordFormRef" @submit="handleSubmit" @update="handleUpdate" @input-preview="handleInputPreview" @clear-preview="clearPreview" :group-state="groupState" :current-group-id="currentGroupId" @start-group="startGroup" @pause-group="pauseGroup" @resume-group="resumeGroup" @end-group="endGroup" @cancel-insert="cancelInsert" />
         </div>
 
         <!-- 统计面板 - 本页小计 -->

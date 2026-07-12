@@ -62,8 +62,19 @@ const loadDataPath = async () => {
       }
     }
     
-    // 配置文件目录 = app_data_dir（defaultDataPath 始终返回真正的默认目录）
-    configFilePath.value = defaultDataPath.value;
+    // 获取配置文件路径（通过后端 API 获取）
+    const configPathResponse = await window.electronAPI.getConfigFilePath();
+    if (configPathResponse.success && configPathResponse.data) {
+      const path = configPathResponse.data;
+      const lastSepIndex = path.lastIndexOf('\\');
+      if (lastSepIndex !== -1) {
+        configFilePath.value = path.substring(0, lastSepIndex);
+      } else {
+        configFilePath.value = path;
+      }
+    } else {
+      configFilePath.value = defaultDataPath.value;
+    }
     console.log('配置文件目录:', configFilePath.value);
   } catch (error) {
     console.error('加载数据路径失败:', error);

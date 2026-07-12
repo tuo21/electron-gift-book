@@ -33,6 +33,14 @@
               <span class="stat-detail-label">内收</span>
               <span class="stat-detail-value">{{ formatMoney(statistics.internalAmount) }}</span>
             </div>
+            <div class="stat-detail-item group-expense">
+              <span class="stat-detail-label">开支</span>
+              <span class="stat-detail-value expense">{{ formatMoney(statistics.groupTotalExpense) }}</span>
+            </div>
+            <div class="stat-detail-item group-balance">
+              <span class="stat-detail-label">结余</span>
+              <span class="stat-detail-value balance">{{ formatMoney(statistics.groupTotalBalance) }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -185,6 +193,22 @@ const handleClose = () => {
   font-size: var(--theme-font-size-lg);
   font-weight: 600;
   color: var(--theme-text-primary);
+}
+
+.stat-detail-value.expense {
+  color: #ef4444;
+}
+
+.stat-detail-value.balance {
+  color: #22c55e;
+}
+
+.group-expense {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.group-balance {
+  background: rgba(34, 197, 94, 0.1);
 }
 
 /* 底部操作栏 */

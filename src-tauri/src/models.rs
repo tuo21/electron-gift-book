@@ -23,6 +23,18 @@ pub struct Record {
     pub update_time: Option<String>,
     #[sqlx(rename = "IsDeleted")]
     pub is_deleted: Option<i32>,
+    #[sqlx(rename = "GroupId")]
+    pub group_id: Option<i64>,
+    #[sqlx(rename = "GroupRole")]
+    pub group_role: Option<String>,
+    #[sqlx(rename = "GroupTotal")]
+    pub group_total: Option<i64>,
+    #[sqlx(rename = "GroupExpense")]
+    pub group_expense: Option<i64>,
+    #[sqlx(rename = "GroupBalance")]
+    pub group_balance: Option<i64>,
+    #[sqlx(rename = "GroupExpenseDetail")]
+    pub group_expense_detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -70,6 +82,8 @@ pub struct Statistics {
     pub cash_amount: i64,
     pub wechat_amount: i64,
     pub internal_amount: i64,
+    pub group_total_expense: i64,
+    pub group_total_balance: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

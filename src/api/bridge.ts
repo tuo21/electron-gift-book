@@ -366,6 +366,15 @@ export const bridge = {
     }
   },
 
+  async getConfigFilePath(): Promise<ApiResponse<string>> {
+    try {
+      const result = await invoke<string>('get_config_file_path')
+      return wrapResult(result)
+    } catch (e) {
+      return wrapError(String(e))
+    }
+  },
+
 }
 
 export default bridge

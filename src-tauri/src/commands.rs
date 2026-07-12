@@ -394,7 +394,7 @@ pub async fn rename_database(
 pub async fn get_all_records() -> Result<Vec<Record>, String> {
     let pool = get_pool_connection().await?;
     let result: Result<Vec<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC"
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC"
     )
     .fetch_all(&pool)
     .await;
@@ -422,7 +422,7 @@ pub async fn get_records_paginated(
     let total_pages = ((total as f64) / (valid_page_size as f64)).ceil() as i32;
 
     let records_result: Result<Vec<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted 
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail 
          FROM Records 
          WHERE IsDeleted = 0 
          ORDER BY CreateTime DESC, Id DESC 
@@ -489,7 +489,7 @@ pub async fn get_record_page(
 pub async fn get_record_by_id(id: i64) -> Result<Option<Record>, String> {
     let pool = get_pool_connection().await?;
     let result: Result<Option<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE Id = ?"
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail FROM Records WHERE Id = ?"
     )
     .bind(id)
     .fetch_optional(&pool)
@@ -504,7 +504,7 @@ pub async fn search_records(keyword: String) -> Result<Vec<Record>, String> {
     let like_keyword = format!("%{}%", keyword);
 
     let result: Result<Vec<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted 
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail 
          FROM Records 
          WHERE IsDeleted = 0 AND (GuestName LIKE ? OR Remark LIKE ? OR ItemDescription LIKE ?)
          ORDER BY CreateTime DESC, Id DESC"
@@ -521,19 +521,49 @@ pub async fn search_records(keyword: String) -> Result<Vec<Record>, String> {
 #[tauri::command]
 pub async fn insert_record(record: Record) -> Result<i64, String> {
     let pool = get_pool_connection().await?;
-    let result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
-        "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark) VALUES (?, ?, ?, ?, ?, ?)"
-    )
-    .bind(&record.guest_name)
-    .bind(record.amount)
-    .bind(&record.amount_chinese)
-    .bind(&record.item_description)
-    .bind(record.payment_type)
-    .bind(&record.remark)
-    .execute(&pool)
-    .await;
+    
+    if let Some(create_time) = &record.create_time {
+        let result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
+            "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&record.guest_name)
+        .bind(record.amount)
+        .bind(&record.amount_chinese)
+        .bind(&record.item_description)
+        .bind(record.payment_type)
+        .bind(&record.remark)
+        .bind(create_time)
+        .bind(&record.group_id)
+        .bind(&record.group_role)
+        .bind(record.group_total)
+        .bind(record.group_expense)
+        .bind(record.group_balance)
+        .bind(&record.group_expense_detail)
+        .execute(&pool)
+        .await;
+        
+        result.map(|r| r.last_insert_rowid()).map_err(|e| e.to_string())
+    } else {
+        let result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
+            "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&record.guest_name)
+        .bind(record.amount)
+        .bind(&record.amount_chinese)
+        .bind(&record.item_description)
+        .bind(record.payment_type)
+        .bind(&record.remark)
+        .bind(&record.group_id)
+        .bind(&record.group_role)
+        .bind(record.group_total)
+        .bind(record.group_expense)
+        .bind(record.group_balance)
+        .bind(&record.group_expense_detail)
+        .execute(&pool)
+        .await;
 
-    result.map(|r| r.last_insert_rowid()).map_err(|e| e.to_string())
+        result.map(|r| r.last_insert_rowid()).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -545,7 +575,7 @@ pub async fn update_record(record: Record) -> Result<(), String> {
     };
 
     let old_record_result: Result<Option<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE Id = ?"
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail FROM Records WHERE Id = ?"
     )
     .bind(record_id)
     .fetch_optional(&pool)
@@ -582,7 +612,7 @@ pub async fn update_record(record: Record) -> Result<(), String> {
     }
 
     let update_result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
-        "UPDATE Records SET GuestName = ?, Amount = ?, AmountChinese = ?, ItemDescription = ?, PaymentType = ?, Remark = ?, UpdateTime = CURRENT_TIMESTAMP WHERE Id = ?"
+        "UPDATE Records SET GuestName = ?, Amount = ?, AmountChinese = ?, ItemDescription = ?, PaymentType = ?, Remark = ?, GroupId = ?, GroupRole = ?, GroupTotal = ?, GroupExpense = ?, GroupBalance = ?, GroupExpenseDetail = ?, UpdateTime = CURRENT_TIMESTAMP WHERE Id = ?"
     )
     .bind(&record.guest_name)
     .bind(record.amount)
@@ -590,6 +620,12 @@ pub async fn update_record(record: Record) -> Result<(), String> {
     .bind(&record.item_description)
     .bind(record.payment_type)
     .bind(&record.remark)
+    .bind(&record.group_id)
+    .bind(&record.group_role)
+    .bind(record.group_total)
+    .bind(record.group_expense)
+    .bind(record.group_balance)
+    .bind(&record.group_expense_detail)
     .bind(record_id)
     .execute(&pool)
     .await;
@@ -601,7 +637,7 @@ pub async fn update_record(record: Record) -> Result<(), String> {
 pub async fn soft_delete_record(id: i64) -> Result<(), String> {
     let pool = get_pool_connection().await?;
     let old_record_result: Result<Option<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE Id = ?"
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail FROM Records WHERE Id = ?"
     )
     .bind(id)
     .fetch_optional(&pool)
@@ -649,7 +685,7 @@ pub async fn restore_deleted_record(history: RecordHistory) -> Result<i64, Strin
     // 使用历史记录中的原数据创建新记录
     // 新记录的创建时间为当前时间，使其显示在列表最后
     let insert_result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
-        "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
     .bind(&history.guest_name)
     .bind(history.amount.unwrap_or(0))
@@ -657,6 +693,12 @@ pub async fn restore_deleted_record(history: RecordHistory) -> Result<i64, Strin
     .bind(&history.item_description)
     .bind(history.payment_type.unwrap_or(0))
     .bind(&history.remark)
+    .bind(&None::<i64>)
+    .bind(&None::<String>)
+    .bind(&None::<i64>)
+    .bind(&None::<i64>)
+    .bind(&None::<i64>)
+    .bind(&None::<String>)
     .execute(&pool)
     .await;
 
@@ -716,8 +758,8 @@ pub async fn get_all_record_history() -> Result<Vec<RecordHistory>, String> {
 #[tauri::command]
 pub async fn get_statistics() -> Result<Statistics, String> {
     let pool = get_pool_connection().await?;
-    let result: Result<(i64, i64, i64, i64, i64), sqlx::Error> = sqlx::query_as(
-        "SELECT COUNT(*) as count, COALESCE(SUM(Amount), 0) as total, COALESCE(SUM(CASE WHEN PaymentType = 0 THEN Amount ELSE 0 END), 0) as cash, COALESCE(SUM(CASE WHEN PaymentType = 1 THEN Amount ELSE 0 END), 0) as wechat, COALESCE(SUM(CASE WHEN PaymentType = 2 THEN Amount ELSE 0 END), 0) as internal FROM Records WHERE IsDeleted = 0"
+    let result: Result<(i64, i64, i64, i64, i64, i64, i64), sqlx::Error> = sqlx::query_as(
+        "SELECT COUNT(*) as count, COALESCE(SUM(Amount), 0) as total, COALESCE(SUM(CASE WHEN PaymentType = 0 THEN Amount ELSE 0 END), 0) as cash, COALESCE(SUM(CASE WHEN PaymentType = 1 THEN Amount ELSE 0 END), 0) as wechat, COALESCE(SUM(CASE WHEN PaymentType = 2 THEN Amount ELSE 0 END), 0) as internal, (SELECT COALESCE(SUM(GroupExpense), 0) FROM Records WHERE IsDeleted = 0 AND GroupRole = 'summary') as group_expense, COALESCE(SUM(Amount), 0) - (SELECT COALESCE(SUM(GroupExpense), 0) FROM Records WHERE IsDeleted = 0 AND GroupRole = 'summary') as group_balance FROM Records WHERE IsDeleted = 0 AND (GroupRole IS NULL OR GroupRole = 'member')"
     )
     .fetch_one(&pool)
     .await;
@@ -729,6 +771,8 @@ pub async fn get_statistics() -> Result<Statistics, String> {
             cash_amount: stats.2,
             wechat_amount: stats.3,
             internal_amount: stats.4,
+            group_total_expense: stats.5,
+            group_total_balance: stats.6,
         })
         .map_err(|e| e.to_string())
 }
@@ -740,7 +784,7 @@ pub async fn batch_insert_records(records: Vec<Record>) -> Result<i32, String> {
 
     for record in records {
         let result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error> = sqlx::query(
-            "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO Records (GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&record.guest_name)
         .bind(record.amount)
@@ -749,6 +793,12 @@ pub async fn batch_insert_records(records: Vec<Record>) -> Result<i32, String> {
         .bind(record.payment_type)
         .bind(&record.remark)
         .bind(&record.create_time)
+        .bind(&record.group_id)
+        .bind(&record.group_role)
+        .bind(record.group_total)
+        .bind(record.group_expense)
+        .bind(record.group_balance)
+        .bind(&record.group_expense_detail)
         .execute(&pool)
         .await;
 
@@ -994,6 +1044,8 @@ pub async fn set_custom_data_path(app: AppHandle, path: String, migrate: bool) -
                         .await
                         .map_err(|e| format!("重新连接数据库失败: {}", e))?;
                     
+                    migrate_database(&pool).await.map_err(|e| format!("数据库迁移失败: {}", e))?;
+                    
                     set_db_path(new_db_path.clone());
                     set_pool(pool).await;
                     
@@ -1020,6 +1072,8 @@ pub async fn switch_database(_app: AppHandle, file_path: String) -> Result<(), S
         .connect(&db_url)
         .await
         .map_err(|e| format!("连接数据库失败: {}", e))?;
+
+    migrate_database(&pool).await.map_err(|e| format!("数据库迁移失败: {}", e))?;
 
     set_db_path(path);
     set_pool(pool).await;
@@ -1357,6 +1411,12 @@ pub async fn get_app_config(app: AppHandle) -> Result<AppConfig, String> {
     Ok(config)
 }
 
+#[tauri::command]
+pub async fn get_config_file_path(app: AppHandle) -> Result<String, String> {
+    let config_path = get_config_path(&app)?;
+    Ok(config_path.to_string_lossy().to_string())
+}
+
 #[allow(dead_code)]
 #[tauri::command]
 pub async fn update_app_config(app: AppHandle, config: AppConfig) -> Result<(), String> {
@@ -1384,8 +1444,11 @@ pub async fn get_all_records_by_path(path: String) -> Result<Vec<Record>, String
         .connect(&db_url)
         .await
         .map_err(|e| format!("连接数据库失败: {}", e))?;
+    
+    migrate_database(&pool).await.map_err(|e| format!("数据库迁移失败: {}", e))?;
+    
     let result: Result<Vec<Record>, sqlx::Error> = sqlx::query_as(
-        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC"
+        "SELECT Id, GuestName, Amount, AmountChinese, ItemDescription, PaymentType, Remark, CreateTime, UpdateTime, IsDeleted, GroupId, GroupRole, GroupTotal, GroupExpense, GroupBalance, GroupExpenseDetail FROM Records WHERE IsDeleted = 0 ORDER BY CreateTime ASC, Id ASC"
     )
     .fetch_all(&pool)
     .await;

@@ -45,12 +45,46 @@
             'deleted': record.isDeleted, 
             'highlighted': record.id === highlightedRecordId,
             'new-record': record.id && newRecordIds.has(record.id),
-            'compact': displayStyle === 'compact'
+            'compact': displayStyle === 'compact',
+            'group-summary': record.groupRole === 'summary',
+            'group-member': record.groupRole === 'member',
+            'group-first': record.groupRole === 'member' && record.id && groupFirstIds.has(record.id),
+            'pending-insert': record.isPendingInsert
           }"
           @contextmenu.prevent="showContextMenu($event, record)"
         >
+        <!-- ==================== 分组统计列模板 ==================== -->
+        <template v-if="record.groupRole === 'summary'">
+          <div class="cell group-summary-cell">
+            <div class="group-summary-header">
+              <span class="label-text">小计</span>
+            </div>
+            <div class="group-stat-grid">
+              <div class="group-stat-col">
+                <span class="group-stat-label">总账</span>
+                <span class="group-stat-value">{{ formatAmount(record.groupTotal || 0) }}</span>
+              </div>
+              <div class="group-stat-col">
+                <span class="group-stat-label">开支</span>
+                <span class="group-stat-value expense">{{ formatAmount(record.groupExpense || 0) }}</span>
+              </div>
+              <div class="group-stat-col">
+                <span class="group-stat-label">结余</span>
+                <span class="group-stat-value balance">{{ formatAmount(record.groupBalance || 0) }}</span>
+              </div>
+            </div>
+            <div class="group-summary-footer">
+              <span class="label-text">备注</span>
+              <span v-if="record.groupExpenseDetail" class="group-detail-text">
+                {{ record.groupExpenseDetail }}
+              </span>
+              <span v-else class="empty-placeholder">&nbsp;</span>
+            </div>
+          </div>
+        </template>
+
         <!-- ==================== 完整大字型模板 ==================== -->
-        <template v-if="displayStyle !== 'compact'">
+        <template v-else-if="displayStyle !== 'compact'">
           <!-- 姓名标签 -->
           <div class="cell label-cell">
             <span class="label-text">姓名</span>
@@ -280,6 +314,14 @@
           <IconSvg name="edit" :size="14" />
           <span class="menu-text">编辑</span>
         </div>
+        <div v-if="contextMenu.record?.groupId" class="context-menu-item group-edit" @click.stop="handleGroupEditClick">
+          <IconSvg name="edit" :size="14" color="#8B5A2B" />
+          <span class="menu-text">小组编辑</span>
+        </div>
+        <div v-if="contextMenu.record?.groupId && contextMenu.record.groupRole === 'member'" class="context-menu-item group-insert" @click.stop="handleGroupInsertClick">
+          <IconSvg name="plus" :size="14" color="#8B5A2B" />
+          <span class="menu-text">插入新名字</span>
+        </div>
         <div class="context-menu-item delete" @click.stop="handleDeleteClick">
           <IconSvg name="trash" :size="14" color="#EF4444" />
           <span class="menu-text">删除</span>
@@ -331,6 +373,8 @@ const emit = defineEmits<{
   (e: 'update:currentPage', page: number): void;
   (e: 'edit', record: Record): void;
   (e: 'delete', id: number): void;
+  (e: 'group-edit', record: Record): void;
+  (e: 'group-insert', record: Record): void;
 }>();
 
 // ==================== 高亮记录 ====================
@@ -393,6 +437,22 @@ const hideContextMenu = () => {
 const handleEditClick = () => {
   if (contextMenu.value.record) {
     emit('edit', contextMenu.value.record);
+  }
+  hideContextMenu();
+};
+
+// 点击小组编辑
+const handleGroupEditClick = () => {
+  if (contextMenu.value.record?.groupId) {
+    emit('group-edit', contextMenu.value.record);
+  }
+  hideContextMenu();
+};
+
+// 点击插入新名字
+const handleGroupInsertClick = () => {
+  if (contextMenu.value.record?.groupId) {
+    emit('group-insert', contextMenu.value.record);
   }
   hideContextMenu();
 };
@@ -472,6 +532,22 @@ const paginatedRecords = computed(() => {
   cachedPaginatedRecords.value = newSlice;
   
   return cachedPaginatedRecords.value;
+});
+
+const groupFirstIds = computed(() => {
+  const firstIds = new Set<number>();
+  const seenGroups = new Set<number>();
+  
+  for (const record of props.records) {
+    if (record.groupRole === 'member' && record.groupId) {
+      if (!seenGroups.has(record.groupId)) {
+        firstIds.add(record.id || 0);
+        seenGroups.add(record.groupId);
+      }
+    }
+  }
+  
+  return firstIds;
 });
 
 // 空白列数量（用于填充到固定格数）- 使用缓存确保稳定
@@ -1258,5 +1334,109 @@ defineExpose({
   font-size: 12px;
   color: var(--theme-text-secondary);
   font-family: var(--font-family-fixed);
+}
+
+/* 分组统计列样式 */
+/* ======================================== */
+.record-column.group-summary {
+  background: rgba(139, 90, 43, 0.05);
+  border: 1px dashed rgba(139, 90, 43, 0.2);
+  border-right: 3px solid rgba(139, 90, 43, 0.6);
+  border-top: 3px solid rgba(139, 90, 43, 0.6);
+  border-bottom: 3px solid rgba(139, 90, 43, 0.6);
+}
+
+.group-summary-cell {
+  flex: 0 0 auto;
+  height: 260px;
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 10px 5px;
+  gap: 8px;
+}
+
+.group-summary-header {
+  display: flex;
+  justify-content: center;
+}
+
+.group-stat-grid {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+  flex: 1;
+  align-items: flex-start;
+}
+
+.group-stat-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.group-stat-label {
+  font-size: 12px;
+  color: var(--theme-text-secondary);
+  font-family: var(--font-name-amount);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 2px;
+}
+
+.group-stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--theme-accent);
+  font-family: var(--font-family-fixed);
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 1px;
+}
+
+.group-stat-value.expense {
+  color: #ef4444;
+}
+
+.group-stat-value.balance {
+  color: #22c55e;
+}
+
+.group-summary-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.record-column.group-member {
+  background: rgba(139, 90, 43, 0.03);
+  border-left: 1px solid rgba(139, 90, 43, 0.2);
+}
+
+.record-column.group-member.group-first {
+  border-left: 3px solid rgba(139, 90, 43, 0.6);
+  border-top: 3px solid rgba(139, 90, 43, 0.6);
+  border-bottom: 3px solid rgba(139, 90, 43, 0.6);
+}
+
+.record-column.pending-insert {
+  border: 2px dashed var(--theme-accent);
+  background: rgba(139, 90, 43, 0.08);
+  animation: pending-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pending-pulse {
+  0%, 100% {
+    border-color: var(--theme-accent);
+    background: rgba(139, 90, 43, 0.08);
+  }
+  50% {
+    border-color: rgba(139, 90, 43, 0.4);
+    background: rgba(139, 90, 43, 0.12);
+  }
 }
 </style>

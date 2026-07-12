@@ -68,6 +68,7 @@ pub fn run() {
             commands::get_app_config,
             commands::update_app_config,
             commands::reset_app_config,
+            commands::get_config_file_path,
             license::get_machine_id,
             license::verify_license,
             license::save_license,

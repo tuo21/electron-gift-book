@@ -14,6 +14,8 @@ const statistics = ref<Statistics>({
   cashAmount: 0,
   wechatAmount: 0,
   internalAmount: 0,
+  groupTotalExpense: 0,
+  groupTotalBalance: 0,
 })
 const bookName = ref('电子礼金簿')
 const lunarDate = ref(getLunarDisplay())

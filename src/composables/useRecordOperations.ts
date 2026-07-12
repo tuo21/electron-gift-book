@@ -1,4 +1,4 @@
-import { computed, nextTick, type Ref } from 'vue'
+import { computed, nextTick, ref, type Ref } from 'vue'
 import type { Record } from '../types/database'
 import { mapApiRecord, mapApiRecords } from '../utils/recordMapper'
 import { AmountConverter } from '../utils/amountConverter'
@@ -6,11 +6,13 @@ import { voiceService } from '../services/voiceService'
 import { logger } from '../utils/logger'
 import { DEFAULT_PAGE_SIZE } from '../constants'
 
+type GroupState = 'none' | 'active' | 'paused'
+
 export function useRecordOperations(
   records: Ref<Record[]>,
   recordsStore: { totalRecords: number },
   currentPage: Ref<number>,
-  statistics: Ref<{ totalCount: number; totalAmount: number; cashAmount: number; wechatAmount: number; internalAmount: number }>,
+  statistics: Ref<{ totalCount: number; totalAmount: number; cashAmount: number; wechatAmount: number; internalAmount: number; groupTotalExpense: number; groupTotalBalance: number }>,
   currentPreview: Ref<{ field: string; value: string }>,
   showStatisticsModal: Ref<boolean>,
   _showActivateModal: Ref<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
@@ -18,12 +20,25 @@ export function useRecordOperations(
   recordFormRef: Ref<{ enterEditMode: (record: Record) => void } | undefined | null>,
   _checkActivation: () => Promise<boolean>, // [ACTIVATION_FEATURE] 激活功能已隐藏
 ) {
+  const groupState = ref<GroupState>('none')
+  const currentGroupId = ref<number>(0)
+  const nextGroupId = ref<number>(1)
+  const insertAfterRecordId = ref<number | null>(null)
+  const insertAfterCreateTime = ref<string | null>(null)
+  const pendingInsertRecord = ref<Record | null>(null)
   async function loadRecords(keepCurrentPage: boolean = false, newRecordId?: number) {
     try {
       const response = await (window as any).db.getAllRecords()
       if (response.success && response.data) {
-        const newRecords = mapApiRecords(response.data)
+        let newRecords = mapApiRecords(response.data)
         const currentRecords = records.value
+
+        if (pendingInsertRecord.value && insertAfterRecordId.value) {
+          const insertIndex = newRecords.findIndex(r => r.id === insertAfterRecordId.value)
+          if (insertIndex !== -1) {
+            newRecords.splice(insertIndex + 1, 0, pendingInsertRecord.value)
+          }
+        }
 
         if (newRecordId && currentRecords.length > 0) {
           const existingIds = new Set(currentRecords.map(r => r.id))
@@ -136,6 +151,9 @@ export function useRecordOperations(
 
   async function handleSubmit(record: Omit<Record, 'id' | 'createTime' | 'updateTime'>) {
     try {
+      const isGroupMember = groupState.value === 'active'
+      const currentGroup = currentGroupId.value
+      const isPendingInsert = pendingInsertRecord.value !== null
       const dbRecord = {
         guestName: record.guestName.trim(),
         amount: record.amount,
@@ -144,15 +162,27 @@ export function useRecordOperations(
         paymentType: record.paymentType,
         remark: record.remark?.trim() || null,
         isDeleted: 0,
+        groupId: isGroupMember ? currentGroup : null,
+        groupRole: isGroupMember ? 'member' : null,
+        createTime: insertAfterCreateTime.value || null,
       }
       const response = await (window as any).db.insertRecord(dbRecord as any)
       if (response.success && response.data) {
         const newRecordId = response.data.id
-        await addRecordIncrementally(newRecordId)
+        if (!isPendingInsert) {
+          await addRecordIncrementally(newRecordId)
+        }
         clearPreview()
         if (voiceService.isSupported()) {
           const amountChinese = record.amountChinese || AmountConverter.toChinese(record.amount)
           voiceService.speakGiftInfo(record.guestName, record.amount, amountChinese)
+        }
+        if (isGroupMember && currentGroup) {
+          pendingInsertRecord.value = null
+          insertAfterRecordId.value = null
+          insertAfterCreateTime.value = null
+          await loadRecords()
+          await updateGroupSummary(currentGroup)
         }
       } else {
         alert('保存失败: ' + (response.error || '未知错误'))
@@ -160,6 +190,151 @@ export function useRecordOperations(
     } catch (error) {
       logger.error('Records', '保存记录失败:', error)
       alert('保存失败，请重试')
+    }
+  }
+
+  function startGroup() {
+    currentGroupId.value = nextGroupId.value
+    nextGroupId.value++
+    groupState.value = 'active'
+  }
+
+  function pauseGroup() {
+    groupState.value = 'paused'
+  }
+
+  function resumeGroup() {
+    groupState.value = 'active'
+  }
+
+  function setInsertPosition(recordId: number, createTime: string) {
+    insertAfterRecordId.value = recordId
+    insertAfterCreateTime.value = createTime
+    pendingInsertRecord.value = {
+      id: -Date.now(),
+      guestName: '',
+      amount: 0,
+      amountChinese: '',
+      itemDescription: '',
+      paymentType: 0,
+      remark: '',
+      isDeleted: 0,
+      groupId: currentGroupId.value,
+      groupRole: 'member',
+      createTime: createTime,
+      isPendingInsert: true,
+    }
+  }
+
+  async function cancelInsert() {
+    pendingInsertRecord.value = null
+    insertAfterRecordId.value = null
+    insertAfterCreateTime.value = null
+    groupState.value = 'none'
+    currentGroupId.value = 0
+    await loadRecords()
+  }
+
+  async function updateGroupSummary(groupId: number) {
+    try {
+      const groupRecords = records.value.filter(r => r.groupId === groupId && r.groupRole === 'member')
+      const groupTotal = groupRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
+
+      const summaryRecord = records.value.find(r => r.groupId === groupId && r.groupRole === 'summary')
+      if (summaryRecord && summaryRecord.id) {
+        const expense = summaryRecord.groupExpense || 0
+        const balance = groupTotal - expense
+
+        const updateData: Record = {
+          id: summaryRecord.id,
+          guestName: '',
+          amount: 0,
+          amountChinese: '',
+          itemDescription: '',
+          paymentType: 0,
+          remark: '',
+          isDeleted: 0,
+          groupId: groupId,
+          groupRole: 'summary',
+          groupTotal,
+          groupExpense: expense,
+          groupBalance: balance,
+          groupExpenseDetail: summaryRecord.groupExpenseDetail,
+        }
+
+        const response = await (window as any).db.updateRecord(updateData as any)
+        if (response.success) {
+          await loadRecords()
+        }
+      }
+    } catch (error) {
+      logger.error('Records', '更新小组小计失败:', error)
+    }
+  }
+
+  async function endGroup(data: { expense: number; detail: string; summaryId?: number | null }) {
+    const { expense, detail, summaryId } = data
+    try {
+      const groupRecords = records.value.filter(r => r.groupId === currentGroupId.value && r.groupRole === 'member')
+      const groupTotal = groupRecords.reduce((sum, r) => sum + (r.amount || 0), 0)
+      const groupBalance = groupTotal - expense
+
+      if (summaryId) {
+        const summaryRecord: Record = {
+          id: summaryId,
+          guestName: '',
+          amount: 0,
+          amountChinese: '',
+          itemDescription: '',
+          paymentType: 0,
+          remark: '',
+          isDeleted: 0,
+          groupId: currentGroupId.value,
+          groupRole: 'summary',
+          groupTotal,
+          groupExpense: expense,
+          groupBalance,
+          groupExpenseDetail: detail,
+        }
+
+        const response = await (window as any).db.updateRecord(summaryRecord as any)
+        if (response.success) {
+          await loadRecords()
+        } else {
+          alert('更新分组统计失败: ' + (response.error || '未知错误'))
+        }
+      } else {
+        const summaryRecord: Omit<Record, 'id' | 'createTime' | 'updateTime'> = {
+          guestName: '',
+          amount: 0,
+          amountChinese: '',
+          itemDescription: '',
+          paymentType: 0,
+          remark: '',
+          isDeleted: 0,
+          groupId: currentGroupId.value,
+          groupRole: 'summary',
+          groupTotal,
+          groupExpense: expense,
+          groupBalance,
+          groupExpenseDetail: detail,
+        }
+
+        const response = await (window as any).db.insertRecord(summaryRecord as any)
+        if (response.success && response.data) {
+          const newRecordId = response.data.id
+          await addRecordIncrementally(newRecordId)
+        } else {
+          alert('保存分组统计失败: ' + (response.error || '未知错误'))
+        }
+      }
+    } catch (error) {
+      logger.error('Records', '结束分组失败:', error)
+      alert('结束分组失败，请重试')
+    } finally {
+      await loadStatistics()
+      groupState.value = 'none'
+      currentGroupId.value = 0
     }
   }
 
@@ -178,6 +353,8 @@ export function useRecordOperations(
         paymentType: record.paymentType,
         remark: record.remark?.trim() || null,
         isDeleted: record.isDeleted,
+        groupId: record.groupId || null,
+        groupRole: record.groupRole || null,
       }
       const response = await (window as any).db.updateRecord(dbRecord as any)
       if (response.success) {
@@ -185,6 +362,9 @@ export function useRecordOperations(
           await updateRecordIncrementally(record.id)
         } else {
           await loadRecords(true)
+        }
+        if (record.groupId && record.groupRole === 'member') {
+          await updateGroupSummary(record.groupId)
         }
       } else {
         alert('更新失败: ' + (response.error || '未知错误'))
@@ -197,9 +377,16 @@ export function useRecordOperations(
 
   async function handleDelete(id: number) {
     try {
+      const record = records.value.find(r => r.id === id)
+      const groupId = record?.groupId
+      const groupRole = record?.groupRole
+
       const response = await (window as any).db.softDeleteRecord(id)
       if (response.success) {
         await deleteRecordIncrementally(id)
+        if (groupId && groupRole === 'member') {
+          await updateGroupSummary(groupId)
+        }
       } else {
         alert('删除失败: ' + (response.error || '未知错误'))
       }
@@ -218,7 +405,12 @@ export function useRecordOperations(
     const start = (currentPage.value - 1) * DEFAULT_PAGE_SIZE
     const end = start + DEFAULT_PAGE_SIZE
     const pageRecords = records.value.slice(start, end)
-    const total = pageRecords.reduce((sum, record) => sum + (record.amount || 0), 0)
+    const total = pageRecords.reduce((sum, record) => {
+      if (record.groupRole === 'member' || record.isPendingInsert) {
+        return sum
+      }
+      return sum + (record.amount || 0)
+    }, 0)
     return formatMoney(total)
   })
 
@@ -241,5 +433,7 @@ export function useRecordOperations(
     handleSubmit, handleEdit, handleUpdate, handleDelete,
     handleInputPreview, clearPreview,
     currentPageAmount, openStatisticsModal, closeStatisticsModal,
+    groupState, currentGroupId, startGroup, pauseGroup, resumeGroup, endGroup,
+    setInsertPosition, cancelInsert,
   }
 }

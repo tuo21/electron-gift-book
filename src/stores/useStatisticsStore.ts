@@ -15,6 +15,8 @@ export const useStatisticsStore = defineStore('statistics', (): StatisticsState 
     cashAmount: 0,
     wechatAmount: 0,
     internalAmount: 0,
+    groupTotalExpense: 0,
+    groupTotalBalance: 0,
   })
   const loading = ref(false)
   const error = ref<string | null>(null)

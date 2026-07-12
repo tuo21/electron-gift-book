@@ -18,7 +18,6 @@ tauri-build = { version = "2.0.0", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-# 锁定 Tauri 版本以确保 Windows 7 兼容性
 tauri = { version = "2.0.0", features = ["devtools"] }
 tauri-plugin-log = "2.0.0"
 tauri-plugin-sql = { version = "2.0.0", features = ["sqlite"] }
@@ -43,7 +42,6 @@ hex = "0.4"
 hmac = "0.12"
 data-encoding = "2.4"
 
-# Windows 7 兼容性配置
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", features = ["winuser", "wingdi", "winbase", "libloaderapi", "processthreadsapi", "handleapi", "sysinfoapi"] }
+winapi = { version = "0.3", features = ["winuser", "wingdi", "winbase", "libloaderapi", "processthreadsapi", "handleapi", "sysinfoapi", "std"] }
 winreg = "0.55"
